@@ -20,7 +20,7 @@ private:
   const char* CO_ENABLED = "co_enabled";
   const char* HE_ENABLED = "he_enabled";
   const char* HE_CALIBRATION_100 = "he_calib_100";
-  const float HE_CALIBRATION_100_DEFAULT = 500;
+  const float HE_CALIBRATION_100_DEFAULT = 570; // Looks like a suitable default, based on experiments. Might not always be accurate with different sensors.
 
 public:
   Config() {}

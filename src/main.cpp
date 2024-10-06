@@ -70,9 +70,11 @@ void Task_Screen_Update(void *pvParameters) {
             break;
         }
 
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
         // TODO Should be battery reading be here? No need to check so often. Better place in its own task together with other utility checks
         float voltage = getBatteryVoltage();
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BATT_VOLTAGE, FloatValue(voltage));
+#endif
 
         xSemaphoreGive(gui_mutex);
       }
