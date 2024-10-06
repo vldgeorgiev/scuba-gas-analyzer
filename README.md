@@ -35,11 +35,12 @@ _The sensor is sensitive to CO2. Readings will be affected by breath while testi
 
 Other elements:
 
+- The device is powered by one 18650 LiIon battery, providing 2.7-4.2V. The Lilygo S3 is designed to be powered and to charge the battery directly. Any other lithium battery can be used as long as the voltage is suitable. With a 3000mAh battery the runtime is about 5-6h with all sensors enabled.
 - Wheatstone bridge for reading the MD61 helium sensor. Comprised of 2 x 2KOhm resistors and a 500Ohm precise potentiometer (at least 10-15 turns)
 
 ## TODO
 
-- [ ] 100% O2 calibration: How much does it improve accuracy? Most other analyzers don't do it, including brand ones. Check that linear drift in more detail.
+- [x] 100% O2 calibration. How much does it improve accuracy? Most other analyzers don't do it, including brand ones. Check that linear drift in more detail.
 - [ ] Metric/Imperial values - not so important yet
 - [ ] Go to sleep after X minutes
 - [x] Battery level and charging indicator
