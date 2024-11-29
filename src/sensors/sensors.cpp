@@ -50,7 +50,7 @@ void SensorManager::readSensors() {
   if (_isCOEnabled)
     data.CoLevel = _coSensor.readLevel();
   if (_isHeEnabled)
-    data.HeLevel = _heSensor.readLevel();
+    data.HeLevel = _heSensor.readLevel(data.O2Level.percentage); // He sensor needs correction in high O2 environment
 
   xQueueSend(_dataQueue, &data, portMAX_DELAY);
   // log_d("Sensors: O2 %.2f%%/%.2fmv, CO %dppm/%.2fmv He %.2f%%/%.2fmv",

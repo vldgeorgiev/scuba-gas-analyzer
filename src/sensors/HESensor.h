@@ -18,7 +18,7 @@ public:
     _calibration100 = calibration100;
   }
 
-  HEReading readLevel() {
+  HEReading readLevel(float o2Percentage) {
     if (!_average.clear())
       log_e("Failed to init average");
 
@@ -29,6 +29,21 @@ public:
     }
     HEReading reading;
     reading.millivolts = abs(_adc.computeVolts(_average.getAverage()) * 1000);
+
+    // In case of high oxygen percentage, the He sensor also reads higher voltage. E.g. for 100, the He voltage is 4-5mv higher
+    // Values based on the code here, which comes from the original French presentation https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564/page-4#post-9084208
+    if (o2Percentage > 40) {
+      if (o2Percentage > 89) { reading.millivolts = reading.millivolts - 17; }
+      else if (o2Percentage > 82) { reading.millivolts -= 16;}
+      else if (o2Percentage > 75) { reading.millivolts -= 15;}
+      else if (o2Percentage > 71) { reading.millivolts -= 14;}
+      else if (o2Percentage > 66) { reading.millivolts -= 13;}
+      else if (o2Percentage > 62) { reading.millivolts -= 12;}
+      else if (o2Percentage > 57) { reading.millivolts -= 11;}
+      else if (o2Percentage > 52) { reading.millivolts -= 10;}
+      else if (o2Percentage > 48) { reading.millivolts -= 9;}
+    }
+
     reading.percentage = 100 * reading.millivolts / _calibration100;
     return reading;
   }
