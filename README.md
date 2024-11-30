@@ -44,6 +44,9 @@ Other elements:
 - [x] 100% O2 calibration. How much does it improve accuracy? Most other analyzers don't do it, including brand ones. Check that linear drift in more detail.
 - [ ] Metric/Imperial values - not so important yet
 - [ ] Go to sleep after X minutes
+- [ ] Screen flip 180 degrees option
+- [x] Add large digits screen for easier monitoring. Switch from main with touch anywhere.
+- [ ] Remember last screen on startup (where applicable)
 - [x] Battery level and charging indicator
 - [ ] After initial testing limit the displayed values: e.g. O2 max 100%, CO 0-500, etc.
 - [ ] Show a warning if the initial O2 sensor's voltage is much different from the previous startup. E.g. when a sensor is replaced. Reset the 100% O2 calibration and remind user
@@ -54,3 +57,4 @@ Other elements:
 - [ ] OTA updates with an AP mode
 - [ ] Brightness control
 - [ ] Gas calculator, best mix, etc...
+- [ ] OTA upgrades
