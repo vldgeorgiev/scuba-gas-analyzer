@@ -1,20 +1,28 @@
 /*******************************************************************************
  * Size: 14 px
  * Bpp: 4
- * Opts: --user-data-dir=/Users/vladimir/Library/Application Support/eezstudio --app-path=/Applications/EEZ Studio.app/Contents/Resources/app.asar --no-sandbox --no-zygote --node-integration-in-worker --lang=en-US --num-raster-threads=4 --enable-zero-copy --enable-gpu-memory-buffer-compositor-resources --enable-main-frame-before-activation --renderer-client-id=5 --time-ticks-at-unix-epoch=-1720720187386870 --launch-time-ticks=88575840214 --shared-files --field-trial-handle=1718379636,r,17033965380142587594,3538460105415831222,262144 --enable-features=kWebSQLAccess --disable-features=SpareRendererForSitePerProcess --variations-seed-version
+ * Opts: --bpp 4 --size 14 --no-compress --font ../../../../../System/Library/Fonts/Geneva.ttf --range 32-127,176,1040-1103 --format lvgl
  ******************************************************************************/
 
+#ifdef __has_include
+    #if __has_include("lvgl.h")
+        #ifndef LV_LVGL_H_INCLUDE_SIMPLE
+            #define LV_LVGL_H_INCLUDE_SIMPLE
+        #endif
+    #endif
+#endif
+
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
-#include "lvgl.h"
+    #include "lvgl.h"
 #else
-#include "lvgl.h"
+    #include "lvgl.h"
 #endif
 
-#ifndef UI_FONT_GENEVA16
-#define UI_FONT_GENEVA16 1
+#ifndef UI_FONT_GENEVA14
+#define UI_FONT_GENEVA14 1
 #endif
 
-#if UI_FONT_GENEVA16
+#if UI_FONT_GENEVA14
 
 /*-----------------
  *    BITMAPS
@@ -879,8 +887,8 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0x20, 0xf6, 0x0, 0x5, 0xcf, 0xeb, 0x20, 0x0,
 
     /* U+042F "Я" */
-    0x1, 0xbe, 0xff, 0xfe, 0xc, 0xd4, 0x11, 0x8e,
-    0x1f, 0x60, 0x0, 0x7e, 0xf, 0x60, 0x0, 0x7e,
+    0x2, 0xbe, 0xff, 0xfe, 0xc, 0xd4, 0x11, 0x8e,
+    0xf, 0x60, 0x0, 0x7e, 0xf, 0x60, 0x0, 0x7e,
     0x9, 0xd2, 0x0, 0x7e, 0x0, 0x9f, 0xff, 0xfe,
     0x0, 0x8, 0xf3, 0x8e, 0x0, 0x4f, 0x50, 0x7e,
     0x1, 0xea, 0x0, 0x7e, 0xc, 0xd0, 0x0, 0x7e,
@@ -1311,9 +1319,12 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
  *  ALL CUSTOM DATA
  *--------------------*/
 
-#if LV_VERSION_CHECK(8, 0, 0)
+#if LVGL_VERSION_MAJOR == 8
 /*Store all the custom data of the font*/
 static  lv_font_fmt_txt_glyph_cache_t cache;
+#endif
+
+#if LVGL_VERSION_MAJOR >= 8
 static const lv_font_fmt_txt_dsc_t font_dsc = {
 #else
 static lv_font_fmt_txt_dsc_t font_dsc = {
@@ -1327,10 +1338,11 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
     .bpp = 4,
     .kern_classes = 0,
     .bitmap_format = 0,
-#if LV_VERSION_CHECK(8, 0, 0)
+#if LVGL_VERSION_MAJOR == 8
     .cache = &cache
 #endif
 };
+
 
 
 /*-----------------
@@ -1338,10 +1350,10 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
  *----------------*/
 
 /*Initialize a public general font descriptor*/
-#if LV_VERSION_CHECK(8, 0, 0)
-const lv_font_t ui_font_geneva16 = {
+#if LVGL_VERSION_MAJOR >= 8
+const lv_font_t ui_font_geneva14 = {
 #else
-lv_font_t ui_font_geneva16 = {
+lv_font_t ui_font_geneva14 = {
 #endif
     .get_glyph_dsc = lv_font_get_glyph_dsc_fmt_txt,    /*Function pointer to get glyph's data*/
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,    /*Function pointer to get glyph's bitmap*/
@@ -1354,10 +1366,14 @@ lv_font_t ui_font_geneva16 = {
     .underline_position = -1,
     .underline_thickness = 1,
 #endif
-    .dsc = &font_dsc           /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
+    .dsc = &font_dsc,          /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
+#if LV_VERSION_CHECK(8, 2, 0) || LVGL_VERSION_MAJOR >= 9
+    .fallback = NULL,
+#endif
+    .user_data = NULL,
 };
 
 
 
-#endif /*#if UI_FONT_GENEVA16*/
+#endif /*#if UI_FONT_GENEVA14*/
 
