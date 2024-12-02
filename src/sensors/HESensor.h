@@ -44,7 +44,18 @@ public:
       else if (o2Percentage > 48) { reading.millivolts -= 9;}
     }
 
-    reading.percentage = 100 * reading.millivolts / _calibration100;
+    // Converts millivolt readings to gas percentage using a polynomial formula, because the sensor is not linear.
+    // The formula was derived from about 30 spread calibration readings compared to a Divesoft gas analyzer.
+    // It provides an approximation of gas content percentage based on millivolt input.
+    // TODO: Test that formula and adjust it if needed. See if the 100% calibration is needed.
+    reading.percentage = - 0.59648617
+                         + 0.172264821 * reading.millivolts
+                         - 0.000435123885 * pow(reading.millivolts, 2)
+                         + 2.42978296e-6 * pow(reading.millivolts, 3)
+                         - 5.39338629e-9 * pow(reading.millivolts, 4)
+                         + 4.27338394e-12 * pow(reading.millivolts, 5);
+
+    // reading.percentage = 100 * reading.millivolts / _calibration100; // Formula which ignores non-linearity
     return reading;
   }
 
