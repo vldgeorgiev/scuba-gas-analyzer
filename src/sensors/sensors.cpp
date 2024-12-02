@@ -15,8 +15,8 @@ SensorManager::SensorManager(QueueHandle_t& dataQueue) :
 
 void SensorManager::init() {
   Wire1.begin(PIN_I2C_SDA, PIN_I2C_SCL);
-  _adc1.setGain(ADC_GAIN);
-  _adc2.setGain(ADC_GAIN);
+  _adc1.setGain(ADC1_GAIN);
+  _adc2.setGain(ADC2_GAIN);
   _adc1.begin(ADC1_ADDRESS, &Wire1);
   _adc2.begin(ADC2_ADDRESS, &Wire1);
 }

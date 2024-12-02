@@ -27,7 +27,8 @@ private:
     #define ADC1_ADDRESS 0x48 // Default one
     #define ADC2_ADDRESS 0x49 // Default one
     #define ADC2_CHANNEL_CO 0 // The ADS1115 channel for CO sensor
-    #define ADC_GAIN GAIN_TWO // 2x gain   +/- 2.048V  1 bit = 0.0625mV
+    #define ADC1_GAIN GAIN_FOUR // 4x gain   +/- 1.024V  1 bit = 0.03125mV. For O2 (~10-45mv) and He (~0-600mv) outputs
+    #define ADC2_GAIN GAIN_TWO // 2x gain   +/- 2.048V  1 bit = 0.0625mV. For CO (400-2000mv) output
     Adafruit_ADS1115 _adc1;
     Adafruit_ADS1115 _adc2;
     QueueHandle_t& _dataQueue;
