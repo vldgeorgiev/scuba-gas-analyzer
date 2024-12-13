@@ -44,18 +44,44 @@ public:
       else if (o2Percentage > 48) { reading.millivolts -= 9;}
     }
 
-    // Converts millivolt readings to gas percentage using a polynomial formula, because the sensor is not linear.
-    // The formula was derived from about 30 spread calibration readings compared to a Divesoft gas analyzer.
-    // It provides an approximation of gas content percentage based on millivolt input.
-    // TODO: Test that formula and adjust it if needed. See if the 100% calibration is needed.
-    reading.percentage = - 0.59648617
-                         + 0.172264821 * reading.millivolts
-                         - 0.000435123885 * pow(reading.millivolts, 2)
-                         + 2.42978296e-6 * pow(reading.millivolts, 3)
-                         - 5.39338629e-9 * pow(reading.millivolts, 4)
-                         + 4.27338394e-12 * pow(reading.millivolts, 5);
+    // ================ Sensor calibration ===================
+    // The sensor is not linear, so the reading has to be corrected. The polynomial formula below is derived from multiple readings
+    // comparing each one to a Divesoft SOLO analyzer as a reference. The formula looks like a good approximation.
 
-    // reading.percentage = 100 * reading.millivolts / _calibration100; // Formula which ignores non-linearity
+    // Readings data
+    // mv,      MDD61 %,  Divesoft %
+    // 51.56,   8.6,      8.1
+    // 65.19,   10.9,     9.5
+    // 109.25,  18.3,     15.5
+    // 139.63,  23.4,     19.7
+    // 177.94,  29.8,     25.2
+    // 211.75,  35.4,     30
+    // 245.63,  41.1,     34.9
+    // 279.19,  46.7,     39.9
+    // 311.5,   52.1,     45
+    // 344.56,  57.6,     50
+    // 376.75,  63,       54.9
+    // 408.19,  68.3,     59.9
+    // 439.81,  73.6,     65.1
+    // 468.5,   78.4,     69.9
+    // 497.56,  83.2,     74.9
+    // 524.06,  87.7,     80
+    // 543.69,  90.9,     84.9
+    // 575.81,  96.3,     90.3
+    // 597.5,   99.9,     95.2
+    // 624.25,  104.4,    100.5
+
+    // This is max reading from the polynomial formula for 100% He. The polynomial was derived for specific milivolts, so when
+    // calibrating, the whole curve has to be adjusted before calculating the polynomial.
+    const double FIXED_MAX_MV_100 = 621.2;
+    double adjustmentFactor = FIXED_MAX_MV_100 / _calibration100;
+    double adjustedMv = reading.millivolts * adjustmentFactor;
+
+    reading.percentage =
+      + 1.098e-7 * pow(adjustedMv, 3)
+      - 4.584e-5 * pow(adjustedMv, 2)
+      + (0.1471 * adjustedMv);
+
     return reading;
   }
 
