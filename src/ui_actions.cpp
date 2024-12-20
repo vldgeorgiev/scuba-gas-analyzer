@@ -41,9 +41,13 @@ void action_open_config(lv_event_t * e) {
 void action_close_config(lv_event_t * e) {
   config.setO2Enabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED).getBoolean());
   config.setCOEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED).getBoolean());
+  config.setHeEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED).getBoolean());
 
   config.setPO2Bottom(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM).getFloat());
   config.setPO2Deco(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO).getFloat());
+
+  config.setCalibrateOnStart(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean());
+  config.setBrightness(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8());
 
   configOpen = false;
 }
@@ -54,4 +58,9 @@ const char *get_var_ui_log() {
 
 void set_var_ui_log(const char *value) {
   // ui_log is read only
+}
+
+void action_brightness_change(lv_event_t * e) {
+  log_i("Brightness change");
+  displayManager.setBrightness(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8());
 }

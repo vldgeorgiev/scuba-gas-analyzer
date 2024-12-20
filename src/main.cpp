@@ -22,6 +22,7 @@ std::atomic<bool> configOpen;
 
 void Task_LVGL(void *pvParameters) {
   displayManager.init();
+  displayManager.setBrightness(config.getBrightness());
   while (1) {
     if (xSemaphoreTake(gui_mutex, portMAX_DELAY) == pdTRUE) {
       displayManager.tick();
@@ -39,6 +40,8 @@ void Task_Screen_Update(void *pvParameters) {
     flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED, config.getHeEnabled());
     flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM, FloatValue(config.getPO2Bottom()));
     flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO, FloatValue(config.getPO2Deco()));
+    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START, config.getCalibrateOnStart());
+    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS, IntegerValue(config.getBrightness()));
     xSemaphoreGive(gui_mutex);
   }
 
@@ -84,8 +87,10 @@ void Task_Screen_Update(void *pvParameters) {
 }
 
 void Task_Sensors(void *pvParameters) {
-  float o2CalibrationAir = sensors.calibrateO2_21();
-  config.setO2Calibration21(o2CalibrationAir);
+  if (config.getCalibrateOnStart()) {
+    float o2CalibrationAir = sensors.calibrateO2_21();
+    config.setO2Calibration21(o2CalibrationAir);
+  }
   sensors.setSensorsConfig(config.getO2Enabled(), config.getCOEnabled(), config.getHeEnabled(), config.getO2Calibration21(), config.getO2Calibration100(), config.getHeCalibration100());
 
   TickType_t xLastWakeTime = xTaskGetTickCount();

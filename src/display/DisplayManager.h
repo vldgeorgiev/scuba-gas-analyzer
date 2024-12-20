@@ -6,7 +6,7 @@ public:
   DisplayManager() {};
   void init();
   void tick();
-
+  void setBrightness(uint8_t brightness);
 private:
 
 };

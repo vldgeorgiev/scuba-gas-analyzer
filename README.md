@@ -55,6 +55,5 @@ Other elements:
 - [x] Indicator icon on the main screen for warnings. To open the log screen
 - [ ] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
 - [ ] OTA updates with an AP mode
-- [ ] Brightness control
+- [x] Brightness control
 - [ ] Gas calculator, best mix, etc...
-- [ ] OTA upgrades

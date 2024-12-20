@@ -20,7 +20,9 @@ private:
   const char* CO_ENABLED = "co_enabled";
   const char* HE_ENABLED = "he_enabled";
   const char* HE_CALIBRATION_100 = "he_calib_100";
-  const float HE_CALIBRATION_100_DEFAULT = 570; // Looks like a suitable default, based on experiments. Might not always be accurate with different sensors.
+  const float HE_CALIBRATION_100_DEFAULT = 620; // Looks like a suitable default, based on experiments. Might not always be accurate with different sensors.
+  const char* CALIBRATE_ON_START = "calib_start";
+  const char* BRIGHTNESS = "brightness";
 
 public:
   Config() {}
@@ -45,6 +47,7 @@ public:
     log_i("  CO Enabled: %d", getCOEnabled());
     log_i("  HE Enabled: %d", getHeEnabled());
     log_i("  HE Calibration 100: %.2f", getHeCalibration100());
+    log_i("  Calibrate on start: %d", getCalibrateOnStart());
   }
 
   void setO2Enabled(bool value) {
@@ -107,6 +110,22 @@ public:
 
   float getHeCalibration100() {
     return preferences.getFloat(HE_CALIBRATION_100, HE_CALIBRATION_100_DEFAULT);
+  }
+
+  void setCalibrateOnStart(bool value) {
+    preferences.putBool(CALIBRATE_ON_START, value);
+  }
+
+  bool getCalibrateOnStart() {
+    return preferences.getBool(CALIBRATE_ON_START, true);
+  }
+
+  void setBrightness(uint8_t value) {
+    preferences.putUChar(BRIGHTNESS, value);
+  }
+
+  uint8_t getBrightness() {
+    return preferences.getUChar(BRIGHTNESS, 128);
   }
 };
 

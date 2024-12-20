@@ -25,6 +25,8 @@ typedef struct _objects_t {
     lv_obj_t *he_enabled;
     lv_obj_t *calibrate_100__1;
     lv_obj_t *obj2;
+    lv_obj_t *brightness;
+    lv_obj_t *obj3;
     lv_obj_t *btn_home_1;
     lv_obj_t *header;
     lv_obj_t *batt_indicator;
@@ -33,17 +35,17 @@ typedef struct _objects_t {
     lv_obj_t *co;
     lv_obj_t *he_pnl;
     lv_obj_t *he;
-    lv_obj_t *obj3;
     lv_obj_t *obj4;
     lv_obj_t *obj5;
+    lv_obj_t *obj6;
     lv_obj_t *large_panel;
     lv_obj_t *o2_1;
-    lv_obj_t *obj6;
+    lv_obj_t *obj7;
     lv_obj_t *o2_conf_pnl;
     lv_obj_t *co_conf_pnl;
     lv_obj_t *he_conf_pnl;
-    lv_obj_t *obj7;
     lv_obj_t *obj8;
+    lv_obj_t *obj9;
 } objects_t;
 
 extern objects_t objects;
