@@ -2,6 +2,7 @@
 #include "O2Sensor.h"
 #include "COSensor.h"
 #include "HESensor.h"
+#include "TempSensor.h"
 #include "pin_config.h"
 
 SensorManager::SensorManager(QueueHandle_t& dataQueue) :
@@ -10,6 +11,7 @@ SensorManager::SensorManager(QueueHandle_t& dataQueue) :
   _o2Sensor(_adc1),
   _heSensor(_adc1),
   _coSensor(ADC2_CHANNEL_CO, _adc2),
+  _tempSensor(ADC2_CHANNEL_TEMP, _adc2),
   _dataQueue(dataQueue)
 {}
 
@@ -51,10 +53,12 @@ void SensorManager::readSensors() {
     data.CoLevel = _coSensor.readLevel();
   if (_isHeEnabled)
     data.HeLevel = _heSensor.readLevel(data.O2Level.percentage); // He sensor needs correction in high O2 environment
+  data.HeTemperature = _tempSensor.readLevel();
 
   xQueueSend(_dataQueue, &data, portMAX_DELAY);
-  // log_d("Sensors: O2 %.2f%%/%.2fmv, CO %dppm/%.2fmv He %.2f%%/%.2fmv",
-  //     data.O2Level.percentage, data.O2Level.millivolts, data.CoLevel.ppm, data.CoLevel.millivolts, data.HeLevel.percentage, data.HeLevel.millivolts);
+  log_d("Sensors: O2 %.2f%%/%.2fmv, CO %dppm/%.2fmv, He %.2f%%/%.2fmv, Temp %.1f°C",
+    data.O2Level.percentage, data.O2Level.millivolts, data.CoLevel.ppm, data.CoLevel.millivolts,
+    data.HeLevel.percentage, data.HeLevel.millivolts, data.HeTemperature);
 }
 
 float SensorManager::calibrateO2_21() {

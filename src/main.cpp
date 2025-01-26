@@ -60,6 +60,7 @@ void Task_Screen_Update(void *pvParameters) {
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_MILLIVOLTS, FloatValue(data.CoLevel.millivolts));
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_VALUE, FloatValue(data.HeLevel.percentage));
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_MILLIVOLTS, FloatValue(data.HeLevel.millivolts));
+        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_TEMPERATURE, FloatValue(data.HeTemperature));
 
         switch (UiLog::getInstance().getLevel()) {
           case UiLogLevel::None:

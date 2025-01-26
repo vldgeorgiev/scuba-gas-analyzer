@@ -194,6 +194,13 @@
         "persistent": false
       },
       {
+        "objID": "ba4b856e-d436-4359-f4c0-683627bc6bc3",
+        "name": "he_temperature",
+        "type": "float",
+        "defaultValue": "20",
+        "persistent": false
+      },
+      {
         "objID": "9d979b5b-87ce-4aeb-ed0c-49b205cd3133",
         "name": "ui_log",
         "type": "string",
@@ -940,7 +947,7 @@
               "type": "LVGLPanelWidget",
               "left": 12,
               "top": 160,
-              "width": 123,
+              "width": 167,
               "height": 30,
               "customInputs": [],
               "customOutputs": [],
@@ -963,7 +970,7 @@
                   "type": "LVGLLabelWidget",
                   "left": 0,
                   "top": 0,
-                  "width": 109,
+                  "width": 153,
                   "height": 16,
                   "customInputs": [],
                   "customOutputs": [],
@@ -996,11 +1003,11 @@
                     "objID": "8874aa8f-f14a-4fe8-b535-1b1034b7d9b1"
                   },
                   "groupIndex": 0,
-                  "text": "`He ${Math.round(he_value, 1)}%, ${Math.round(he_millivolts, 2)} mv`",
+                  "text": "`He ${Math.round(he_value, 1)}%, ${Math.round(he_millivolts, 2)} mv, ${Math.round(he_temperature, 1)}C`",
                   "textType": "expression",
                   "longMode": "WRAP",
                   "recolor": false,
-                  "previewValue": "He 0%, 0.00 mv"
+                  "previewValue": "He 0%, 0.00 mv, 20.5C"
                 }
               ],
               "widgetFlags": "CLICK_FOCUSABLE|GESTURE_BUBBLE|PRESS_LOCK|SCROLLABLE|SCROLL_CHAIN_HOR|SCROLL_CHAIN_VER|SCROLL_ELASTIC|SCROLL_MOMENTUM|SCROLL_WITH_ARROW|SNAPPABLE|EVENT_BUBBLE",
@@ -2610,7 +2617,7 @@
           "left": 61,
           "top": -145,
           "width": 329,
-          "height": 54,
+          "height": 53,
           "customInputs": [],
           "customOutputs": [],
           "actions": [
@@ -2677,7 +2684,7 @@
           "left": 0,
           "top": 470,
           "width": 160,
-          "height": 54,
+          "height": 53,
           "customInputs": [],
           "customOutputs": [],
           "variable": "po2_max_bottom"
@@ -2705,7 +2712,7 @@
           "left": 0,
           "top": 560,
           "width": 166,
-          "height": 54,
+          "height": 53,
           "customInputs": [],
           "customOutputs": [],
           "variable": "temp_str_bottom"
@@ -2716,7 +2723,7 @@
           "left": 193,
           "top": 560,
           "width": 371,
-          "height": 70,
+          "height": 69,
           "customInputs": [],
           "customOutputs": [],
           "variable": "i",
@@ -2731,7 +2738,7 @@
           "left": 598,
           "top": 561,
           "width": 245,
-          "height": 70,
+          "height": 69,
           "customInputs": [],
           "customOutputs": [],
           "value": "po2_values[i] == temp_str_bottom"
@@ -2759,7 +2766,7 @@
           "left": 0,
           "top": 692,
           "width": 148,
-          "height": 54,
+          "height": 53,
           "customInputs": [],
           "customOutputs": [],
           "variable": "po2_max_deco"
@@ -2787,7 +2794,7 @@
           "left": 0,
           "top": 781,
           "width": 154,
-          "height": 54,
+          "height": 53,
           "customInputs": [],
           "customOutputs": [],
           "variable": "temp_str_deco"
@@ -2798,7 +2805,7 @@
           "left": 193,
           "top": 781,
           "width": 371,
-          "height": 70,
+          "height": 69,
           "customInputs": [],
           "customOutputs": [],
           "variable": "i",
@@ -2813,7 +2820,7 @@
           "left": 598,
           "top": 782,
           "width": 233,
-          "height": 70,
+          "height": 69,
           "customInputs": [],
           "customOutputs": [],
           "value": "po2_values[i] == temp_str_deco"
