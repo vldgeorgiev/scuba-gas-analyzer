@@ -34,11 +34,28 @@ void action_calibrate_he(lv_event_t * e) {
   messageBox("He 100%", value);
 }
 
+void action_reset_o2_21(lv_event_t * e) {
+  log_i("Resetting O2 21 calibration");
+  config.setO2Calibration21(config.O2_CALIBRATION_21_DEFAULT);
+}
+
+void action_reset_o2_100(lv_event_t * e) {
+  log_i("Resetting O2 100 calibration");
+  config.setO2Calibration100(config.O2_CALIBRATION_100_DEFAULT);
+}
+
+void action_reset_he(lv_event_t * e) {
+  log_i("Resetting He calibration");
+  config.setHeCalibration100(config.HE_CALIBRATION_100_DEFAULT);
+}
+
 void action_open_config(lv_event_t * e) {
+  log_i("Opening config");
   configOpen = true;
 }
 
 void action_close_config(lv_event_t * e) {
+  log_i("Closing config");
   config.setO2Enabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED).getBoolean());
   config.setCOEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED).getBoolean());
   config.setHeEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED).getBoolean());

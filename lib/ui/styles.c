@@ -41,6 +41,8 @@ void init_style_panel_style_MAIN_DEFAULT(lv_style_t *style) {
     lv_style_set_pad_right(style, 5);
     lv_style_set_pad_row(style, 5);
     lv_style_set_pad_column(style, 5);
+    lv_style_set_layout(style, LV_LAYOUT_FLEX);
+    lv_style_set_flex_flow(style, LV_FLEX_FLOW_COLUMN_WRAP);
 };
 
 lv_style_t *get_style_panel_style_MAIN_DEFAULT() {

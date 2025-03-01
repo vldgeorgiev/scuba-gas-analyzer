@@ -10,9 +10,7 @@ private:
   // Max key length is 15 characters
   const char* O2_ENABLED = "o2_enabled";
   const char* O2_CALIBRATION_21 = "o2_calib_21";
-  const float O2_CALIBRATION_21_DEFAULT = 10;
   const char* O2_CALIBRATION_100 = "o2_calib_100";
-  const float O2_CALIBRATION_100_DEFAULT = NAN;
   const char* PO2_MAX_BOTTOM = "po2_max_bottom";
   const float PO2_MAX_BOTTOM_DEFAULT = 1.4f;
   const char* PO2_MAX_DECO = "po2_max_deco";
@@ -20,11 +18,14 @@ private:
   const char* CO_ENABLED = "co_enabled";
   const char* HE_ENABLED = "he_enabled";
   const char* HE_CALIBRATION_100 = "he_calib_100";
-  const float HE_CALIBRATION_100_DEFAULT = 620; // Looks like a suitable default, based on experiments. Might not always be accurate with different sensors.
   const char* CALIBRATE_ON_START = "calib_start";
   const char* BRIGHTNESS = "brightness";
 
 public:
+  const float O2_CALIBRATION_21_DEFAULT = 10;
+  const float O2_CALIBRATION_100_DEFAULT = NAN;
+  const float HE_CALIBRATION_100_DEFAULT = 620; // Looks like a suitable default, based on experiments. Might not always be accurate with different sensors.
+
   Config() {}
 
   ~Config() {
