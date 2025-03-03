@@ -1,10 +1,11 @@
 # DIY Scuba gas analyzer
+
 A DIY project for a scuba gas analyzer. The analyzer detects Oxygen, Helium and Carbon monoxide.  
 _Disclaimer: This is not a certified device and should be used with caution at your own risk. Always double-check your results with a professional-grade analyzer._
 
 Based on ideas from  
-https://slideplayer.fr/slide/10883088  
-https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564  
+<https://slideplayer.fr/slide/10883088>  
+<https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564>  
 
 ## Software
 
@@ -19,11 +20,13 @@ Libraries used:
 
 ## Hardware
 
+Some elements are available in different versions, depending on how the board is built. E.g. SMD for a proper PCB, or a perfboard, or a breadboard...
+
 - [Lilygo S3 ESP32](https://www.lilygo.cc/products/t-display-s3) (24$) - An ESP32 controller with a built in touch display, 2-core, LiPo power, LiPo charging, etc.
 - [ADS 1115](https://aliexpress.com/item/1005001703504835.html) (2 x 1$) - 16bit analog-to-digital converter for reading sensor values.
 - [3V voltage regulator](https://www.ti.com/product/TPS782/part-details/TPS78230DDCT) or similar. The helium sensor requires a 3.0V power. The regulator should have an "enable" pin so it can be turned on/off by a signal from the ESP32 if the sensor is not used.
 - [5V voltage regulator](https://eu.mouser.com/ProductDetail/Texas-Instruments/TPS61240DRVR) or similar. The CO2 sensor requires a 5.0V to 12.0V power. The regulator should have an "enable" pin so it can be turned on/off by a signal from the ESP32 if the sensor is not used.
-- Temperature sensor - TODO. for detecting that the He sensor has warmed up. LM35DZ, BMP180, DS18B20 or similar.
+- [LM35DZ temperature sensor](https://aliexpress.com/item/32921896929.html) (2$) for detecting that the He sensor has warmed up.
 
 Gas sensors:
 
@@ -36,8 +39,18 @@ The sensor has an up to 3 min warm up time, but my testing in various conditions
 
 Other elements:
 
-- The device is powered by one 18650 LiIon battery, providing 2.7-4.2V. The Lilygo S3 is designed to be powered and to charge the battery directly. Any other lithium battery can be used as long as the voltage is suitable. With a 3000mAh battery the runtime is about 5-6h with all sensors enabled.
+- The device is powered by one 18650 LiIon battery, providing 2.7-4.2V. The Lilygo S3 is designed to be powered and to charge the battery directly. Any other lithium battery can be used as long as the voltage is suitable.
 - Wheatstone bridge for reading the MD61 helium sensor. Comprised of 2 x 2KOhm resistors and a 500Ohm precise potentiometer (at least 10-15 turns)
+- A few capacitors for the voltage converters.
+
+Power consumption:
+
+The consumption varies depending on the sensors enabled and display brightness. Here are some estimates with medium brightness, based on a 3000mAh battery
+
+- **O2 sensor only**: 90mA, ~33 hours
+- **O2 and CO sensors**: 100mA, ~30 hours
+- **O2, CO, and He sensors**: 210mA, ~14 hours
+- **Display brightness**: varies about 30mA between lowest and highest
 
 ## TODO
 
@@ -56,4 +69,5 @@ Other elements:
 - [ ] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
 - [ ] OTA updates with an AP mode
 - [x] Brightness control
+- [ ] Translation in other languages
 - [ ] Gas calculator, best mix, etc...
