@@ -31,3 +31,6 @@
 
 #define PIN_I2C_SDA                  43
 #define PIN_I2C_SCL                  44
+
+#define PIN_HE_ENABLE                2
+#define PIN_CO_ENABLE                1

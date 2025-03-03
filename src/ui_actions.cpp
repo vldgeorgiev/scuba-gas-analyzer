@@ -4,6 +4,7 @@
 #include "vars.h"
 #include "main.h"
 #include "ui-log.h"
+#include "pin_config.h"
 
 void messageBox(const char * title, float value) {
   char text[32];
@@ -65,6 +66,9 @@ void action_close_config(lv_event_t * e) {
 
   config.setCalibrateOnStart(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean());
   config.setBrightness(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8());
+
+  digitalWrite(PIN_HE_ENABLE, config.getHeEnabled());
+  digitalWrite(PIN_CO_ENABLE, config.getCOEnabled());
 
   configOpen = false;
 }

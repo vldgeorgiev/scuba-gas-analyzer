@@ -125,6 +125,11 @@ void setup() {
   config.begin();
   sensors.init();
 
+  pinMode(PIN_HE_ENABLE, OUTPUT);
+  pinMode(PIN_CO_ENABLE, OUTPUT);
+  digitalWrite(PIN_HE_ENABLE, config.getHeEnabled());
+  digitalWrite(PIN_CO_ENABLE, config.getCOEnabled());
+
   xTaskCreatePinnedToCore(Task_LVGL, "Task_LVGL", 1024 * 10, NULL, 3, NULL, 0);
   xTaskCreatePinnedToCore(Task_Screen_Update, "Task_Screen_Update", 1024 * 3, NULL, 2, NULL, 0);
   xTaskCreatePinnedToCore(Task_Sensors, "Task_Sensors", 1024 * 3, NULL, 1, NULL, 1);
