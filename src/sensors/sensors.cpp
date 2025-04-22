@@ -56,9 +56,9 @@ void SensorManager::readSensors() {
   data.HeTemperature = _tempSensor.readLevel();
 
   xQueueSend(_dataQueue, &data, portMAX_DELAY);
-  log_d("Sensors: O2 %.2f%%/%.2fmv, CO %dppm/%.2fmv, He %.2f%%/%.2fmv, Temp %.1f°C",
-    data.O2Level.percentage, data.O2Level.millivolts, data.CoLevel.ppm, data.CoLevel.millivolts,
-    data.HeLevel.percentage, data.HeLevel.millivolts, data.HeTemperature);
+  // log_d("Sensors: O2 %.2f%%/%.2fmv, CO %dppm/%.2fmv, He %.2f%%/%.2fmv, Temp %.1f°C",
+  //   data.O2Level.percentage, data.O2Level.millivolts, data.CoLevel.ppm, data.CoLevel.millivolts,
+  //   data.HeLevel.percentage, data.HeLevel.millivolts, data.HeTemperature);
 }
 
 float SensorManager::calibrateO2_21() {
