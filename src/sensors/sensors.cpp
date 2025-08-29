@@ -15,12 +15,27 @@ SensorManager::SensorManager(QueueHandle_t& dataQueue) :
   _dataQueue(dataQueue)
 {}
 
-void SensorManager::init() {
+SensorError SensorManager::init() {
+  _lastError = SensorError::None;
+
   Wire1.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   _adc1.setGain(ADC1_GAIN);
   _adc2.setGain(ADC2_GAIN);
-  _adc1.begin(ADC1_ADDRESS, &Wire1);
-  _adc2.begin(ADC2_ADDRESS, &Wire1);
+
+  if (!_adc1.begin(ADC1_ADDRESS, &Wire1)) {
+    log_e("Failed to initialize ADC1");
+    _lastError = SensorError::ADC_Init_Failed;
+    return _lastError;
+  }
+
+  if (!_adc2.begin(ADC2_ADDRESS, &Wire1)) {
+    log_e("Failed to initialize ADC2");
+    _lastError = SensorError::ADC_Init_Failed;
+    return _lastError;
+  }
+
+  log_i("Sensors initialized successfully");
+  return SensorError::None;
 }
 
 void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100) {
@@ -36,29 +51,52 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
   _heSensor.setCalibrations(_heCalibration100);
 }
 
-void SensorManager::readSensors() {
+SensorError SensorManager::readSensors() {
   sensorsData data;
   data.O2Level.millivolts = NAN;
   data.O2Level.percentage = NAN;
   data.CoLevel.millivolts = NAN;
   data.HeLevel.millivolts = NAN;
   data.HeLevel.percentage = NAN;
+  data.lastError = SensorError::None;
 
-  if (!_isO2Enabled && !_isCOEnabled && !_isHeEnabled)
-    return; // No need to read if no sensors are enabled
+  if (!_isO2Enabled && !_isCOEnabled && !_isHeEnabled) {
+    _lastError = SensorError::Sensor_Not_Enabled;
+    data.lastError = _lastError;
+    xQueueSend(_dataQueue, &data, portMAX_DELAY);
+    return _lastError;
+  }
 
-  if (_isO2Enabled)
+  // Read sensors with basic validation
+  if (_isO2Enabled) {
     data.O2Level = _o2Sensor.readLevel();
-  if (_isCOEnabled)
+    if (isnan(data.O2Level.millivolts) || data.O2Level.millivolts < 0) {
+      log_w("Invalid O2 reading: %.2f mV", data.O2Level.millivolts);
+      _lastError = SensorError::Invalid_Reading;
+    }
+  }
+
+  if (_isCOEnabled) {
     data.CoLevel = _coSensor.readLevel();
-  if (_isHeEnabled)
-    data.HeLevel = _heSensor.readLevel(data.O2Level.percentage); // He sensor needs correction in high O2 environment
+    if (isnan(data.CoLevel.millivolts) || data.CoLevel.millivolts < 0) {
+      log_w("Invalid CO reading: %.2f mV", data.CoLevel.millivolts);
+      _lastError = SensorError::Invalid_Reading;
+    }
+  }
+
+  if (_isHeEnabled) {
+    data.HeLevel = _heSensor.readLevel(data.O2Level.percentage);
+    if (isnan(data.HeLevel.millivolts) || data.HeLevel.millivolts < 0) {
+      log_w("Invalid He reading: %.2f mV", data.HeLevel.millivolts);
+      _lastError = SensorError::Invalid_Reading;
+    }
+  }
+
   data.HeTemperature = _tempSensor.readLevel();
+  data.lastError = _lastError;
 
   xQueueSend(_dataQueue, &data, portMAX_DELAY);
-  // log_d("Sensors: O2 %.2f%%/%.2fmv, CO %dppm/%.2fmv, He %.2f%%/%.2fmv, Temp %.1f°C",
-  //   data.O2Level.percentage, data.O2Level.millivolts, data.CoLevel.ppm, data.CoLevel.millivolts,
-  //   data.HeLevel.percentage, data.HeLevel.millivolts, data.HeTemperature);
+  return _lastError;
 }
 
 float SensorManager::calibrateO2_21() {
@@ -80,4 +118,16 @@ float SensorManager::calibrateHe_100() {
   _heCalibration100 = _heSensor.calibrate();
   _heSensor.setCalibrations(_heCalibration100);
   return _heCalibration100;
+}
+
+const char* SensorManager::getErrorString(SensorError error) const {
+  switch (error) {
+    case SensorError::None: return "No error";
+    case SensorError::ADC_Init_Failed: return "ADC initialization failed";
+    case SensorError::I2C_Communication_Failed: return "I2C communication failed";
+    case SensorError::Sensor_Not_Enabled: return "No sensors enabled";
+    case SensorError::Calibration_Failed: return "Calibration failed";
+    case SensorError::Invalid_Reading: return "Invalid sensor reading";
+    default: return "Unknown error";
+  }
 }

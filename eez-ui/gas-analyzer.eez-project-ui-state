@@ -3,9 +3,10 @@
     "selectedUserPageObject": "[gas-analyzer.eez-project]:/userPages/0",
     "selectedActionObject": "[gas-analyzer.eez-project]:/actions/10",
     "selectedGlobalVariableObject": "[gas-analyzer.eez-project]:/variables/globalVariables/19",
+    "selectedStyleObject": "[gas-analyzer.eez-project]:/lvglStyles/styles/1",
     "selectedBitmapObject": "[gas-analyzer.eez-project]:/bitmaps/0",
     "subnavigationSelectedItems": {
-      "variables-tab/sub-navigation/selected-item": "Actions"
+      "variables-tab/sub-navigation/selected-item": "Local"
     }
   },
   "layoutModel": {
@@ -26,7 +27,8 @@
           },
           {
             "type": "border",
-            "size": 240,
+            "selected": 0,
+            "size": 158.5,
             "location": "right",
             "children": [
               {
@@ -207,26 +209,14 @@
             {
               "type": "tabset",
               "id": "EDITORS",
-              "weight": 66.56346749226006,
-              "selected": 1,
+              "weight": 57.75022143489814,
               "enableDeleteWhenEmpty": false,
               "enableClose": false,
               "children": [
                 {
                   "type": "tab",
-                  "id": "#47515425-61d0-4c76-a8e3-e26472487c2f",
-                  "name": "[NATIVE] update_firmware",
-                  "component": "editor",
-                  "config": {
-                    "objectPath": "[gas-analyzer.eez-project]:/actions/10",
-                    "permanent": false
-                  },
-                  "icon": "material:code"
-                },
-                {
-                  "type": "tab",
-                  "id": "#7453b476-c163-471c-8500-83bcccda1bb2",
-                  "name": "Main",
+                  "id": "#ec6f006e-3534-4555-a3e7-613d705a2938",
+                  "name": "Upgrade",
                   "component": "editor",
                   "config": {
                     "objectPath": "[gas-analyzer.eez-project]:/userPages/0",
@@ -239,7 +229,7 @@
             {
               "type": "tabset",
               "id": "#94ae86b3-1501-4e12-951c-7a9f281e61a4",
-              "weight": 33.43653250773994,
+              "weight": 42.24977856510186,
               "children": [
                 {
                   "type": "tab",
@@ -459,10 +449,10 @@
                 {
                   "type": "tab",
                   "id": "#e2c0fb67-4567-4fdb-b653-3f55bce329ab",
-                  "name": "Config",
+                  "name": "Upgrade",
                   "component": "editor",
                   "config": {
-                    "objectPath": "[gas-analyzer.eez-project]:/userPages/4",
+                    "objectPath": "[gas-analyzer.eez-project]:/userPages/0",
                     "permanent": false
                   },
                   "icon": "svg:page"
@@ -781,7 +771,8 @@
                       "component": "styles",
                       "enableClose": false
                     }
-                  ]
+                  ],
+                  "active": true
                 },
                 {
                   "type": "tabset",
@@ -993,11 +984,13 @@
     "[gas-analyzer.eez-project]:/userPages/0[flow-state]": {
       "selection": {
         "0": {
-          "1": {
+          "0": {},
+          "2": {},
+          "3": {},
+          "4": {
             "$selected": true
           }
-        },
-        "8": {}
+        }
       },
       "transform": {
         "translate": {
@@ -1050,13 +1043,11 @@
     "[gas-analyzer.eez-project]:/userPages/2[flow-state]": {
       "selection": {
         "0": {
-          "2": {},
-          "3": {}
+          "0": {
+            "$selected": true
+          }
         },
-        "1": {
-          "$selected": true
-        },
-        "3": {}
+        "1": {}
       },
       "transform": {
         "translate": {
@@ -1076,16 +1067,8 @@
       "selection": {
         "0": {
           "3": {
-            "0": {},
-            "1": {
-              "0": {}
-            },
-            "2": {}
-          },
-          "6": {}
-        },
-        "19": {
-          "$selected": true
+            "0": {}
+          }
         }
       },
       "transform": {
@@ -1128,11 +1111,11 @@
       "selection": {
         "0": {
           "0": {
-            "0": {},
             "$selected": true
           },
-          "1": {},
-          "2": {}
+          "1": {
+            "0": {}
+          }
         }
       },
       "transform": {
@@ -1204,6 +1187,14 @@
         },
         "scale": 1
       }
+    },
+    "[gas-analyzer.eez-project]:/lvglStyles/styles[tree-state]": {
+      "1": {
+        "$selected": true
+      },
+      "2": {
+        "$selected": true
+      }
     }
   },
   "activeOutputSection": 0,
@@ -1220,11 +1211,7 @@
   "selectedStylePropertyName": "",
   "lvglPart": "MAIN",
   "lvglState": "DEFAULT",
-  "lvglExpandedPropertiesGroup": [
-    "TEXT",
-    "PADDING",
-    "BACKGROUND"
-  ],
+  "lvglExpandedPropertiesGroup": [],
   "showInactiveFlowsInDebugger": true,
   "globalFlowZoom": true,
   "flowZoom": 1,

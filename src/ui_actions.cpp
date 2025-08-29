@@ -23,20 +23,42 @@ void messageBox(const char * title, float value) {
 
 void action_calibrate_o2_21(lv_event_t * e) {
   float value = sensors.calibrateO2_21();
-  config.setO2Calibration21(value);
-  messageBox("O2 Air", value);
+  if (!isnan(value) && value > 5.0f && value < 50.0f) {
+    config.setO2Calibration21(value);
+    messageBox("O2 Air Calibrated", value);
+    logUi("O2 air calibration successful", UiLogLevel::None);
+  } else {
+    log_e("O2 air calibration failed: %.2f mV", value);
+    logUi("O2 air calibration failed", UiLogLevel::Error);
+    messageBox("O2 Air Cal Failed", value);
+  }
 }
 
 void action_calibrate_o2_100(lv_event_t * e) {
   float value = sensors.calibrateO2_100();
-  config.setO2Calibration100(value);
-  messageBox("O2 100%", value);
+  float airCal = config.getO2Calibration21();
+  if (!isnan(value) && value > airCal && value < 100.0f) {
+    config.setO2Calibration100(value);
+    messageBox("O2 100% Calibrated", value);
+    logUi("O2 100% calibration successful", UiLogLevel::None);
+  } else {
+    log_e("O2 100%% calibration failed: %.2f mV (air: %.2f mV)", value, airCal);
+    logUi("O2 100% calibration failed", UiLogLevel::Error);
+    messageBox("O2 100% Cal Failed", value);
+  }
 }
 
 void action_calibrate_he(lv_event_t * e) {
   float value = sensors.calibrateHe_100();
-  config.setHeCalibration100(value);
-  messageBox("He 100%", value);
+  if (!isnan(value) && value > 0.0f) {
+    config.setHeCalibration100(value);
+    messageBox("He 100% Calibrated", value);
+    logUi("He calibration successful", UiLogLevel::None);
+  } else {
+    log_e("He calibration failed: %.2f mV", value);
+    logUi("He calibration failed", UiLogLevel::Error);
+    messageBox("He Cal Failed", value);
+  }
 }
 
 void action_reset_o2_21(lv_event_t * e) {

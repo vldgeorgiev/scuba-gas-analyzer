@@ -22,28 +22,42 @@ public:
   }
 
   void addLogEntry(const char* txt, UiLogLevel level = UiLogLevel::Unchanged) {
-    if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-      if (level != UiLogLevel::Unchanged) {
-        this->level = level;
-      }
-
-      float timeInSeconds = esp_timer_get_time() / 1000000.0;
-      uint16_t newEntryLen = snprintf(nullptr, 0, "[%.2f] %s\n", timeInSeconds, txt);
-
-      if (newEntryLen >= bufferSize) {
-        newEntryLen = bufferSize - 1;
-      }
-
-      // If there's not enough space at the end of the buffer, wrap around
-      if (bufferPointer + newEntryLen >= bufferSize) {
-        bufferPointer = 0;
-      }
-
-      snprintf(logBuffer + bufferPointer, newEntryLen + 1, "[%.2f] %s\n", timeInSeconds, txt);
-      bufferPointer = (bufferPointer + newEntryLen) % bufferSize;
-
-      xSemaphoreGive(mutex);
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+      // Don't block indefinitely - ESP32 should be responsive
+      return;
     }
+
+    if (level != UiLogLevel::Unchanged) {
+      this->level = level;
+    }
+
+    // Use millis() instead of esp_timer for better performance
+    uint32_t timeMs = millis();
+
+    // Pre-calculate maximum possible entry length to avoid double formatting
+    const uint16_t maxEntryLen = 50; // "[12345678] " + message + "\n\0"
+    uint16_t txtLen = strlen(txt);
+    if (txtLen > bufferSize - maxEntryLen) {
+      txtLen = bufferSize - maxEntryLen; // Truncate if too long
+    }
+
+    // Calculate actual entry length
+    uint16_t newEntryLen = snprintf(nullptr, 0, "[%lu] ", timeMs) + txtLen + 1; // +1 for \n
+
+    // If there's not enough space at the end of the buffer, wrap around
+    if (bufferPointer + newEntryLen >= bufferSize) {
+      bufferPointer = 0;
+    }
+
+    // Format directly into buffer (more efficient than double snprintf)
+    int written = snprintf(logBuffer + bufferPointer, bufferSize - bufferPointer, "[%lu] ", timeMs);
+    strncpy(logBuffer + bufferPointer + written, txt, txtLen);
+    logBuffer[bufferPointer + written + txtLen] = '\n';
+    logBuffer[bufferPointer + written + txtLen + 1] = '\0';
+
+    bufferPointer = (bufferPointer + newEntryLen) % bufferSize;
+
+    xSemaphoreGive(mutex);
   }
 
   void clearLog() {

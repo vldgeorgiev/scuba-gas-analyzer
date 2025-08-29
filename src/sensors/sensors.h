@@ -7,23 +7,38 @@
 #include "HESensor.h"
 #include "TempSensor.h"
 
+// Lightweight error handling for ESP32
+enum class SensorError : uint8_t {
+  None = 0,
+  ADC_Init_Failed = 1,
+  I2C_Communication_Failed = 2,
+  Sensor_Not_Enabled = 3,
+  Calibration_Failed = 4,
+  Invalid_Reading = 5
+};
+
 struct sensorsData {
   O2Reading O2Level;
   COReading CoLevel;
   HEReading HeLevel;
   float HeTemperature;
+  SensorError lastError = SensorError::None;
 };
 
 class SensorManager {
 public:
     SensorManager(QueueHandle_t& dataQueue);
 
-    void init();
+    SensorError init();
     void setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100);
-    void readSensors();
+    SensorError readSensors();
     float calibrateO2_21();
     float calibrateO2_100();
     float calibrateHe_100();
+
+    // Get last error for diagnostics
+    SensorError getLastError() const { return _lastError; }
+    const char* getErrorString(SensorError error) const;
 
 private:
     #define ADC1_ADDRESS 0x48 // Default one
@@ -46,6 +61,9 @@ private:
     float _o2Calibration21 = NAN;
     float _o2Calibration100 = NAN;
     float _heCalibration100 = NAN;
+
+    // Lightweight error tracking
+    SensorError _lastError = SensorError::None;
 };
 
 #endif // SENSORS_H
