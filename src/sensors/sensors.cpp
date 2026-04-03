@@ -9,7 +9,7 @@ SensorManager::SensorManager(QueueHandle_t& dataQueue) :
   _adc1(),
   _adc2(),
   _o2Sensor(_adc1),
-  _heSensor(_adc1),
+  _heSensor(_adc2), // He sensor is on the same ADC as CO and Temp, but uses different channels
   _coSensor(ADC2_CHANNEL_CO, _adc2),
   _tempSensor(ADC2_CHANNEL_TEMP, _adc2),
   _dataQueue(dataQueue)

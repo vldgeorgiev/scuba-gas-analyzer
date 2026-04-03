@@ -41,12 +41,12 @@ public:
     const char* getErrorString(SensorError error) const;
 
 private:
-    #define ADC1_ADDRESS 0x48 // Default one
-    #define ADC2_ADDRESS 0x49 // Default one
+    #define ADC2_ADDRESS 0x48 // Addr GND
+    #define ADC1_ADDRESS 0x49 // Addr +3.3V
     #define ADC2_CHANNEL_CO 3 // The ADS1115 channel for CO sensor
     #define ADC2_CHANNEL_TEMP 2 // The ADS1115 channel for Temp sensor
-    #define ADC1_GAIN GAIN_FOUR // 4x gain   +/- 1.024V  1 bit = 0.03125mV. For O2 (~10-45mv) and He (~0-600mv) outputs
-    #define ADC2_GAIN GAIN_TWO // 2x gain   +/- 2.048V  1 bit = 0.0625mV. For CO (400-2000mv) output
+    #define ADC1_GAIN GAIN_FOUR // 4x gain   +/- 1.024V  1 bit = 0.03125mV. For O2 (~10-45mv)
+    #define ADC2_GAIN GAIN_TWO // 2x gain   +/- 2.048V  1 bit = 0.0625mV. For CO (400-2000mv), He (50-600mv) and Temp (10-100mv)
     Adafruit_ADS1115 _adc1;
     Adafruit_ADS1115 _adc2;
     QueueHandle_t& _dataQueue;

@@ -46,7 +46,7 @@ public:
 
     // Take multiple readings for stability
     for (int i = 0; i < RUNNING_AVG_SIZE; i++) {
-      int16_t adcValue = _adc.readADC_Differential_0_1();
+      int16_t adcValue = _adc.readADC_Differential_2_3();
       _average.addValue(adcValue);
     }
 
@@ -81,7 +81,7 @@ public:
     {
       for (int j = 0; j < RUNNING_AVG_SIZE; j++)
       {
-        int16_t adcValue = _adc.readADC_Differential_0_1();
+        int16_t adcValue = _adc.readADC_Differential_2_3();
         calibrateAvg.addValue(adcValue);
       }
       delay(CALIBRATION_DELAY);

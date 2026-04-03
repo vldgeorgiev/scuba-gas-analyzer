@@ -29,8 +29,10 @@
 #define PIN_TOUCH_INT                16
 #define PIN_TOUCH_RES                21
 
-#define PIN_I2C_SDA                  43
-#define PIN_I2C_SCL                  44
+#define PIN_I2C_SDA                  11
+#define PIN_I2C_SCL                  12
 
 #define PIN_HE_ENABLE                2
-#define PIN_CO_ENABLE                1
+#define PIN_CO_ENABLE                10
+
+#define PIN_EXT_O2_DETECT            13

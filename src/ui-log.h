@@ -1,10 +1,12 @@
 #ifndef UILOG_H
 #define UILOG_H
 
+#include <esp32-hal.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "string.h"
-#include <esp32-hal.h>
+
+using esp_hal_millis = decltype(::millis);
 
 enum class UiLogLevel {
   None,     // No warning/error icon shown in the UI
@@ -32,7 +34,7 @@ public:
     }
 
     // Use millis() instead of esp_timer for better performance
-    uint32_t timeMs = millis();
+    uint32_t timeMs = ::millis();
 
     // Pre-calculate maximum possible entry length to avoid double formatting
     const uint16_t maxEntryLen = 50; // "[12345678] " + message + "\n\0"
