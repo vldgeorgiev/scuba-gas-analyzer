@@ -67,7 +67,7 @@ The consumption varies depending on the sensors enabled and display brightness. 
 - [x] Log screen to show warnings and errors. To be opened from the main or config screens
 - [x] Indicator icon on the main screen for warnings. To open the log screen
 - [ ] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
-- [ ] OTA updates with an AP mode
+- [x] OTA updates
 - [x] Brightness control
 - [ ] Translation in other languages
 - [ ] Gas calculator, best mix, etc...

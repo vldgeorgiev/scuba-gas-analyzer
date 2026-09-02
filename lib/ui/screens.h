@@ -13,6 +13,8 @@ typedef struct _objects_t {
     lv_obj_t *calibrate;
     lv_obj_t *config;
     lv_obj_t *log;
+    lv_obj_t *update_wifi_list;
+    lv_obj_t *update_wifi_pass;
     lv_obj_t *warning_indicator;
     lv_obj_t *btn_config;
     lv_obj_t *co_pnl;
@@ -28,7 +30,12 @@ typedef struct _objects_t {
     lv_obj_t *obj2;
     lv_obj_t *brightness;
     lv_obj_t *obj3;
+    lv_obj_t *obj4;
     lv_obj_t *btn_home_1;
+    lv_obj_t *btn_update;
+    lv_obj_t *btn_home_2;
+    lv_obj_t *obj5;
+    lv_obj_t *btn_home_3;
     lv_obj_t *header;
     lv_obj_t *batt_indicator;
     lv_obj_t *o2_pnl;
@@ -36,17 +43,23 @@ typedef struct _objects_t {
     lv_obj_t *co;
     lv_obj_t *he_pnl;
     lv_obj_t *he;
-    lv_obj_t *obj4;
-    lv_obj_t *obj5;
     lv_obj_t *obj6;
+    lv_obj_t *obj7;
+    lv_obj_t *obj8;
     lv_obj_t *large_panel;
     lv_obj_t *o2_1;
-    lv_obj_t *obj7;
+    lv_obj_t *obj9;
     lv_obj_t *he_conf_pnl;
     lv_obj_t *co_conf_pnl;
     lv_obj_t *o2_conf_pnl;
-    lv_obj_t *obj8;
-    lv_obj_t *obj9;
+    lv_obj_t *obj10;
+    lv_obj_t *obj11;
+    lv_obj_t *wifi_name;
+    lv_obj_t *obj12;
+    lv_obj_t *wifi_pass;
+    lv_obj_t *obj13;
+    lv_obj_t *obj14;
+    lv_obj_t *obj15;
 } objects_t;
 
 extern objects_t objects;
@@ -57,6 +70,8 @@ enum ScreensEnum {
     SCREEN_ID_CALIBRATE = 3,
     SCREEN_ID_CONFIG = 4,
     SCREEN_ID_LOG = 5,
+    SCREEN_ID_UPDATE_WIFI_LIST = 6,
+    SCREEN_ID_UPDATE_WIFI_PASS = 7,
 };
 
 void create_screen_main();
@@ -73,6 +88,12 @@ void tick_screen_config();
 
 void create_screen_log();
 void tick_screen_log();
+
+void create_screen_update_wifi_list();
+void tick_screen_update_wifi_list();
+
+void create_screen_update_wifi_pass();
+void tick_screen_update_wifi_pass();
 
 void create_screens();
 void tick_screen(int screen_index);

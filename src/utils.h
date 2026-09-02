@@ -10,3 +10,24 @@ float getBatteryVoltage() {
   uint32_t voltage = esp_adc_cal_raw_to_voltage(raw, &adc_chars) * 2; //The partial pressure is one-half
   return round(voltage / 10) / 100.0;
 }
+
+// ESP32 memory monitoring utilities
+uint32_t getFreeHeap() {
+  return ESP.getFreeHeap();
+}
+
+uint32_t getMinFreeHeap() {
+  return ESP.getMinFreeHeap();
+}
+
+uint32_t getMaxAllocHeap() {
+  return ESP.getMaxAllocHeap();
+}
+
+// Task stack monitoring
+void logTaskStackUsage(const char* taskName, TaskHandle_t taskHandle) {
+  if (taskHandle != NULL) {
+    UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(taskHandle);
+    log_d("Task %s: Stack high water mark: %d bytes", taskName, stackHighWaterMark * sizeof(StackType_t));
+  }
+}

@@ -1,11 +1,12 @@
 {
   "navigation": {
-    "selectedUserPageObject": "[gas-analyzer.eez-project]:/userPages/2",
-    "selectedActionObject": "[gas-analyzer.eez-project]:/actions/4",
-    "selectedGlobalVariableObject": "[gas-analyzer.eez-project]:/variables/globalVariables/13",
+    "selectedUserPageObject": "[gas-analyzer.eez-project]:/userPages/0",
+    "selectedActionObject": "[gas-analyzer.eez-project]:/actions/10",
+    "selectedGlobalVariableObject": "[gas-analyzer.eez-project]:/variables/globalVariables/19",
+    "selectedStyleObject": "[gas-analyzer.eez-project]:/lvglStyles/styles/1",
     "selectedBitmapObject": "[gas-analyzer.eez-project]:/bitmaps/0",
     "subnavigationSelectedItems": {
-      "variables-tab/sub-navigation/selected-item": "Actions"
+      "variables-tab/sub-navigation/selected-item": "Local"
     }
   },
   "layoutModel": {
@@ -26,7 +27,8 @@
           },
           {
             "type": "border",
-            "size": 240,
+            "selected": 0,
+            "size": 158.5,
             "location": "right",
             "children": [
               {
@@ -207,27 +209,27 @@
             {
               "type": "tabset",
               "id": "EDITORS",
+              "weight": 57.75022143489814,
               "enableDeleteWhenEmpty": false,
               "enableClose": false,
               "children": [
                 {
                   "type": "tab",
-                  "id": "#7453b476-c163-471c-8500-83bcccda1bb2",
-                  "name": "Calibrate",
+                  "id": "#ec6f006e-3534-4555-a3e7-613d705a2938",
+                  "name": "Upgrade",
                   "component": "editor",
                   "config": {
-                    "objectPath": "[gas-analyzer.eez-project]:/userPages/2",
+                    "objectPath": "[gas-analyzer.eez-project]:/userPages/0",
                     "permanent": false
                   },
                   "icon": "svg:page"
                 }
-              ],
-              "active": true
+              ]
             },
             {
               "type": "tabset",
               "id": "#94ae86b3-1501-4e12-951c-7a9f281e61a4",
-              "weight": 0,
+              "weight": 42.24977856510186,
               "children": [
                 {
                   "type": "tab",
@@ -237,7 +239,8 @@
                   "enableClose": false,
                   "icon": "svg:properties"
                 }
-              ]
+              ],
+              "active": true
             }
           ]
         }
@@ -440,10 +443,22 @@
               "type": "tabset",
               "id": "RUNTIME-EDITORS",
               "weight": 1,
-              "selected": -1,
               "enableDeleteWhenEmpty": false,
               "enableClose": false,
-              "children": []
+              "children": [
+                {
+                  "type": "tab",
+                  "id": "#e2c0fb67-4567-4fdb-b653-3f55bce329ab",
+                  "name": "Upgrade",
+                  "component": "editor",
+                  "config": {
+                    "objectPath": "[gas-analyzer.eez-project]:/userPages/0",
+                    "permanent": false
+                  },
+                  "icon": "svg:page"
+                }
+              ],
+              "active": true
             },
             {
               "type": "row",
@@ -756,7 +771,8 @@
                       "component": "styles",
                       "enableClose": false
                     }
-                  ]
+                  ],
+                  "active": true
                 },
                 {
                   "type": "tabset",
@@ -968,21 +984,18 @@
     "[gas-analyzer.eez-project]:/userPages/0[flow-state]": {
       "selection": {
         "0": {
-          "0": {
-            "1": {},
-            "3": {}
-          },
-          "1": {},
+          "0": {},
           "2": {},
-          "3": {
-            "0": {}
+          "3": {},
+          "4": {
+            "$selected": true
           }
         }
       },
       "transform": {
         "translate": {
-          "x": -325,
-          "y": -72
+          "x": -160,
+          "y": -85
         },
         "scale": 1
       },
@@ -997,7 +1010,8 @@
       "selection": {
         "0": {
           "0": {
-            "0": {}
+            "0": {},
+            "$selected": true
           }
         },
         "1": {}
@@ -1028,14 +1042,17 @@
     },
     "[gas-analyzer.eez-project]:/userPages/2[flow-state]": {
       "selection": {
-        "1": {
-          "$selected": true
-        }
+        "0": {
+          "0": {
+            "$selected": true
+          }
+        },
+        "1": {}
       },
       "transform": {
         "translate": {
-          "x": -160,
-          "y": -85
+          "x": -276,
+          "y": -120
         },
         "scale": 1
       },
@@ -1048,7 +1065,11 @@
     },
     "[gas-analyzer.eez-project]:/userPages/3[flow-state]": {
       "selection": {
-        "0": {}
+        "0": {
+          "3": {
+            "0": {}
+          }
+        }
       },
       "transform": {
         "translate": {
@@ -1065,7 +1086,13 @@
       }
     },
     "[gas-analyzer.eez-project]:/userPages/4[flow-state]": {
-      "selection": {},
+      "selection": {
+        "0": {
+          "1": {
+            "$selected": true
+          }
+        }
+      },
       "transform": {
         "translate": {
           "x": -160,
@@ -1078,6 +1105,95 @@
         "position": 0,
         "secondToPx": 200,
         "scrollLeft": 0
+      }
+    },
+    "[gas-analyzer.eez-project]:/userPages/5[flow-state]": {
+      "selection": {
+        "0": {
+          "0": {
+            "$selected": true
+          },
+          "1": {
+            "0": {}
+          }
+        }
+      },
+      "transform": {
+        "translate": {
+          "x": -160,
+          "y": -85
+        },
+        "scale": 1
+      },
+      "timeline": {
+        "isEditorActive": false,
+        "position": 0,
+        "secondToPx": 200,
+        "scrollLeft": 0
+      }
+    },
+    "[gas-analyzer.eez-project]:/actions/2[flow-state]": {
+      "selection": {
+        "$selected": true
+      },
+      "transform": {
+        "translate": {
+          "x": 0,
+          "y": 0
+        },
+        "scale": 1
+      }
+    },
+    "[gas-analyzer.eez-project]:/actions/9[flow-state]": {
+      "selection": {},
+      "transform": {
+        "translate": {
+          "x": 0,
+          "y": 0
+        },
+        "scale": 1
+      }
+    },
+    "[gas-analyzer.eez-project]:/userPages/6[flow-state]": {
+      "selection": {
+        "0": {
+          "0": {
+            "$selected": true
+          },
+          "1": {},
+          "2": {}
+        }
+      },
+      "transform": {
+        "translate": {
+          "x": -160,
+          "y": -85
+        },
+        "scale": 1
+      },
+      "timeline": {
+        "isEditorActive": false,
+        "position": 0,
+        "secondToPx": 200,
+        "scrollLeft": 0
+      }
+    },
+    "[gas-analyzer.eez-project]:/actions/10[flow-state]": {
+      "selection": {},
+      "transform": {
+        "translate": {
+          "x": 0,
+          "y": 0
+        },
+        "scale": 1
+      }
+    },
+    "[gas-analyzer.eez-project]:/lvglStyles/styles[tree-state]": {
+      "1": {
+        "$selected": true
+      },
+      "2": {
+        "$selected": true
       }
     }
   },
@@ -1095,9 +1211,7 @@
   "selectedStylePropertyName": "",
   "lvglPart": "MAIN",
   "lvglState": "DEFAULT",
-  "lvglExpandedPropertiesGroup": [
-    "TEXT"
-  ],
+  "lvglExpandedPropertiesGroup": [],
   "showInactiveFlowsInDebugger": true,
   "globalFlowZoom": true,
   "flowZoom": 1,

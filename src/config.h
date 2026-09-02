@@ -59,7 +59,12 @@ public:
   }
 
   void setPO2Bottom(float value) {
-    preferences.putFloat(PO2_MAX_BOTTOM, value);
+    // Validate PO2 values (typical range for scuba diving)
+    if (value >= 1.0f && value <= 1.6f) {
+      preferences.putFloat(PO2_MAX_BOTTOM, value);
+    } else {
+      log_w("Invalid PO2 bottom value: %.2f (should be 1.0-1.6)", value);
+    }
   }
 
   float getPO2Bottom() {
@@ -67,7 +72,12 @@ public:
   }
 
   void setPO2Deco(float value) {
-    preferences.putFloat(PO2_MAX_DECO, value);
+    // Deco PO2 should be higher than bottom PO2
+    if (value >= 1.0f && value <= 2.0f && value >= getPO2Bottom()) {
+      preferences.putFloat(PO2_MAX_DECO, value);
+    } else {
+      log_w("Invalid PO2 deco value: %.2f (should be 1.0-2.0, >= bottom PO2)", value);
+    }
   }
 
   float getPO2Deco() {
@@ -75,7 +85,12 @@ public:
   }
 
   void setO2Calibration21(float value) {
-    preferences.putFloat(O2_CALIBRATION_21, value);
+    // Validate O2 calibration values (reasonable range for O2 sensor in mV)
+    if (value >= 5.0f && value <= 50.0f) {
+      preferences.putFloat(O2_CALIBRATION_21, value);
+    } else {
+      log_w("Invalid O2 21%% calibration value: %.2f mV", value);
+    }
   }
 
   float getO2Calibration21() {
@@ -83,7 +98,13 @@ public:
   }
 
   void setO2Calibration100(float value) {
-    preferences.putFloat(O2_CALIBRATION_100, value);
+    // 100% O2 should be higher than 21% calibration
+    float cal21 = getO2Calibration21();
+    if (value > cal21 && value <= 100.0f) {
+      preferences.putFloat(O2_CALIBRATION_100, value);
+    } else {
+      log_w("Invalid O2 100%% calibration value: %.2f mV (21%% cal: %.2f mV)", value, cal21);
+    }
   }
 
   float getO2Calibration100() {

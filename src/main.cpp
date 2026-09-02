@@ -95,12 +95,42 @@ void Task_Sensors(void *pvParameters) {
   sensors.setSensorsConfig(config.getO2Enabled(), config.getCOEnabled(), config.getHeEnabled(), config.getO2Calibration21(), config.getO2Calibration100(), config.getHeCalibration100());
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
+  uint32_t errorCount = 0;
+
   while (true)
   {
-    if (!configOpen)
-      sensors.readSensors();
+    if (!configOpen) {
+      SensorError error = sensors.readSensors();
+      if (error != SensorError::None) {
+        errorCount++;
+        // Log error but don't stop - ESP32 should be resilient
+        log_w("Sensor error: %s (count: %lu)", sensors.getErrorString(error), errorCount);
+        logUi(sensors.getErrorString(error), UiLogLevel::Warning);
+
+        // If too many consecutive errors, try to reinitialize
+        if (errorCount > 10) {
+          log_e("Too many sensor errors, attempting reinit");
+          sensors.init();
+          errorCount = 0;
+        }
+      } else {
+        errorCount = 0; // Reset error count on successful read
+      }
+    }
 
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(500));
+  }
+}
+
+// Optional: Performance monitoring task (can be disabled to save resources)
+void Task_Performance_Monitor(void *pvParameters) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+
+  while (true) {
+    // Log memory usage every 30 seconds
+    log_d("Free heap: %lu bytes, Min free: %lu bytes", getFreeHeap(), getMinFreeHeap());
+
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(30000));
   }
 }
 
@@ -123,7 +153,12 @@ void setup() {
   }
 
   config.begin();
-  sensors.init();
+  SensorError initError = sensors.init();
+  if (initError != SensorError::None) {
+    log_e("Failed to initialize sensors: %s", sensors.getErrorString(initError));
+    logUi("Sensor init failed", UiLogLevel::Error);
+    // Continue anyway - some sensors might still work
+  }
 
   pinMode(PIN_HE_ENABLE, OUTPUT);
   pinMode(PIN_CO_ENABLE, OUTPUT);
@@ -133,6 +168,11 @@ void setup() {
   xTaskCreatePinnedToCore(Task_LVGL, "Task_LVGL", 1024 * 10, NULL, 3, NULL, 0);
   xTaskCreatePinnedToCore(Task_Screen_Update, "Task_Screen_Update", 1024 * 3, NULL, 2, NULL, 0);
   xTaskCreatePinnedToCore(Task_Sensors, "Task_Sensors", 1024 * 3, NULL, 1, NULL, 1);
+
+  // Optional performance monitoring (comment out to save resources)
+  #ifdef DEBUG
+  xTaskCreatePinnedToCore(Task_Performance_Monitor, "Task_Perf", 1024 * 2, NULL, 0, NULL, 1);
+  #endif
 }
 
 void loop() {} // All work is done in the tasks

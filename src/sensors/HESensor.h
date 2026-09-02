@@ -24,7 +24,7 @@ public:
 
     for (int i = 0; i < RUNNING_AVG_SIZE; i++)
     {
-      int16_t adcValue = _adc.readADC_Differential_2_3();
+      int16_t adcValue = _adc.readADC_Differential_0_1();
       _average.addValue(adcValue);
     }
     HEReading reading;
@@ -92,7 +92,7 @@ public:
     {
       for (int j = 0; j < RUNNING_AVG_SIZE; j++)
       {
-        int16_t adcValue = _adc.readADC_Differential_2_3();
+        int16_t adcValue = _adc.readADC_Differential_0_1();
         calibrateAvg.addValue(adcValue);
       }
       delay(CALIBRATION_DELAY);

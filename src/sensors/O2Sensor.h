@@ -29,21 +29,48 @@ public:
   }
 
   O2Reading readLevel() {
-    if (!_average.clear())
-      log_e("Failed to init average");
+    O2Reading reading;
+    reading.millivolts = NAN;
+    reading.percentage = NAN;
 
-    for (int i = 0; i < RUNNING_AVG_SIZE; i++)
-    {
-      int16_t adcValue = _adc.readADC_Differential_0_1();
+    // Validate calibration before reading
+    if (isnan(_calibration21) || _calibration21 < MIN_VALID_O2_MV_21) {
+      log_e("Invalid O2 calibration: %.2f mV", _calibration21);
+      return reading;
+    }
+
+    if (!_average.clear()) {
+      log_e("Failed to init running average");
+      return reading;
+    }
+
+    // Take multiple readings for stability
+    for (int i = 0; i < RUNNING_AVG_SIZE; i++) {
+      int16_t adcValue = _adc.readADC_Differential_2_3();
       _average.addValue(adcValue);
     }
-    O2Reading reading;
+
     reading.millivolts = abs(_adc.computeVolts(_average.getAverage()) * 1000);
-    if (!isnan(_calibration100))
-      // See https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564/post-9014843 for linear drift correction
+
+    // Validate raw reading
+    if (reading.millivolts < 0 || reading.millivolts > 100) { // Reasonable range for O2 sensor
+      log_w("O2 reading out of range: %.2f mV", reading.millivolts);
+      return reading;
+    }
+
+    // Calculate percentage based on calibration
+    if (!isnan(_calibration100)) {
+      // Linear drift correction with 100% calibration
       reading.percentage = 20.9 + 79.1*(reading.millivolts - _calibration21)/(_calibration100 - _calibration21);
-    else
+    } else {
+      // Simple linear scaling with air calibration only
       reading.percentage = 20.9 / _calibration21 * reading.millivolts;
+    }
+
+    // Clamp percentage to reasonable range
+    if (reading.percentage < 0) reading.percentage = 0;
+    if (reading.percentage > 100) reading.percentage = 100;
+
     return reading;
   }
 
@@ -54,7 +81,7 @@ public:
     {
       for (int j = 0; j < RUNNING_AVG_SIZE; j++)
       {
-        int16_t adcValue = _adc.readADC_Differential_0_1();
+        int16_t adcValue = _adc.readADC_Differential_2_3();
         calibrateAvg.addValue(adcValue);
       }
       delay(CALIBRATION_DELAY);

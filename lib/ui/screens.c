@@ -254,7 +254,17 @@ static void event_handler_cb_config_brightness(lv_event_t *e) {
     }
 }
 
-static void event_handler_cb_log_obj3(lv_event_t *e) {
+static void event_handler_cb_config_obj3(lv_event_t *e) {
+    lv_event_code_t event = lv_event_get_code(e);
+    void *flowState = lv_event_get_user_data(e);
+    
+    if (event == LV_EVENT_PRESSED) {
+        e->user_data = (void *)0;
+        flowPropagateValueLVGLEvent(flowState, 19, 0, e);
+    }
+}
+
+static void event_handler_cb_log_obj4(lv_event_t *e) {
     lv_event_code_t event = lv_event_get_code(e);
     void *flowState = lv_event_get_user_data(e);
     
@@ -276,6 +286,56 @@ static void event_handler_cb_log_btn_home_1(lv_event_t *e) {
     if (event == LV_EVENT_PRESSED) {
         e->user_data = (void *)0;
         flowPropagateValueLVGLEvent(flowState, 2, 0, e);
+    }
+}
+
+static void event_handler_cb_update_wifi_list_update_wifi_list(lv_event_t *e) {
+    lv_event_code_t event = lv_event_get_code(e);
+    void *flowState = lv_event_get_user_data(e);
+    
+    if (event == LV_EVENT_SCREEN_LOADED) {
+        e->user_data = (void *)0;
+        action_list_wifi(e);
+    }
+}
+
+static void event_handler_cb_update_wifi_list_btn_update(lv_event_t *e) {
+    lv_event_code_t event = lv_event_get_code(e);
+    void *flowState = lv_event_get_user_data(e);
+    
+    if (event == LV_EVENT_PRESSED) {
+        e->user_data = (void *)0;
+        flowPropagateValueLVGLEvent(flowState, 0, 0, e);
+    }
+}
+
+static void event_handler_cb_update_wifi_list_btn_home_2(lv_event_t *e) {
+    lv_event_code_t event = lv_event_get_code(e);
+    void *flowState = lv_event_get_user_data(e);
+    
+    if (event == LV_EVENT_PRESSED) {
+        e->user_data = (void *)0;
+        flowPropagateValueLVGLEvent(flowState, 4, 0, e);
+    }
+}
+
+static void event_handler_cb_update_wifi_pass_obj5(lv_event_t *e) {
+    lv_event_code_t event = lv_event_get_code(e);
+    void *flowState = lv_event_get_user_data(e);
+    
+    if (event == LV_EVENT_PRESSED) {
+        e->user_data = (void *)0;
+        action_update_firmware(e);
+    }
+}
+
+static void event_handler_cb_update_wifi_pass_btn_home_3(lv_event_t *e) {
+    lv_event_code_t event = lv_event_get_code(e);
+    void *flowState = lv_event_get_user_data(e);
+    
+    if (event == LV_EVENT_PRESSED) {
+        e->user_data = (void *)0;
+        flowPropagateValueLVGLEvent(flowState, 5, 0, e);
     }
 }
 
@@ -348,7 +408,7 @@ void create_screen_main() {
                         lv_obj_t *parent_obj = obj;
                         {
                             lv_obj_t *obj = lv_label_create(parent_obj);
-                            objects.obj4 = obj;
+                            objects.obj6 = obj;
                             lv_obj_set_pos(obj, 0, -2);
                             lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
                             lv_label_set_text(obj, "");
@@ -388,7 +448,7 @@ void create_screen_main() {
                 }
                 {
                     lv_obj_t *obj = lv_label_create(parent_obj);
-                    objects.obj5 = obj;
+                    objects.obj7 = obj;
                     lv_obj_set_pos(obj, 10, 40);
                     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
                     lv_label_set_text(obj, "");
@@ -396,7 +456,7 @@ void create_screen_main() {
                 }
                 {
                     lv_obj_t *obj = lv_label_create(parent_obj);
-                    objects.obj6 = obj;
+                    objects.obj8 = obj;
                     lv_obj_set_pos(obj, 10, 60);
                     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
                     lv_label_set_text(obj, "");
@@ -493,10 +553,10 @@ void tick_screen_main() {
     }
     {
         const char *new_val = evalTextProperty(flowState, 6, 3, "Failed to evaluate Text in Label widget");
-        const char *cur_val = lv_label_get_text(objects.obj4);
+        const char *cur_val = lv_label_get_text(objects.obj6);
         if (strcmp(new_val, cur_val) != 0) {
-            tick_value_change_obj = objects.obj4;
-            lv_label_set_text(objects.obj4, new_val);
+            tick_value_change_obj = objects.obj6;
+            lv_label_set_text(objects.obj6, new_val);
             tick_value_change_obj = NULL;
         }
     }
@@ -521,19 +581,19 @@ void tick_screen_main() {
     }
     {
         const char *new_val = evalTextProperty(flowState, 10, 3, "Failed to evaluate Text in Label widget");
-        const char *cur_val = lv_label_get_text(objects.obj5);
+        const char *cur_val = lv_label_get_text(objects.obj7);
         if (strcmp(new_val, cur_val) != 0) {
-            tick_value_change_obj = objects.obj5;
-            lv_label_set_text(objects.obj5, new_val);
+            tick_value_change_obj = objects.obj7;
+            lv_label_set_text(objects.obj7, new_val);
             tick_value_change_obj = NULL;
         }
     }
     {
         const char *new_val = evalTextProperty(flowState, 11, 3, "Failed to evaluate Text in Label widget");
-        const char *cur_val = lv_label_get_text(objects.obj6);
+        const char *cur_val = lv_label_get_text(objects.obj8);
         if (strcmp(new_val, cur_val) != 0) {
-            tick_value_change_obj = objects.obj6;
-            lv_label_set_text(objects.obj6, new_val);
+            tick_value_change_obj = objects.obj8;
+            lv_label_set_text(objects.obj8, new_val);
             tick_value_change_obj = NULL;
         }
     }
@@ -620,7 +680,7 @@ void create_screen_large() {
                 }
                 {
                     lv_obj_t *obj = lv_label_create(parent_obj);
-                    objects.obj7 = obj;
+                    objects.obj9 = obj;
                     lv_obj_set_pos(obj, 0, 70);
                     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
                     lv_label_set_text(obj, "");
@@ -656,10 +716,10 @@ void tick_screen_large() {
     }
     {
         const char *new_val = evalTextProperty(flowState, 3, 3, "Failed to evaluate Text in Label widget");
-        const char *cur_val = lv_label_get_text(objects.obj7);
+        const char *cur_val = lv_label_get_text(objects.obj9);
         if (strcmp(new_val, cur_val) != 0) {
-            tick_value_change_obj = objects.obj7;
-            lv_label_set_text(objects.obj7, new_val);
+            tick_value_change_obj = objects.obj9;
+            lv_label_set_text(objects.obj9, new_val);
             tick_value_change_obj = NULL;
         }
     }
@@ -760,6 +820,7 @@ void create_screen_config() {
         static lv_coord_t dsc[] = {LV_GRID_TEMPLATE_LAST};
         lv_obj_set_style_grid_column_dsc_array(obj, dsc, LV_PART_MAIN | LV_STATE_DEFAULT);
     }
+    lv_obj_set_style_pad_row(obj, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
     {
         lv_obj_t *parent_obj = obj;
         {
@@ -773,7 +834,7 @@ void create_screen_config() {
                 lv_obj_t *parent_obj = obj;
                 {
                     lv_obj_t *obj = lv_label_create(parent_obj);
-                    objects.obj8 = obj;
+                    objects.obj10 = obj;
                     lv_obj_set_pos(obj, -1, -1);
                     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
                     lv_label_set_text(obj, "");
@@ -855,7 +916,7 @@ void create_screen_config() {
                             // o2 enabled
                             lv_obj_t *obj = lv_switch_create(parent_obj);
                             objects.o2_enabled = obj;
-                            lv_obj_set_pos(obj, 40, -5);
+                            lv_obj_set_pos(obj, 40, 0);
                             lv_obj_set_size(obj, 50, 25);
                             lv_obj_add_event_cb(obj, event_handler_cb_config_o2_enabled, LV_EVENT_ALL, flowState);
                         }
@@ -929,6 +990,24 @@ void create_screen_config() {
                 }
             }
         }
+        {
+            lv_obj_t *obj = lv_btn_create(parent_obj);
+            objects.obj3 = obj;
+            lv_obj_set_pos(obj, 200, 0);
+            lv_obj_set_size(obj, 78, 30);
+            lv_obj_add_event_cb(obj, event_handler_cb_config_obj3, LV_EVENT_ALL, flowState);
+            {
+                lv_obj_t *parent_obj = obj;
+                {
+                    lv_obj_t *obj = lv_label_create(parent_obj);
+                    lv_obj_set_pos(obj, 0, 0);
+                    lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+                    lv_label_set_text(obj, "Updates");
+                    add_style_label_style(obj);
+                    lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+                }
+            }
+        }
     }
 }
 
@@ -936,10 +1015,10 @@ void tick_screen_config() {
     void *flowState = getFlowState(0, 3);
     {
         const char *new_val = evalTextProperty(flowState, 2, 3, "Failed to evaluate Text in Label widget");
-        const char *cur_val = lv_label_get_text(objects.obj8);
+        const char *cur_val = lv_label_get_text(objects.obj10);
         if (strcmp(new_val, cur_val) != 0) {
-            tick_value_change_obj = objects.obj8;
-            lv_label_set_text(objects.obj8, new_val);
+            tick_value_change_obj = objects.obj10;
+            lv_label_set_text(objects.obj10, new_val);
             tick_value_change_obj = NULL;
         }
     }
@@ -1044,13 +1123,13 @@ void create_screen_log() {
         lv_obj_t *parent_obj = obj;
         {
             lv_obj_t *obj = lv_textarea_create(parent_obj);
-            objects.obj3 = obj;
+            objects.obj4 = obj;
             lv_obj_set_pos(obj, 40, 0);
             lv_obj_set_size(obj, 280, LV_PCT(100));
             lv_textarea_set_max_length(obj, 1000);
             lv_textarea_set_one_line(obj, false);
             lv_textarea_set_password_mode(obj, false);
-            lv_obj_add_event_cb(obj, event_handler_cb_log_obj3, LV_EVENT_ALL, flowState);
+            lv_obj_add_event_cb(obj, event_handler_cb_log_obj4, LV_EVENT_ALL, flowState);
         }
         {
             // btnHome_1
@@ -1063,7 +1142,7 @@ void create_screen_log() {
                 lv_obj_t *parent_obj = obj;
                 {
                     lv_obj_t *obj = lv_label_create(parent_obj);
-                    objects.obj9 = obj;
+                    objects.obj11 = obj;
                     lv_obj_set_pos(obj, -1, -1);
                     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
                     lv_label_set_text(obj, "");
@@ -1078,19 +1157,190 @@ void tick_screen_log() {
     void *flowState = getFlowState(0, 4);
     {
         const char *new_val = evalTextProperty(flowState, 0, 3, "Failed to evaluate Text in Textarea widget");
-        const char *cur_val = lv_textarea_get_text(objects.obj3);
+        const char *cur_val = lv_textarea_get_text(objects.obj4);
         if (strcmp(new_val, cur_val) != 0) {
-            tick_value_change_obj = objects.obj3;
-            lv_textarea_set_text(objects.obj3, new_val);
+            tick_value_change_obj = objects.obj4;
+            lv_textarea_set_text(objects.obj4, new_val);
             tick_value_change_obj = NULL;
         }
     }
     {
         const char *new_val = evalTextProperty(flowState, 3, 3, "Failed to evaluate Text in Label widget");
-        const char *cur_val = lv_label_get_text(objects.obj9);
+        const char *cur_val = lv_label_get_text(objects.obj11);
         if (strcmp(new_val, cur_val) != 0) {
-            tick_value_change_obj = objects.obj9;
-            lv_label_set_text(objects.obj9, new_val);
+            tick_value_change_obj = objects.obj11;
+            lv_label_set_text(objects.obj11, new_val);
+            tick_value_change_obj = NULL;
+        }
+    }
+}
+
+void create_screen_update_wifi_list() {
+    void *flowState = getFlowState(0, 5);
+    lv_obj_t *obj = lv_obj_create(0);
+    objects.update_wifi_list = obj;
+    lv_obj_set_pos(obj, 0, 0);
+    lv_obj_set_size(obj, 320, 170);
+    lv_obj_add_event_cb(obj, event_handler_cb_update_wifi_list_update_wifi_list, LV_EVENT_ALL, flowState);
+    {
+        lv_obj_t *parent_obj = obj;
+        {
+            // btnUpdate
+            lv_obj_t *obj = lv_btn_create(parent_obj);
+            objects.btn_update = obj;
+            lv_obj_set_pos(obj, 57, 52);
+            lv_obj_set_size(obj, 162, 50);
+            lv_obj_add_event_cb(obj, event_handler_cb_update_wifi_list_btn_update, LV_EVENT_ALL, flowState);
+            {
+                lv_obj_t *parent_obj = obj;
+                {
+                    lv_obj_t *obj = lv_label_create(parent_obj);
+                    lv_obj_set_pos(obj, 0, 0);
+                    lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+                    lv_label_set_text(obj, "Check for update");
+                    add_style_label_style(obj);
+                    lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+                }
+            }
+        }
+        {
+            // wifi_name
+            lv_obj_t *obj = lv_dropdown_create(parent_obj);
+            objects.wifi_name = obj;
+            lv_obj_set_pos(obj, 57, 0);
+            lv_obj_set_size(obj, 249, LV_SIZE_CONTENT);
+            lv_dropdown_set_options(obj, "");
+            lv_dropdown_set_selected(obj, -1);
+        }
+        {
+            // btnHome_2
+            lv_obj_t *obj = lv_btn_create(parent_obj);
+            objects.btn_home_2 = obj;
+            lv_obj_set_pos(obj, 0, 0);
+            lv_obj_set_size(obj, 40, 30);
+            lv_obj_add_event_cb(obj, event_handler_cb_update_wifi_list_btn_home_2, LV_EVENT_ALL, flowState);
+            {
+                lv_obj_t *parent_obj = obj;
+                {
+                    lv_obj_t *obj = lv_label_create(parent_obj);
+                    objects.obj12 = obj;
+                    lv_obj_set_pos(obj, -1, -1);
+                    lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+                    lv_label_set_text(obj, "");
+                    add_style_label_style(obj);
+                }
+            }
+        }
+    }
+}
+
+void tick_screen_update_wifi_list() {
+    void *flowState = getFlowState(0, 5);
+    {
+        const char *new_val = evalStringArrayPropertyAndJoin(flowState, 3, 3, "Failed to evaluate Options in Dropdown widget", "\n");
+        const char *cur_val = lv_dropdown_get_options(objects.wifi_name);
+        if (strcmp(new_val, cur_val) != 0) {
+            tick_value_change_obj = objects.wifi_name;
+            lv_dropdown_set_options(objects.wifi_name, new_val);
+            tick_value_change_obj = NULL;
+        }
+    }
+    {
+        const char *new_val = evalTextProperty(flowState, 5, 3, "Failed to evaluate Text in Label widget");
+        const char *cur_val = lv_label_get_text(objects.obj12);
+        if (strcmp(new_val, cur_val) != 0) {
+            tick_value_change_obj = objects.obj12;
+            lv_label_set_text(objects.obj12, new_val);
+            tick_value_change_obj = NULL;
+        }
+    }
+}
+
+void create_screen_update_wifi_pass() {
+    void *flowState = getFlowState(0, 6);
+    lv_obj_t *obj = lv_obj_create(0);
+    objects.update_wifi_pass = obj;
+    lv_obj_set_pos(obj, 0, 0);
+    lv_obj_set_size(obj, 320, 170);
+    {
+        lv_obj_t *parent_obj = obj;
+        {
+            // wifi_pass
+            lv_obj_t *obj = lv_textarea_create(parent_obj);
+            objects.wifi_pass = obj;
+            lv_obj_set_pos(obj, 40, 0);
+            lv_obj_set_size(obj, 240, 36);
+            lv_textarea_set_max_length(obj, 128);
+            lv_textarea_set_placeholder_text(obj, "wifi pass");
+            lv_textarea_set_one_line(obj, true);
+            lv_textarea_set_password_mode(obj, false);
+        }
+        {
+            lv_obj_t *obj = lv_keyboard_create(parent_obj);
+            objects.obj13 = obj;
+            lv_obj_set_pos(obj, 0, 36);
+            lv_obj_set_size(obj, 320, 134);
+            lv_obj_set_style_align(obj, LV_ALIGN_DEFAULT, LV_PART_MAIN | LV_STATE_DEFAULT);
+        }
+        {
+            lv_obj_t *obj = lv_btn_create(parent_obj);
+            objects.obj5 = obj;
+            lv_obj_set_pos(obj, 280, 0);
+            lv_obj_set_size(obj, 40, 36);
+            lv_obj_add_event_cb(obj, event_handler_cb_update_wifi_pass_obj5, LV_EVENT_ALL, flowState);
+            {
+                lv_obj_t *parent_obj = obj;
+                {
+                    lv_obj_t *obj = lv_label_create(parent_obj);
+                    objects.obj14 = obj;
+                    lv_obj_set_pos(obj, 0, 0);
+                    lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+                    lv_label_set_text(obj, "");
+                    add_style_label_style(obj);
+                    lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+                }
+            }
+        }
+        {
+            // btnHome_3
+            lv_obj_t *obj = lv_btn_create(parent_obj);
+            objects.btn_home_3 = obj;
+            lv_obj_set_pos(obj, 0, 0);
+            lv_obj_set_size(obj, 40, 36);
+            lv_obj_add_event_cb(obj, event_handler_cb_update_wifi_pass_btn_home_3, LV_EVENT_ALL, flowState);
+            {
+                lv_obj_t *parent_obj = obj;
+                {
+                    lv_obj_t *obj = lv_label_create(parent_obj);
+                    objects.obj15 = obj;
+                    lv_obj_set_pos(obj, -1, -1);
+                    lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+                    lv_label_set_text(obj, "");
+                    add_style_label_style(obj);
+                }
+            }
+        }
+    }
+    lv_keyboard_set_textarea(objects.obj13, objects.wifi_pass);
+}
+
+void tick_screen_update_wifi_pass() {
+    void *flowState = getFlowState(0, 6);
+    {
+        const char *new_val = evalTextProperty(flowState, 4, 3, "Failed to evaluate Text in Label widget");
+        const char *cur_val = lv_label_get_text(objects.obj14);
+        if (strcmp(new_val, cur_val) != 0) {
+            tick_value_change_obj = objects.obj14;
+            lv_label_set_text(objects.obj14, new_val);
+            tick_value_change_obj = NULL;
+        }
+    }
+    {
+        const char *new_val = evalTextProperty(flowState, 6, 3, "Failed to evaluate Text in Label widget");
+        const char *cur_val = lv_label_get_text(objects.obj15);
+        if (strcmp(new_val, cur_val) != 0) {
+            tick_value_change_obj = objects.obj15;
+            lv_label_set_text(objects.obj15, new_val);
             tick_value_change_obj = NULL;
         }
     }
@@ -1100,8 +1350,8 @@ void tick_screen_log() {
 extern void add_style(lv_obj_t *obj, int32_t styleIndex);
 extern void remove_style(lv_obj_t *obj, int32_t styleIndex);
 
-static const char *screen_names[] = { "Main", "Large", "Calibrate", "Config", "Log" };
-static const char *object_names[] = { "main", "large", "calibrate", "config", "log", "warning_indicator", "btn_config", "co_pnl", "calibrate_he100", "calibrate_air", "calibrate_o2100", "btn_home", "he_enabled", "co_enabled", "o2_enabled", "obj0", "obj1", "obj2", "brightness", "obj3", "btn_home_1", "header", "batt_indicator", "o2_pnl", "o2", "co", "he_pnl", "he", "obj4", "obj5", "obj6", "large_panel", "o2_1", "obj7", "he_conf_pnl", "co_conf_pnl", "o2_conf_pnl", "obj8", "obj9" };
+static const char *screen_names[] = { "Main", "Large", "Calibrate", "Config", "Log", "Update_wifi_list", "Update_wifi_pass" };
+static const char *object_names[] = { "main", "large", "calibrate", "config", "log", "update_wifi_list", "update_wifi_pass", "warning_indicator", "btn_config", "co_pnl", "calibrate_he100", "calibrate_air", "calibrate_o2100", "btn_home", "he_enabled", "co_enabled", "o2_enabled", "obj0", "obj1", "obj2", "brightness", "obj3", "obj4", "btn_home_1", "btn_update", "btn_home_2", "obj5", "btn_home_3", "header", "batt_indicator", "o2_pnl", "o2", "co", "he_pnl", "he", "obj6", "obj7", "obj8", "large_panel", "o2_1", "obj9", "he_conf_pnl", "co_conf_pnl", "o2_conf_pnl", "obj10", "obj11", "wifi_name", "obj12", "wifi_pass", "obj13", "obj14", "obj15" };
 static const char *style_names[] = { "LabelStyle", "PanelStyle" };
 
 void create_screens() {
@@ -1120,6 +1370,8 @@ void create_screens() {
     create_screen_calibrate();
     create_screen_config();
     create_screen_log();
+    create_screen_update_wifi_list();
+    create_screen_update_wifi_pass();
 }
 
 typedef void (*tick_screen_func_t)();
@@ -1130,6 +1382,8 @@ tick_screen_func_t tick_screen_funcs[] = {
     tick_screen_calibrate,
     tick_screen_config,
     tick_screen_log,
+    tick_screen_update_wifi_list,
+    tick_screen_update_wifi_pass,
 };
 
 void tick_screen(int screen_index) {
