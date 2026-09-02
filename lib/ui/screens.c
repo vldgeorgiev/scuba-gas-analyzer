@@ -984,7 +984,7 @@ void create_screen_config() {
                     objects.brightness = obj;
                     lv_obj_set_pos(obj, 0, 22);
                     lv_obj_set_size(obj, 150, 10);
-                    lv_slider_set_range(obj, 0, 254);
+                    lv_slider_set_range(obj, 8, 254);
                     lv_obj_add_event_cb(obj, event_handler_cb_config_brightness, LV_EVENT_ALL, flowState);
                     lv_obj_set_style_margin_bottom(obj, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
                 }

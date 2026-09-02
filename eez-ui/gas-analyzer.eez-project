@@ -3407,7 +3407,7 @@
                   },
                   "group": "",
                   "groupIndex": 0,
-                  "min": 0,
+                  "min": 8,
                   "max": 254,
                   "mode": "NORMAL",
                   "value": "brightness",

@@ -61,12 +61,10 @@ void my_input_read(lv_indev_t * indev, lv_indev_data_t*data)
 }
 
 void DisplayManager::init() {
-
-
   tft.init();
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
-  pinMode(15, OUTPUT);
-  digitalWrite(15, HIGH);
+  pinMode(PIN_POWER_ON, OUTPUT);
+  digitalWrite(PIN_POWER_ON, HIGH);
   tft.setRotation(3);
   // touch.setRotation(3); // The lib doesn't support rot 3. Do it manually in the input read above
   if (!touch.init())
@@ -95,9 +93,7 @@ void DisplayManager::init() {
 }
 
 void DisplayManager::tick() {
-  lv_task_handler();
   lv_timer_handler();
-  lv_tick_inc(5);
   ui_tick();
 }
 
@@ -105,5 +101,5 @@ void DisplayManager::setBrightness(uint8_t brightness)
 {
   ledcSetup(0, 10000, 8);
   ledcAttachPin(PIN_LCD_BL, 0);
-  ledcWrite(0, brightness);
+  ledcWrite(0, brightness < 8 ? 8 : brightness);
 }

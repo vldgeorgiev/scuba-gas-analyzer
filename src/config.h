@@ -143,11 +143,12 @@ public:
   }
 
   void setBrightness(uint8_t value) {
-    preferences.putUChar(BRIGHTNESS, value);
+    preferences.putUChar(BRIGHTNESS, value < 8 ? 8 : value);
   }
 
   uint8_t getBrightness() {
-    return preferences.getUChar(BRIGHTNESS, 128);
+    uint8_t brightness = preferences.getUChar(BRIGHTNESS, 128);
+    return brightness < 8 ? 128 : brightness;
   }
 };
 
