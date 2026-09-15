@@ -5,6 +5,7 @@
 #include "structs.h"
 #include "ui-log.h"
 #include "utils.h"
+#include "app/SleepPolicy.h"
 
 DisplayManager displayManager;
 
@@ -31,6 +32,7 @@ void syncUiSettings() {
   flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START, settings.calibrateOnStart);
   flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS, IntegerValue(settings.brightness));
   displayManager.setBrightness(settings.brightness);
+  displayManager.setSleepMinutes(settings.sleepMinutes);
 }
 
 static eez::Value integerOrUnavailable(float value) {
@@ -63,8 +65,15 @@ static void Task_UI(void*) {
   bool presentedFresh = false;
   uint32_t lastPresentation = 0;
   SensorError previousError = SensorError::None;
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  pinMode(PIN_BUTTON_2, INPUT_PULLUP);
+  app::WakeButton wakeButton;
+#endif
 
   for (;;) {
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+    if (wakeButton.update(digitalRead(PIN_BUTTON_2) == LOW, ::millis())) displayManager.resetInactivity();
+#endif
     if (uiState.preparationExpired(::millis())) {
       uiState.requestResume(commandQueue);
       logUi("Sleep preparation timed out; resuming", UiLogLevel::Error);
@@ -74,6 +83,7 @@ static void Task_UI(void*) {
     }
     app::Result result;
     if (xQueueReceive(resultQueue, &result, 0) == pdPASS && uiState.accept(result)) {
+      if (!uiState.busy()) displayManager.resetInactivity();
       if (!settingsEditing || result.type == app::CommandType::Startup) syncUiSettings();
       displayed = latest.forDisplay(::millis(), uiState.generation);
       presentReadings(displayed);

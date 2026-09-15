@@ -1,6 +1,6 @@
 # Current firmware architecture
 
-Updated 2026-09-15 after step 3c. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-09-15 after step 3d. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
@@ -104,6 +104,47 @@ wired and there is no claim of an end-to-end sleep feature. A permanently stuck 
 recovered by forgetting the pending ID. Device checks must confirm publication and power restoration,
 not infer physical recovery merely from host state-machine tests.
 
+## Sleep setting and activity policy
+
+Step 3d adds `sleepMinutes` to AnalyzerSettings and the individual `sleep_minutes` Preferences key.
+Default is five minutes; supported values are Off (0), 1, 2, 5, 10, 30. One option array and one
+default constant supply validation, dropdown labels, and index mapping. Missing values load as five;
+an invalid stored timeout is replaced with five without discarding other settings. The substitution
+is serial-logged and marks the store dirty, so the next successful save reconciles it. No boot-time
+write or settings migration is added. Changing sleep timeout does not change measurement generation.
+
+DisplayManager appends a plain Sleep label/dropdown group to the existing configuration flex layout
+after generated UI initialization. It uses no EEZ variable and generated ticks do not overwrite it.
+Opening/synchronizing settings selects the effective value; closing includes the selected timeout
+in the existing ApplySettings command. Until acknowledgement, the control uses the previous effective
+value, including on busy/rejected/write-failed requests. The runtime group is 116 by 62 pixels;
+accessibility in the existing scrolling configuration layout requires a device check. No generated
+UI file is edited, and this binding will be replaced with the user's future Editor export.
+
+LVGL's display inactivity counter is the only inactivity time source. Touch input already updates
+it. DisplayManager exposes its read/reset APIs; UI resets activity after initialization and whenever
+an acknowledged operation leaves the app no longer busy. Thus startup, failed settings, calibration
+completion, and successful resume each start a fresh inactivity interval. Measurement updates do
+not reset it.
+
+On the primary S3 target, UI polls GPIO14/button 2 with its input pull-up. `WakeButton` treats a held
+press as activity and requires 50 ms of uninterrupted release before reporting released. Raw changes
+and completion of the release interval count as activity. It starts in wait-for-release state, so
+the press that will eventually cause wake cannot activate a UI control. Elapsed comparisons handle
+clock wrap. The other experimental board profile does not yet have this wake-button integration.
+
+`SleepPolicy.h` provides the tested `sleepDue` decision using selected minutes, LVGL inactivity,
+an inhibition flag, and the debounced release state. It adds no second idle timer or task. It is
+not yet invoked to submit PrepareSleep: automatic sleep remains disabled in this build, despite
+the selectable/saved timeout. The next increment must connect it only with complete display/touch
+shutdown, abort restoration, wake classification, and scan/OTA activity handling. Synchronous network
+callbacks cannot sleep while running, but a fresh idle interval after they return still needs wiring.
+
+LVGL MCP guidance and installed 9.1 headers confirm `lv_display_get_inactive_time`,
+`lv_display_trigger_activity`, and dropdown selection APIs. Installed SDK headers also expose S3
+`ESP_EXT1_WAKEUP_ANY_LOW` and GPIO hold APIs, and pinned TouchLib has a checked `enableSleep()` call.
+These are integration evidence for the next step, not proof of physical wake/current behavior.
+
 ## UI and drafts
 
 Settings are loaded on the analyzer and copied into `UiState::effective` through results.
@@ -134,7 +175,8 @@ Both headers live under `src/settings`: `Settings.h` contains the RAM data/defau
 `SettingsStore.h` persists those values using the SDK's `Preferences`. The NVS namespace remains
 `config` for existing stored data; this naming cleanup does not change its keys or format.
 
-Startup loads the existing individual Preferences keys once. Missing keys use defaults. A loaded
+Startup loads the individual Preferences keys once. Missing keys use defaults. The sleep-timeout
+field has its own fallback as described above. Any other invalid loaded
 set that fails validation is visibly replaced with defaults as a whole and startup calibration is
 skipped for that boot. Field-specific sanitization and calibration-required presentation are step 4.
 Normal cold boot still respects a valid calibrate-on-start preference. No wake suppression exists
@@ -219,9 +261,9 @@ navigation, latency, stack high-water marks, ADC fault behavior, status layout, 
 
 ## Planned next
 
-- Step 3: integrate the implemented PrepareSleep/Resume and CO timing with a persisted five-minute
-  inactivity default, operation inhibition, display/touch shutdown, GPIO14 wake, and confirmed-wake
-  calibration preservation. No automatic sleep is enabled yet.
+- Step 3: connect the implemented timeout setting, idle policy, PrepareSleep/Resume and CO timing
+  to operation inhibition, display/touch shutdown, GPIO14 wake, and confirmed-wake calibration
+  preservation. No automatic sleep is enabled yet.
 - Step 4: finish field-specific invalid-load handling, calibration-required state, settings UX and
   reboot/failure acceptance. Do not repeat the ownership refactor already done here.
 - Step 5: incremental cancellable stability-gated calibration with graph progress and a qualified

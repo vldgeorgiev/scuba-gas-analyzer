@@ -117,8 +117,9 @@ Decision updated 2026-09-15: bring the full analyzer/UI task restructuring forwa
 to avoid accumulating temporary synchronization. Step 3a's interim gate is replaced by step 3b:
 one analyzer task, one UI task, and a small fixed command/result path. The gate, `configOpen`,
 GUI mutex, separate screen-update task, and arbitrary startup delay are removed.
-Step 3c implements analyzer-owned preparation/resume and the fixed CO startup interval. Automatic
-inactivity sleep, its persisted setting, display/touch shutdown, and wake integration remain pending.
+Step 3c implements analyzer-owned preparation/resume and the fixed CO startup interval. Step 3d
+adds the persisted timeout, configuration dropdown, and tested activity/debounce policy. Automatic
+sleep is not enabled yet: connecting the policy to display/touch shutdown and wake remains pending.
 
 The analyzer owns ADCs, sensor-enable GPIOs, calibration, effective RAM settings, and Preferences.
 UI callbacks submit one operation at a time and receive an outcome with effective values and a

@@ -23,12 +23,18 @@ public:
     value.heEnabled = _preferences.getBool("he_enabled", value.heEnabled);
     value.calibrateOnStart = _preferences.getBool("calib_start", value.calibrateOnStart);
     value.brightness = _preferences.getUChar("brightness", value.brightness);
+    value.sleepMinutes = _preferences.getUChar("sleep_minutes", value.sleepMinutes);
+    const bool invalidSleep = !AnalyzerSettings::validSleepMinutes(value.sleepMinutes);
+    if (invalidSleep) {
+      value.sleepMinutes = app::DEFAULT_SLEEP_MINUTES;
+      log_w("Invalid sleep timeout; using five minutes");
+    }
     value.po2Bottom = _preferences.getFloat("po2_max_bottom", value.po2Bottom);
     value.po2Deco = _preferences.getFloat("po2_max_deco", value.po2Deco);
     value.o2Air = _preferences.getFloat("o2_calib_21", value.o2Air);
     value.o2Pure = _preferences.getFloat("o2_calib_100", value.o2Pure);
     value.heCalibration = _preferences.getFloat("he_calib_100", value.heCalibration);
-    _rewrite = !value.valid();
+    _rewrite = invalidSleep || !value.valid();
     return value;
   }
 
@@ -43,6 +49,7 @@ public:
       ((!force && value.heEnabled == previous.heEnabled) || _preferences.putBool("he_enabled", value.heEnabled) == 1) &&
       ((!force && value.calibrateOnStart == previous.calibrateOnStart) || _preferences.putBool("calib_start", value.calibrateOnStart) == 1) &&
       ((!force && value.brightness == previous.brightness) || _preferences.putUChar("brightness", value.brightness) == 1) &&
+      ((!force && value.sleepMinutes == previous.sleepMinutes) || _preferences.putUChar("sleep_minutes", value.sleepMinutes) == 1) &&
       ((!force && value.po2Bottom == previous.po2Bottom) || _preferences.putFloat("po2_max_bottom", value.po2Bottom) == sizeof(float)) &&
       ((!force && value.po2Deco == previous.po2Deco) || _preferences.putFloat("po2_max_deco", value.po2Deco) == sizeof(float)) &&
       ((!force && value.o2Air == previous.o2Air) || _preferences.putFloat("o2_calib_21", value.o2Air) == sizeof(float)) &&

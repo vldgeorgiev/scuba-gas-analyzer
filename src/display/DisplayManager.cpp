@@ -9,6 +9,8 @@
 #include "ui.h"
 #include "DisplayManager.h"
 #include "pin_config.h"
+#include "screens.h"
+#include "app/SleepPolicy.h"
 
 static const uint16_t screenWidth  = 320;
 static const uint16_t screenHeight = 170;
@@ -90,7 +92,37 @@ void DisplayManager::init() {
   lv_indev_set_read_cb(indev, my_input_read);
 
   ui_init();
+
+  lv_obj_t* sleepControl = lv_obj_create(objects.config);
+  lv_obj_set_size(sleepControl, 116, 62);
+  lv_obj_set_style_pad_all(sleepControl, 0, 0);
+  lv_obj_set_style_border_width(sleepControl, 0, 0);
+  lv_obj_set_style_radius(sleepControl, 0, 0);
+  lv_obj_set_style_bg_opa(sleepControl, LV_OPA_TRANSP, 0);
+  lv_obj_clear_flag(sleepControl, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_t* sleepLabel = lv_label_create(sleepControl);
+  lv_label_set_text(sleepLabel, "Sleep");
+  lv_obj_set_pos(sleepLabel, 0, 0);
+  _sleepDropdown = lv_dropdown_create(sleepControl);
+  lv_obj_set_pos(_sleepDropdown, 0, 24);
+  lv_obj_set_size(_sleepDropdown, 116, 36);
+  char sleepOptions[64];
+  if (app::formatSleepOptions(sleepOptions, sizeof(sleepOptions))) {
+    lv_dropdown_set_options(_sleepDropdown, sleepOptions);
+  }
+  resetInactivity();
 }
+
+void DisplayManager::setSleepMinutes(uint8_t minutes) {
+  if (_sleepDropdown) lv_dropdown_set_selected(_sleepDropdown, app::sleepSelectionForMinutes(minutes));
+}
+
+uint8_t DisplayManager::getSleepMinutes() const {
+  return _sleepDropdown ? app::sleepMinutesForSelection(lv_dropdown_get_selected(_sleepDropdown)) : app::DEFAULT_SLEEP_MINUTES;
+}
+
+void DisplayManager::resetInactivity() { lv_display_trigger_activity(nullptr); }
+uint32_t DisplayManager::inactiveTime() const { return lv_display_get_inactive_time(nullptr); }
 
 void DisplayManager::tick() {
   lv_timer_handler();

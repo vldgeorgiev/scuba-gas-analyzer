@@ -10,7 +10,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
 | 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
-| 3. Task ownership and sleep/wake | In progress: two-owner tasks, 3c prepare/resume handshake and CO startup timing implemented; inactivity setting and deep-sleep/wake integration pending |
+| 3. Task ownership and sleep/wake | In progress: owners, handshake, CO timing, 3d timeout setting/UI and activity policy implemented; automatic entry and deep-sleep/wake integration pending |
 | 4. Remaining settings behavior | Ownership/basic validated RAM settings moved into 3b; field-specific fallback, calibration-required state and device acceptance pending |
 | 5. Stability-gated calibration | Not started |
 | 6. Replacement UI | Not started; sample Editor export required |
@@ -400,9 +400,46 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   sample, power pins during preparation/resume, resumed publication, and UI status recovery.
   No assistant push, upload, flash, or OTA performed.
 
+## 2026-09-15: Step 3d, timeout setting and inactivity policy
+
+- Started from `13daa76`. Added the `sleep_minutes` Preferences key and five-minute default, with
+  Off/1/2/5/10/30-minute choices. A shared option/default definition supplies validation, dropdown
+  formatting and value mapping, avoiding independently maintained lists.
+- Invalid timeout data falls back per-field without resetting other settings. It is serial-logged;
+  the next accepted save rewrites the repaired settings through the existing dirty-store mechanism.
+  No automatic boot write, schema, or migration. Timeout edits do not invalidate measurements.
+- Added a handwritten Sleep dropdown group to the existing configuration screen. Its selection is
+  loaded from effective settings and saved through ApplySettings on close; failures retain the old
+  effective value. Generated files and the UI design project are untouched.
+- Added a pure idle decision and 50 ms wake-button release debounce. UI GPIO14 polling counts held
+  presses/transitions/release as activity; touch uses LVGL's existing input activity. Completion
+  of startup/settings/calibration/resume resets the LVGL inactivity counter when the app becomes idle.
+- Automatic sleep is still disabled: `sleepDue` is tested but does not yet submit PrepareSleep.
+  Display/touch shutdown, wake marker/classification, scan/OTA completion resets, and the actual
+  deep-sleep call must be completed together in the next increment. The control currently stores
+  the intended policy only; it does not yet cause power-down.
+
+### Verification and review
+
+- All 79 native tests pass: eight new sleep tests cover missing/invalid defaults, options, storage
+  repair/roundtrip, boundary/inhibition decisions, held button, release debounce across wrap,
+  dropdown mapping/format bounds, analyzer acknowledgement and persistence failure.
+- Both S3 profiles build: debug RAM 158924 bytes, flash 1527353 bytes; release RAM 158924 bytes,
+  flash 1513473 bytes. Against step 3c: unchanged static RAM, debug flash +1216 bytes, release
+  flash +1176 bytes. Additional runtime widget allocation and layout were not measured.
+- Consulted LVGL MCP and installed 9.1 headers for inactivity and dropdown APIs. Checked the pinned
+  S3 SDK wake/hold declarations and TouchLib sleep/reset implementation surface for the next step.
+  No claim of physical wake support or current consumption from these source checks.
+- Claude read-only review found no functional defect. Consolidated the duplicated timeout options
+  and default and ensured repaired storage is reconciled on the next save. Kept effective-until-ack
+  UI semantics deliberately; drafting/rejection UX refinements remain step 4.
+- Hardware checks pending: dropdown fit/accessibility in the scrolling configuration screen,
+  selection/rejection/restart behavior, touch/button activity, and sustained UI behavior. No push,
+  upload, flash, or OTA performed by the assistant.
+
 ### Next increment
 
-Add the persisted five-minute inactivity default and UI setting, then the display/touch shutdown
-and GPIO14 deep-sleep wake path around the implemented handshake. Preserve calibration on confirmed
-application wake and account for settings/calibration/scan/OTA busy periods. Step-2 device checks
-remain open; no shared access gate should be reintroduced.
+Connect the idle policy to PrepareSleep and implement reversible display/touch shutdown plus
+GPIO14 deep-sleep wake. Preserve calibration on confirmed application wake, reset inactivity after
+network operations, and verify the board's required output states. Do not enable automatic preparation
+without completing the entry/abort path. Step-2 device checks remain open.

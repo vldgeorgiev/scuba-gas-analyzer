@@ -73,6 +73,7 @@ void action_close_config(lv_event_t * e) {
   command.settings.po2Deco = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO).getFloat();
   command.settings.calibrateOnStart = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean();
   command.settings.brightness = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8();
+  command.settings.sleepMinutes = displayManager.getSleepMinutes();
   if (!submitAnalyzerCommand(command)) messageBox("Settings not applied - analyzer busy", NAN);
   syncUiSettings();
 }
