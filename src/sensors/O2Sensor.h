@@ -4,7 +4,6 @@
 #include <Adafruit_ADS1X15.h>
 #include <RunningAverage.h>
 #include <cmath>
-#include "ui-log.h"
 #include "conversions.h"
 #include "adc_read.h"
 
@@ -24,7 +23,6 @@ public:
 
     if (!isnan(calibration100) && (calibration100 <= calibration21)) {
       log_e("O2 100%% calibration mv less than air %.2f mv/%.2f mv", calibration21, calibration100);
-      logUi("O2 100%% calibration mv less than air", UiLogLevel::Error);
     }
 
     _calibration21 = calibration21;

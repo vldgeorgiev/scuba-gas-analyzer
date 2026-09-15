@@ -11,8 +11,8 @@
 #include <Update.h>
 
 void messageBox(const char * title, float value) {
-  char text[32];
-  snprintf(text, sizeof(text), "%.2f mv", value);
+  char text[32] = "";
+  if (std::isfinite(value)) snprintf(text, sizeof(text), "%.2f mv", value);
 
   lv_obj_t * mbox = lv_msgbox_create(NULL);
   lv_msgbox_add_close_button(mbox);
@@ -22,120 +22,84 @@ void messageBox(const char * title, float value) {
 }
 
 void action_calibrate_o2_21(lv_event_t * e) {
-  if (!sensorAccess.acquire()) {
-    messageBox("Sensors busy - try again", NAN);
-    return;
-  }
-  float value = sensors.calibrateO2_21();
-  if (!isnan(value) && value > 5.0f && value < 50.0f) {
-    config.setO2Calibration21(value);
-    messageBox("O2 Air Calibrated", value);
-    logUi("O2 air calibration successful", UiLogLevel::None);
-  } else {
-    log_e("O2 air calibration failed: %.2f mV", value);
-    logUi("O2 air calibration failed", UiLogLevel::Error);
-    messageBox("O2 Air Cal Failed", value);
-  }
-  sensorAccess.release();
+  app::Command command;
+  command.type = app::CommandType::CalibrateAir;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
 void action_calibrate_o2_100(lv_event_t * e) {
-  if (!sensorAccess.acquire()) {
-    messageBox("Sensors busy - try again", NAN);
-    return;
-  }
-  float value = sensors.calibrateO2_100();
-  float airCal = config.getO2Calibration21();
-  if (!isnan(value) && value > airCal && value < 100.0f) {
-    config.setO2Calibration100(value);
-    messageBox("O2 100% Calibrated", value);
-    logUi("O2 100% calibration successful", UiLogLevel::None);
-  } else {
-    log_e("O2 100%% calibration failed: %.2f mV (air: %.2f mV)", value, airCal);
-    logUi("O2 100% calibration failed", UiLogLevel::Error);
-    messageBox("O2 100% Cal Failed", value);
-  }
-  sensorAccess.release();
+  app::Command command;
+  command.type = app::CommandType::CalibratePure;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
 void action_calibrate_he(lv_event_t * e) {
-  if (!sensorAccess.acquire()) {
-    messageBox("Sensors busy - try again", NAN);
-    return;
-  }
-  float value = sensors.calibrateHe_100();
-  if (!isnan(value) && value > 0.0f) {
-    config.setHeCalibration100(value);
-    messageBox("He 100% Calibrated", value);
-    logUi("He calibration successful", UiLogLevel::None);
-  } else {
-    log_e("He calibration failed: %.2f mV", value);
-    logUi("He calibration failed", UiLogLevel::Error);
-    messageBox("He Cal Failed", value);
-  }
-  sensorAccess.release();
+  app::Command command;
+  command.type = app::CommandType::CalibrateHe;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
 void action_reset_o2_21(lv_event_t * e) {
-  if (!sensorAccess.acquire()) {
-    messageBox("Sensors busy - try again", NAN);
-    return;
-  }
-  log_i("Resetting O2 21 calibration");
-  config.setO2Calibration21(config.O2_CALIBRATION_21_DEFAULT);
-  sensorAccess.release();
+  app::Command command;
+  command.type = app::CommandType::ResetAir;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
 void action_reset_o2_100(lv_event_t * e) {
-  if (!sensorAccess.acquire()) {
-    messageBox("Sensors busy - try again", NAN);
-    return;
-  }
-  log_i("Resetting O2 100 calibration");
-  config.setO2Calibration100(config.O2_CALIBRATION_100_DEFAULT);
-  sensorAccess.release();
+  app::Command command;
+  command.type = app::CommandType::ClearPure;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
 void action_reset_he(lv_event_t * e) {
-  if (!sensorAccess.acquire()) {
-    messageBox("Sensors busy - try again", NAN);
-    return;
-  }
-  log_i("Resetting He calibration");
-  config.setHeCalibration100(config.HE_CALIBRATION_100_DEFAULT);
-  sensorAccess.release();
+  app::Command command;
+  command.type = app::CommandType::ResetHe;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
 void action_open_config(lv_event_t * e) {
-  log_i("Opening config");
-  configOpen = true;
+  setUiSettingsEditing(true);
+  syncUiSettings();
 }
 
 void action_close_config(lv_event_t * e) {
-  if (!sensorAccess.acquire()) {
-    configOpen = false;
-    messageBox("Settings not applied - try again", NAN);
-    return;
+  setUiSettingsEditing(false);
+  app::Command command;
+  command.settings = uiSettings();
+  command.settings.o2Enabled = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED).getBoolean();
+  command.settings.coEnabled = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED).getBoolean();
+  command.settings.heEnabled = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED).getBoolean();
+  command.settings.po2Bottom = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM).getFloat();
+  command.settings.po2Deco = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO).getFloat();
+  command.settings.calibrateOnStart = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean();
+  command.settings.brightness = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8();
+  if (!submitAnalyzerCommand(command)) messageBox("Settings not applied - analyzer busy", NAN);
+  syncUiSettings();
+}
+
+void showAnalyzerResult(const app::Result& result) {
+  if (result.sensorError != SensorError::None) {
+    logUi(SensorManager::getErrorString(result.sensorError), UiLogLevel::Warning);
   }
-  log_i("Closing config");
-  config.setO2Enabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED).getBoolean());
-  config.setCOEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED).getBoolean());
-  config.setHeEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED).getBoolean());
-
-  config.setPO2Bottom(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM).getFloat());
-  config.setPO2Deco(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO).getFloat());
-
-  config.setCalibrateOnStart(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean());
-  config.setBrightness(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8());
-
-  digitalWrite(PIN_HE_ENABLE, config.getHeEnabled());
-  digitalWrite(PIN_CO_ENABLE, config.getCOEnabled());
-
-  sensors.setSensorsConfig(config.getO2Enabled(), config.getCOEnabled(), config.getHeEnabled(),
-                           config.getO2Calibration21(), config.getO2Calibration100(), config.getHeCalibration100());
-
-  configOpen = false;
-  sensorAccess.release();
+  const char* title = nullptr;
+  if (result.failure != app::Failure::None) {
+    switch (result.failure) {
+      case app::Failure::Invalid: title = "Invalid settings or calibration"; break;
+      case app::Failure::Storage: title = "Settings could not be saved"; break;
+      case app::Failure::Sampling: title = "Calibration read failed"; break;
+      case app::Failure::LoadedDefaults: title = "Invalid saved settings - defaults loaded"; break;
+      default: title = "Operation failed"; break;
+    }
+    logUi(title, UiLogLevel::Error);
+  } else {
+    switch (result.type) {
+      case app::CommandType::CalibrateAir: title = "O2 Air Calibrated"; break;
+      case app::CommandType::CalibratePure: title = "O2 100% Calibrated"; break;
+      case app::CommandType::CalibrateHe: title = "He 100% Calibrated"; break;
+      default: break;
+    }
+  }
+  if (title) messageBox(title, result.calibration);
 }
 
 const char *get_var_ui_log() {

@@ -3,7 +3,6 @@
 
 #include <Adafruit_ADS1X15.h>
 #include <RunningAverage.h>
-#include "ui-log.h"
 #include "conversions.h"
 #include "adc_read.h"
 

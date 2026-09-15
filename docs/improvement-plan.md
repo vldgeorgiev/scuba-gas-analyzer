@@ -111,10 +111,19 @@ Target stale indication within two seconds of the last usable
 sample, including UI refresh latency. Measure disconnect behavior without promising every bus
 failure can be detected with the stock library.
 
-## 3. Add sleep and wake
+## 3. Establish task ownership and add sleep
 
-Progress: step 3a adds interim exclusive access between existing acquisition and UI sensor operations.
+Decision updated 2026-09-15: bring the full analyzer/UI task restructuring forward from step 4
+to avoid accumulating temporary synchronization. Step 3a's interim gate is replaced by step 3b:
+one analyzer task, one UI task, and a small fixed command/result path. The gate, `configOpen`,
+GUI mutex, separate screen-update task, and arbitrary startup delay are removed.
 Actual sleep preparation/resume, CO startup timing, inactivity settings, and wake remain pending.
+
+The analyzer owns ADCs, sensor-enable GPIOs, calibration, effective RAM settings, and Preferences.
+UI callbacks submit one operation at a time and receive an outcome with effective values and a
+measurement generation. Acquisition continues while settings are open. Calibration currently runs
+its fixed sampling sequence on the analyzer, not the UI; incremental cancellation/progress is step 5.
+The UI initializes and updates all graphics objects in one task. Block the unused Arduino loop.
 
 Default timeout: 5 minutes. Options: Off, 1, 2, 5, 10, and 30 minutes; wake on GPIO14/button 2.
 Persist the selected timeout; use 5 minutes when the stored value is missing or invalid.
@@ -122,10 +131,9 @@ Measure touch/button inactivity, not redraws. Inhibit sleep during calibration, 
 Wi-Fi scans, and OTA using explicit activity flags, not a nested inhibitor registry. Start a fresh
 idle interval after operations finish.
 
-Deliver this against the existing UI before the broader ownership refactor and replacement UI.
-Include only the settings control, coordinated acquisition pause/resume, sensor power handling,
-and fixed CO startup interval needed for sleep; reuse them in step 4. Do not wait for the Editor
-export or hand-edit generated UI output.
+Deliver ownership and sleep against the existing UI before the replacement UI. Reuse the analyzer
+command path for sleep preparation/resume and owner-driven sensor power timing. No more temporary
+shared-access gates. Do not wait for the Editor export or hand-edit generated UI output.
 
 Ask the analyzer to prepare for sleep with an ID and timeout. Reject preparation while busy.
 After acknowledgement, power down the display/touch/backlight and radio as supported, then enter
@@ -142,24 +150,22 @@ Acceptance: five-minute default, missing/invalid timeout fallback, Off and all t
 busy inhibition, abort/resume, held button, retained settings, and ten sleep/wake cycles. Actual
 wake reliability and current consumption require hardware.
 
-## 4. Simplify ownership and live settings
+## 4. Finish settings behavior and acceptance
 
-Move ADC/calibration work and sensor power changes out of UI callbacks into the analyzer context.
-Merge UI work into one context; remove shared pause flags, arbitrary startup waits, and the GUI
-mutex once no other task accesses UI state. Publish only the latest measurement without blocking.
+Ownership, RAM settings, complete-candidate validation, checked changed-key writes, acknowledged
+reset/clear, and generation filtering have moved into step 3b because the task handoff needs them.
+Do not repeat that restructuring. Keep individual Preferences keys and explicit best-effort
+persistence: a failed multi-key write may have stored a prefix even though runtime state is retained.
+An in-session retry rewrites the complete candidate before reporting success after such a failure.
 
-Load Preferences once, validate related settings together, write only changed keys, and apply the
-RAM candidate only after writes report success. Reject invalid candidates without writing. On a
-reported persistence failure retain previous runtime state and show failure. Some keys may already
-have changed in storage; validate the resulting set on restart. No persistent rollback guarantee.
+Finish field-specific invalid-load fallback, calibration-required status, draft/rejection UX, and
+device checks for apply/reset/clear across reboot. Currently an invalid loaded set is visibly
+replaced with defaults as a whole; refine that without adding versioning or migration machinery.
+Check that calibration outcomes cannot overwrite in-progress editable settings drafts, and that
+old-generation readings never accompany new coefficients. Keep tests focused on product behavior.
 
-Use explicit O2-air/He reset and optional O2-100 clear operations. Start the CO 3,000 ms deadline
-when its power is asserted, including re-enable and wake; publish only a fresh conversion started
-after the deadline, not the former 20-conversion batch.
-
-Acceptance: settings take effect without reboot; rejected drafts cannot change effective values;
-old-generation samples are not displayed. Test slow consumers, queue-full handling, startup busy
-state, cancellation races, and completion delivery. A small protocol must still avoid lost results.
+Acceptance: retained settings and reset/clear behavior verified on the device, write failures
+reported accurately, and no repeated NVS reads during display updates. No new store framework.
 
 ## 5. Complete stability-gated calibration
 
@@ -220,8 +226,8 @@ Update build, UI generation, calibration, sleep, and troubleshooting documentati
 
 ## Implementation order
 
-Deliver the baseline and reading fixes (1-2), then sleep and wake (3), ownership and live settings
-(4), calibration (5), the replacement UI (6), and measured cleanup (7). Editor compatibility and calibration trace collection can proceed
+Deliver the baseline and reading fixes (1-2), then task ownership and sleep/wake (3), remaining settings
+behavior (4), calibration (5), the replacement UI (6), and measured cleanup (7). Editor compatibility and calibration trace collection can proceed
 independently. Keep one current checklist per active change. Do not resume the discarded redesign.
 Update architecture and progress alongside meaningful changes. Use Claude for bounded independent
 review when useful, particularly sleep and calibration; no OpenSpec scaffolding is required for

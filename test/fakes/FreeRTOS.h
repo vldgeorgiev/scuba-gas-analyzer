@@ -14,6 +14,15 @@ struct FakeQueue {
 
 using QueueHandle_t = FakeQueue*;
 constexpr uint32_t portMAX_DELAY = UINT32_MAX;
+constexpr int pdPASS = 1;
+
+inline int xQueueSend(QueueHandle_t queue, const void* item, uint32_t) {
+  if (queue->occupied) return 0;
+  std::memcpy(queue->data.data(), item, queue->data.size());
+  ++queue->sends;
+  queue->occupied = true;
+  return pdPASS;
+}
 
 inline int xQueueOverwrite(QueueHandle_t queue, const void* item) {
   std::memcpy(queue->data.data(), item, queue->data.size());

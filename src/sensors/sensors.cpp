@@ -78,6 +78,7 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
 SensorError SensorManager::readSensors() {
   sensorsData data;
   data.timestampMs = ::millis();
+  data.generation = _generation;
   data.o2State = _isO2Enabled ? ChannelState::Unavailable : ChannelState::Disabled;
   data.coState = _isCOEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
   data.heState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
@@ -164,7 +165,7 @@ float SensorManager::calibrateHe_100() {
   return _heCalibration100;
 }
 
-const char* SensorManager::getErrorString(SensorError error) const {
+const char* SensorManager::getErrorString(SensorError error) {
   switch (error) {
     case SensorError::None: return "No error";
     case SensorError::ADC_Init_Failed: return "ADC unavailable";

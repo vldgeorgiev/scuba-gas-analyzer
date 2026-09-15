@@ -46,6 +46,7 @@ struct sensorsData {
   float HeTemperature = NAN;
   SensorError lastError = SensorError::None;
   uint32_t timestampMs = 0;
+  uint32_t generation = 1;
   ChannelState o2State = ChannelState::Unavailable;
   ChannelState coState = ChannelState::Unavailable;
   ChannelState heState = ChannelState::Unavailable;
@@ -55,10 +56,16 @@ struct sensorsData {
     return static_cast<uint32_t>(nowMs - timestampMs) < FRESHNESS_MS;
   }
 
-  sensorsData forDisplay(uint32_t nowMs) const {
+  sensorsData forDisplay(uint32_t nowMs, uint32_t expectedGeneration = 0) const {
+    if (expectedGeneration && generation != expectedGeneration) {
+      sensorsData unavailable;
+      unavailable.generation = generation;
+      return unavailable;
+    }
     if (isFresh(nowMs)) return *this;
     sensorsData unavailable;
     unavailable.timestampMs = timestampMs;
+    unavailable.generation = generation;
     unavailable.lastError = lastError;
     unavailable.o2State = o2State == ChannelState::Disabled ? ChannelState::Disabled : ChannelState::Stale;
     unavailable.coState = coState == ChannelState::Disabled ? ChannelState::Disabled : ChannelState::Stale;
@@ -75,13 +82,14 @@ public:
     SensorError init();
     void setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100);
     SensorError readSensors();
+    void setGeneration(uint32_t generation) { _generation = generation; }
     float calibrateO2_21();
     float calibrateO2_100();
     float calibrateHe_100();
 
     // Get last error for diagnostics
     SensorError getLastError() const { return _lastError; }
-    const char* getErrorString(SensorError error) const;
+    static const char* getErrorString(SensorError error);
 
 private:
     struct DeviceState {
@@ -118,6 +126,7 @@ private:
 
     // Lightweight error tracking
     SensorError _lastError = SensorError::None;
+    uint32_t _generation = 1;
 };
 
 #endif // SENSORS_H

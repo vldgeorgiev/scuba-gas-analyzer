@@ -10,8 +10,8 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
 | 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
-| 3. Sleep/wake, five-minute default | In progress: 3a interim exclusive sensor access implemented; actual sleep/wake and CO startup interval not yet implemented |
-| 4. Ownership and live settings | Not started |
+| 3. Task ownership and sleep/wake | In progress: 3b two-owner task restructure replaces interim gate; actual sleep/wake and CO startup interval pending |
+| 4. Remaining settings behavior | Ownership/basic validated RAM settings moved into 3b; field-specific fallback, calibration-required state and device acceptance pending |
 | 5. Stability-gated calibration | Not started |
 | 6. Replacement UI | Not started; sample Editor export required |
 | 7. Diagnostics and measured cleanup | Not started |
@@ -302,9 +302,58 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Pending hardware: rapid settings open/close during reads, calibration during startup, busy-action
   recovery, live enable changes, and GUI responsiveness. No push, upload, flash, or OTA performed.
 
+## 2026-09-15: Step 3b, task ownership moved forward
+
+- User approved bringing the complete task restructure into step 3, rather than keeping temporary
+  access fixes until step 4. Started from `5418b77`. Removed `SensorAccess` and its five tests,
+  `configOpen`, GUI mutex, separate screen-update task, one-second startup delay, and monitor task.
+- Added one concrete Analyzer plus fixed command/result definitions, and one AnalyzerSettings value.
+  Analyzer task owns local Config/SensorManager instances and sensor-power GPIOs. UI task owns all
+  LVGL/EEZ access, status adapter, brightness, and effective settings copy. Arduino loop blocks.
+- Added depth-one command and result queues beside the existing overwrite measurement queue.
+  Startup readiness and one outstanding user operation bound the protocol. Outcomes are retained
+  and retried without blocking ordinary measurements; no reservation or multi-operation framework.
+- UI callbacks enqueue settings/calibration/reset commands and return. Startup/manual calibration
+  uses the analyzer, not the UI task. Calibration still occupies that owner for its fixed sampling
+  sequence; cancellation/progress/stability remain step 5. Wi-Fi/OTA callbacks remain synchronous.
+- Preferences values are loaded once; old public setters were replaced with validated changed-key
+  saves. Failed writes leave effective RAM unchanged. A dirty flag rewrites the full next candidate
+  after a partial failure, but mixed persistent values on power loss remain an accepted limitation.
+- Reset/clear now persist/apply/acknowledge; ordinary drafts cannot overwrite calibration coefficients.
+  Measurement generations prevent cached old coefficients from appearing current after acknowledgement.
+- Invalid loaded settings currently fall back visibly as a whole; field-specific recovery and
+  calibration-required state remain step 4. No migration, schema, or redundant storage introduced.
+
+### Verification and review
+
+- All 62 native tests pass: 12 conversions, 37 sensor/cycle/adapter, and 13 analyzer/message tests.
+  New cases cover effective-value acknowledgement, generation changes, invalid candidates, storage
+  failure, live calibration restoration, reset/clear, startup barrier, mismatched/duplicate IDs,
+  command-full refusal, result retention with continued measurement, and partial-write reconciliation.
+- Both real S3 profiles pass: debug static RAM 158908 bytes, flash 1525333 bytes; release static
+  RAM 158908 bytes, flash 1511501 bytes. Against 3a: static RAM -208 bytes, debug flash -3932,
+  release flash -836. Task stacks are now 10 KB UI + 4 KB analyzer, versus 10+3+3 KB previously;
+  queue allocations and actual stack/heap high-water marks remain unmeasured.
+- LVGL MCP consulted for single-task graphics ownership. Inspected generated EEZ initialization:
+  `eez_flow_init()` loads assets, starts flow (including globals), creates screens and selects one
+  before returning. The old startup delay worked around concurrent initialization; no arbitrary
+  replacement wait was added. Hardware startup acceptance remains pending.
+- Claude read-only review: exposed ADC initialization failures in Startup results, retained first
+  operation failure, moved UI log writes onto the UI owner, and removed `nan mv` from error dialogs.
+  Kept effective settings visible until ack intentionally; previews may revert while the save is
+  pending. Active drafts are not overwritten by unrelated completions except startup synchronization.
+- Rejected timeout-based busy clearing: forgetting an in-flight command could admit another before
+  the first completed. Matching result delivery is tested; permanent task failure remains explicit
+  unavailability, not automatic recovery. Partial persistent writes are accepted by scope, so no
+  version-key or blob protocol was added in response to that review suggestion.
+- Target build found EEZ's own Settings type; renamed the app value AnalyzerSettings. Native discovery
+  found the deleted gate test's empty directory; removed it rather than retaining obsolete tests.
+- No source references to SensorAccess/configOpen/gui_mutex remain. Generated UI assets are unchanged.
+  No push, upload, flash, or OTA performed. The user must verify startup, rapid navigation while busy,
+  calibration with live UI, settings/reset persistence, status recovery, and stack/heap behavior.
+
 ### Next increment
 
-Continue step 3 with owner-driven prepare/resume and sensor power timing, then the persisted
-five-minute inactivity default and GPIO14 wake. Do not enter deep sleep using `configOpen` alone
-or infer an acknowledgement from a failed access attempt. Keep the broader ownership/settings
-refactor scoped to what this feature needs; step-2 device acceptance remains open.
+Use the real analyzer owner for sleep Prepare/Resume and sensor power timing, then add the five-minute
+default setting and GPIO14 wake. Do not reintroduce a shared access gate. Step-2 device checks remain
+open; step 4 is now the remaining settings refinements, not another task restructure.

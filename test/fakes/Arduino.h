@@ -2,6 +2,14 @@
 #define TEST_ARDUINO_H
 
 #include <cstdint>
+#include "ui-log.h"
+
+constexpr int HIGH = 1;
+constexpr int LOW = 0;
+constexpr int OUTPUT = 1;
+inline int pinValues[64] = {};
+inline void pinMode(int, int) {}
+inline void digitalWrite(int pin, int value) { pinValues[pin] = value; }
 
 inline unsigned delayCalls = 0;
 inline unsigned delayedMs = 0;
