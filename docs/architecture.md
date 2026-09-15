@@ -8,7 +8,8 @@ This document replaces the historical architecture as the active technical refer
 ## Implemented today
 
 The application still uses the original EEZ UI, sensor classes, and Preferences-backed `Config`.
-Step 1 only pins dependencies, adds build/test support, and extracts conversion arithmetic.
+Step 1 pins dependencies, adds build/test support, and extracts conversion arithmetic.
+Step 2a removes normal-reading batch averaging; calibration still uses its original sampling.
 
 | Responsibility | Current implementation |
 | --- | --- |
@@ -18,7 +19,7 @@ Step 1 only pins dependencies, adds build/test support, and extracts conversion 
 | Acquisition | `Task_Sensors`, core 1, configured 3 KB stack; nominal 500 ms schedule |
 | Measurement transport | Five-entry `sensorsData` queue; producer and consumer can block indefinitely |
 | Settings/calibration | UI callbacks can access persistence and calibration; `configOpen` is not exclusive ownership |
-| ADC access | Unmodified Adafruit ADS1X15, blocking conversion helpers, 20-sample gas batches |
+| ADC access | Unmodified Adafruit ADS1X15, blocking conversion helpers, one conversion per normal gas reading |
 | Pure arithmetic | `src/sensors/conversions.h` and `.cpp`; used by sensors and native tests |
 
 The framework `loop()` is empty. A diagnostic task exists behind `DEBUG`, which is not enabled by
@@ -26,6 +27,15 @@ the baseline profiles. Stack sizes above are allocations, not measured high-wate
 There is no command/result protocol, automatic sleep, CO startup deadline, or stability detector yet.
 The current queue and shared hardware access are known limitations to address, not reusable APIs
 that later changes must preserve.
+
+Normal O2, He, and CO readings no longer allocate average buffers or take 20-conversion batches.
+Temperature remains one conversion. Existing O2 calibration validation can skip a reading entirely.
+With all channels enabled, a cycle now requests four conversions rather than 61; the theoretical
+conversion time at 128 SPS falls from about 477 ms to 31 ms. Bus overhead, task waits, and UI
+latency are not included. The 500 ms acquisition schedule and UI refresh logic remain unchanged.
+Actual displayed response and increased noise require hardware comparison. O2/He calibration still
+collects five batches of 20 samples and pauses 100 ms after each; `RunningAverage` remains only
+for these local calibration buffers until step 5 replaces them.
 
 ## Planned ownership
 
@@ -45,8 +55,8 @@ widgets; remove the second UI task and mutex only after moving all callers. Reus
 Arduino loop task. No separate logger, battery, or permanent monitoring task is planned.
 Choose stack sizes and scheduling from measured behavior; no core-affinity change is required.
 
-The analyzer owns state changes between bounded units of work. Normal measurements will use one
-fresh conversion per enabled channel. Use stock Adafruit start/poll/result calls with an elapsed
+The analyzer will own state changes between bounded units of work. Normal readings already use one
+fresh conversion per channel. Replace the current blocking helpers with stock Adafruit start/poll/result calls with an elapsed
 deadline and the ESP32 Wire timeout. Keep gains and 128 SPS initially. The library's hidden I2C
 failures remain an accepted limitation: a returned number is not proof that its transfer succeeded.
 Do not introduce custom register access or another ADC library to hide this tradeoff.
@@ -130,10 +140,18 @@ Board power-down, GPIO hold/pulls, wake reliability, and actual current require 
 
 ## Verification and boundaries
 
-Native tests currently compile only production conversion arithmetic. Seven characterization tests
+Native tests compile production conversion arithmetic and the actual sensor headers. Seven characterization tests
 preserve existing outputs, including the current He/NaN fallback and temperature rounding. They do
 not certify those behaviors as correct; step 2 will add explicit tests for intentional fixes.
 Tolerance is 0.0001 in each function's output units for floating arithmetic, not sensor accuracy.
+
+Seven sensor-read tests check one conversion per normal read, channel selection, response to the
+next input, existing polarity/correction behavior, and unchanged calibration counts/pauses.
+Small public-API stand-ins for Adafruit, logging, and calibration averaging live under `test/fakes`.
+The averaging stand-in only supports filling a fixed batch, not library ring-buffer behavior.
+Both `-I` and `-iquote` paths are native-only; the latter selects the logging stand-in before the
+real ESP32 header. Target builds use the real libraries. Host tests do not simulate conversion
+timing, prove bus reliability, or measure sensor noise.
 
 Add tests per changed behavior; do not recreate the discarded infrastructure tests. Target builds
 validate real library integration and sizes only. Device checks cover noise, displayed response,

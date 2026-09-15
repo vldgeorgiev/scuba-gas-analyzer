@@ -2,7 +2,6 @@
 #define COSensor_H
 
 #include <Adafruit_ADS1X15.h>
-#include <RunningAverage.h>
 #include "conversions.h"
 
 struct COReading {
@@ -15,19 +14,12 @@ struct COReading {
 // to use the analog voltage rather than wait for the UART data to be ready
 class COSensor {
 public:
-  COSensor(uint8_t analogChannel, Adafruit_ADS1115& adc) : _analogChannel(analogChannel), _adc(adc), _average(RUNNING_AVG_SIZE) {}
+  COSensor(uint8_t analogChannel, Adafruit_ADS1115& adc) : _analogChannel(analogChannel), _adc(adc) {}
 
   COReading readLevel() {
-    if (!_average.clear())
-      log_e("Failed to init average");
-
-    for (int i = 0; i < RUNNING_AVG_SIZE; i++)
-    {
-      int16_t adcValue = _adc.readADC_SingleEnded(_analogChannel);
-      _average.addValue(adcValue);
-    }
+    const int16_t adcValue = _adc.readADC_SingleEnded(_analogChannel);
     COReading reading;
-    reading.millivolts = _adc.computeVolts(_average.getAverage()) * 1000;
+    reading.millivolts = _adc.computeVolts(adcValue) * 1000;
 
     reading.ppm = conversions::coPpm(reading.millivolts);
     return reading;
@@ -36,8 +28,6 @@ public:
 private:
   uint8_t _analogChannel;
   Adafruit_ADS1115& _adc;
-  const int RUNNING_AVG_SIZE = 20; // Must be before the average object
-  RunningAverage _average;
 };
 
 #endif // COSensor_H

@@ -9,7 +9,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | Step | Status |
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
-| 2. Measurement handling and averaging removal | Not started |
+| 2. Measurement handling and averaging removal | In progress: normal-reading averaging removed and locally verified; initialization, guards, timeout/recovery, and freshness still pending |
 | 3. Sleep/wake, five-minute default | Not started |
 | 4. Ownership and live settings | Not started |
 | 5. Stability-gated calibration | Not started |
@@ -93,8 +93,38 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   defect, and step 1 is deliberately a mechanical extraction. No formula refactor is needed.
 - Tests remain characterization, not proof of safe invalid-input handling or sensor accuracy.
 
+## 2026-09-15: Step 2a, normal-reading averaging removal
+
+- Step 1 and its documentation were committed locally as `286cc46`. Local commits are authorized;
+  no push is authorized or performed.
+- Removed the three normal-reading average buffers and 20-conversion loops. Each normal gas read
+  uses one new Adafruit conversion, with unchanged channel selection, gain, formulas, and polarity.
+- Left O2/He calibration at five batches of 20 conversions plus five 100 ms pauses. Renamed its
+  sample-count constant to make the remaining calibration-only use clear. The pinned
+  `RunningAverage` dependency stays until calibration no longer needs it.
+- Added seven host tests over the real sensor headers with native-only library/logging stand-ins.
+  The tests exercise read counts and changed inputs, not a second implementation of sensor logic.
+- No task, UI, queue, sleep, data-rate, or persistence change. Blocking Adafruit helper calls remain
+  until the timeout increment. Initialization and invalid-result handling are not fixed by this change.
+- No additional Claude review was needed for this small, directly tested loop removal. Use bounded
+  independent review for the more consequential validity, sleep, and calibration changes.
+
+### Verification
+
+- All 14 native tests pass: seven conversion characterizations and seven sensor integration checks.
+- Both real-library S3 builds pass. Debug: RAM 159036 bytes, flash 1516789 bytes. Release:
+  RAM 159036 bytes, flash 1499317 bytes. Against step 1: static RAM -72 bytes, debug flash
+  -656 bytes, release flash -752 bytes. Removed heap-backed normal average buffers are not included
+  in the static RAM delta.
+- Conversion count falls from 61 to 4 with all channels enabled, nominally 477 ms to 31 ms at
+  128 SPS before bus/scheduling overhead. This is an estimate, not a measured response improvement.
+- Still pending: hardware noise/step-response comparison and timing. The acquisition period remains
+  500 ms; no claim of faster display refresh or equivalent noise rejection is made.
+- Native include-order issue resolved by using a quoted-include path for the logging stand-in;
+  embedded builds never use these stand-ins.
+
 ### Next increment
 
-Step 2 begins with initialized measurement fields and removal of normal-reading 20-conversion
-batches. Keep calibration sampling until the stability window replaces it. Add focused tests for
-each deliberate behavior change; do not introduce a custom ADC driver or generic transport layer.
+Continue step 2 with initialized fields, explicit usable/unusable readings, and guarded derived
+values; then bounded stock-Adafruit acquisition, independent readiness, and latest/stale publication.
+Keep each slice tested and locally committed, and preserve the current simple sensor structure.

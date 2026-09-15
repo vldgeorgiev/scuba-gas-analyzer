@@ -13,7 +13,7 @@ struct O2Reading {
 
 class O2Sensor {
 public:
-  O2Sensor(Adafruit_ADS1115 &adc) : _adc(adc), _average(RUNNING_AVG_SIZE) {}
+  O2Sensor(Adafruit_ADS1115 &adc) : _adc(adc) {}
 
   void setCalibrations(float calibration21, float calibration100) {
     // The 100% may not be defined, but the 21% must always be valid
@@ -40,18 +40,8 @@ public:
       return reading;
     }
 
-    if (!_average.clear()) {
-      log_e("Failed to init running average");
-      return reading;
-    }
-
-    // Take multiple readings for stability
-    for (int i = 0; i < RUNNING_AVG_SIZE; i++) {
-      int16_t adcValue = _adc.readADC_Differential_2_3();
-      _average.addValue(adcValue);
-    }
-
-    reading.millivolts = abs(_adc.computeVolts(_average.getAverage()) * 1000);
+    const int16_t adcValue = _adc.readADC_Differential_2_3();
+    reading.millivolts = abs(_adc.computeVolts(adcValue) * 1000);
 
     // Validate raw reading
     if (reading.millivolts < 0 || reading.millivolts > 100) { // Reasonable range for O2 sensor
@@ -66,10 +56,10 @@ public:
 
   float calibrate() {
     // Is taking more reading and the delay needed? Does it increase the accuracy?
-    RunningAverage calibrateAvg(CALIBRATION_COUNT * RUNNING_AVG_SIZE);
+    RunningAverage calibrateAvg(CALIBRATION_COUNT * CALIBRATION_SAMPLES_PER_BATCH);
     for (int i = 0; i < CALIBRATION_COUNT; i++)
     {
-      for (int j = 0; j < RUNNING_AVG_SIZE; j++)
+      for (int j = 0; j < CALIBRATION_SAMPLES_PER_BATCH; j++)
       {
         int16_t adcValue = _adc.readADC_Differential_2_3();
         calibrateAvg.addValue(adcValue);
@@ -82,8 +72,7 @@ public:
 
 private:
     Adafruit_ADS1115 &_adc;
-    const int RUNNING_AVG_SIZE = 20; // Must be before the average object
-    RunningAverage _average;
+    const int CALIBRATION_SAMPLES_PER_BATCH = 20;
     // The calibration coeficitients for air and 100% O2
     float _calibration21 = NAN;
     float _calibration100 = NAN;
