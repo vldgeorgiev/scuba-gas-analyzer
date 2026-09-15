@@ -1,0 +1,23 @@
+name: Firmware checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+      - name: Native tests
+        run: pio test -e native
+      - name: Debug and release builds
+        run: pio run -e t-display-s3 -e t-display-s3-release

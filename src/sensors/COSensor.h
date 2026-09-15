@@ -3,6 +3,7 @@
 
 #include <Adafruit_ADS1X15.h>
 #include <RunningAverage.h>
+#include "conversions.h"
 
 struct COReading {
   float millivolts;
@@ -28,19 +29,13 @@ public:
     COReading reading;
     reading.millivolts = _adc.computeVolts(_average.getAverage()) * 1000;
 
-    // Convert voltage to ppm
-    // if (reading.millivolts < V_MIN) reading.millivolts = V_MIN;  // Ensure the voltage is within expected range. Disable during testing to monitor deviations
-    // if (reading.millivolts > V_MAX) reading.millivolts = V_MAX;
-    reading.ppm = (reading.millivolts - V_MIN) * (PPM_MAX / (V_MAX - V_MIN));
+    reading.ppm = conversions::coPpm(reading.millivolts);
     return reading;
   }
 
 private:
   uint8_t _analogChannel;
   Adafruit_ADS1115& _adc;
-  const float V_MIN = 400;  // Minimum output voltage mv (corresponding to 0 ppm)
-  const float V_MAX = 2000;  // Maximum output voltage mv (corresponding to full scale, e.g., 500 ppm)
-  const float PPM_MAX = 500.0;  // Maximum ppm the sensor can read
   const int RUNNING_AVG_SIZE = 20; // Must be before the average object
   RunningAverage _average;
 };

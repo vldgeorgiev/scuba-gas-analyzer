@@ -4,6 +4,7 @@
 #include <Adafruit_ADS1X15.h>
 #include <RunningAverage.h>
 #include "ui-log.h"
+#include "conversions.h"
 
 struct HEReading {
   float millivolts;
@@ -32,17 +33,7 @@ public:
 
     // In case of high oxygen percentage, the He sensor also reads higher voltage. E.g. for 100, the He voltage is 4-5mv higher
     // Values based on the code here, which comes from the original French presentation https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564/page-4#post-9084208
-    if (o2Percentage > 40) {
-      if (o2Percentage > 89) { reading.millivolts = reading.millivolts - 17; }
-      else if (o2Percentage > 82) { reading.millivolts -= 16;}
-      else if (o2Percentage > 75) { reading.millivolts -= 15;}
-      else if (o2Percentage > 71) { reading.millivolts -= 14;}
-      else if (o2Percentage > 66) { reading.millivolts -= 13;}
-      else if (o2Percentage > 62) { reading.millivolts -= 12;}
-      else if (o2Percentage > 57) { reading.millivolts -= 11;}
-      else if (o2Percentage > 52) { reading.millivolts -= 10;}
-      else if (o2Percentage > 48) { reading.millivolts -= 9;}
-    }
+    reading.millivolts = conversions::heCorrectedMillivolts(reading.millivolts, o2Percentage);
 
     // ================ Sensor calibration ===================
     // The sensor is not linear, so the reading has to be corrected. The polynomial formula below is derived from multiple readings
@@ -71,16 +62,7 @@ public:
     // 597.5,   99.9,     95.2
     // 624.25,  104.4,    100.5
 
-    // This is max reading from the polynomial formula for 100% He. The polynomial was derived for specific milivolts, so when
-    // calibrating, the whole curve has to be adjusted before calculating the polynomial.
-    const double FIXED_MAX_MV_100 = 621.2;
-    double adjustmentFactor = FIXED_MAX_MV_100 / _calibration100;
-    double adjustedMv = reading.millivolts * adjustmentFactor;
-
-    reading.percentage =
-      + 1.098e-7 * pow(adjustedMv, 3)
-      - 4.584e-5 * pow(adjustedMv, 2)
-      + (0.1471 * adjustedMv);
+    reading.percentage = conversions::hePercentage(reading.millivolts, _calibration100);
 
     return reading;
   }

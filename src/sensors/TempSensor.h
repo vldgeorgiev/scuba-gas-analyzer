@@ -2,6 +2,7 @@
 #define TempSensor_H
 
 #include <Adafruit_ADS1X15.h>
+#include "conversions.h"
 
 // Reading for sensor LM35DZ, which is calibratedd for Celsius. 10mV correspond to 1 °C
 class TempSensor {
@@ -11,7 +12,7 @@ public:
   float readLevel() {
     int16_t adcValue = _adc.readADC_SingleEnded(_analogChannel);
     float millivolts = _adc.computeVolts(adcValue) * 1000;
-    return round(millivolts * 10) / 10 / 10; // 10mV correspond to 1 °C. Round to single decimal
+    return conversions::temperatureCelsius(millivolts);
   }
 
 private:

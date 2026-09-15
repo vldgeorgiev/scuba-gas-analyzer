@@ -4,6 +4,7 @@
 #include <Adafruit_ADS1X15.h>
 #include <RunningAverage.h>
 #include "ui-log.h"
+#include "conversions.h"
 
 struct O2Reading {
   float millivolts;
@@ -58,18 +59,7 @@ public:
       return reading;
     }
 
-    // Calculate percentage based on calibration
-    if (!isnan(_calibration100)) {
-      // Linear drift correction with 100% calibration
-      reading.percentage = 20.9 + 79.1*(reading.millivolts - _calibration21)/(_calibration100 - _calibration21);
-    } else {
-      // Simple linear scaling with air calibration only
-      reading.percentage = 20.9 / _calibration21 * reading.millivolts;
-    }
-
-    // Clamp percentage to reasonable range
-    if (reading.percentage < 0) reading.percentage = 0;
-    if (reading.percentage > 100) reading.percentage = 100;
+    reading.percentage = conversions::o2Percentage(reading.millivolts, _calibration21, _calibration100);
 
     return reading;
   }
