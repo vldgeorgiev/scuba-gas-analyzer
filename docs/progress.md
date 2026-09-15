@@ -486,9 +486,9 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - No push, upload, flash, or OTA performed by the assistant. Automatic sleep will become active
   when this firmware is manually flashed; physical acceptance is still required.
 
-### Device acceptance (not run)
+### Device acceptance (partially verified; see results below)
 
-- [ ] Select one minute, leave the main screen idle, observe full backlight-off and wake on GPIO14.
+- [x] Select one minute, leave the main screen idle, observe full backlight-off and wake on GPIO14.
 - [ ] Confirm Off stays awake and the five-minute default/each offered interval survives restart.
 - [ ] Exercise touch/button activity, held wake button for five seconds, bounce/release, and settings drafts.
 - [ ] Confirm calibration, settings writes, scans, and OTA do not sleep mid-operation or immediately afterward.
@@ -513,6 +513,60 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   execute TouchLib's hardware path and did not cover this return-value contract. Device retry pending.
 - No assistant upload or push performed. Repeat the one-minute timeout and GPIO14 wake check before
   marking the corresponding acceptance items complete.
+
+## 2026-09-15: First sleep still aborts; investigation open
+
+- User reports the inverted TouchLib-result correction did not resolve the problem. The previous
+  firmware also sometimes succeeded on its second attempt. The first fix corrected a verified API
+  interpretation error, but physical sleep is not fixed or accepted yet.
+- Added uncommitted stage-specific failure reporting to the sleep dialog and serial log: wake
+  setup, input before/after panel sleep, touch initialization/write, Wi-Fi shutdown, and GPIO holds.
+  GPIO hold failures log the pin and SDK error; touch sleep logs its actual failure flag. Shutdown
+  checks are not bypassed, reordered, or retried as part of this diagnostic probe.
+- Checked pinned Wi-Fi implementation: an uninitialized radio reports WIFI_OFF, so shutdown is
+  skipped. TouchLib ignores read status and can expose stale touch data. Aborting after the touch
+  write resets the controller; aborting earlier does not. That difference could explain a later
+  successful attempt, but is not confirmed without the first attempt's failure stage.
+- Claude independently reviewed first-use paths. Its wake-pin cleanup suggestion is a hardware
+  hypothesis, not a demonstrated explanation. No speculative pin-reset change was applied.
+- Diagnostic firmware builds in both S3 profiles and all 87 existing native tests pass. Those tests
+  do not exercise physical shutdown or establish the root cause. No commit, upload, or push made;
+  the user requested no commit until the actual failure is fixed and tested.
+- Next device observation: after a fresh boot, capture the new first-abort dialog text and serial
+  `Sleep:` / `Sleep aborted:` lines. Compare the second attempt without resetting. Do not mark
+  sleep acceptance complete based only on second-attempt success.
+
+## 2026-09-15: Touch write failure isolated; reset-before-sleep pending device test
+
+- Device log confirms Wi-Fi mode 0 and `touch sleep failure flag=1`, followed by
+  `Touch sleep write failed`. This isolates the abort to the touch sleep I2C write, not Wi-Fi
+  shutdown or GPIO holds. Earlier Wire read errors do not establish which device failed.
+- Sleep preparation now resets and probes the touch controller before the sleep write, using
+  the same 200 ms low / 200 ms high sequence previously used only during abort recovery.
+  Reset/probe code is shared with recovery. Input is checked again after reset; probe or sleep
+  write failures still abort. No library fork or ignored write failure was introduced.
+- Hypothesis: the reset previously performed by the first abort restores the state needed by
+  the next sleep attempt. The write failure is confirmed; its electrical/controller cause and
+  whether this preparation fixes it remain unverified on hardware.
+- Both S3 debug and release builds pass. No commit, upload, or push made. Next device check:
+  from a fresh boot, the first idle sleep should log `touch reset address status=0` and
+  `touch sleep failure flag=0`, then enter sleep. Verify button wake, restored touch operation,
+  and another idle sleep. Preserve any failure-stage messages if this does not succeed.
+
+## 2026-09-15: First-attempt sleep fix verified on device
+
+- With the reset-before-sleep build, the user captured `touch reset address status=0`, followed
+  by USB disconnect during sleep entry, and confirmed the screen stayed off without an abort.
+- The user then confirmed button wake, working touch after wake, and another successful idle sleep.
+  This passes the basic first-attempt sleep/wake regression check; it is not the ten-cycle endurance
+  test, a sleep-current measurement, or full acceptance of all step-3 hardware behavior.
+- Retained reset/probe before the touch sleep write, shared with abort recovery, and stage-specific
+  failure reporting. The observed write failure is resolved in the tested sequence; the underlying
+  controller/electrical cause of the original failed write has not been independently established.
+- Both S3 profiles built successfully after the code change. All 87 native tests passed during
+  diagnosis, but do not execute the physical reset/sleep path. Device flashing/testing was performed
+  by the user. The no-commit-until-fixed-and-tested condition is now met for this regression;
+  the fix is ready for the previously authorized local commit, with no push.
 
 ### Next increment
 

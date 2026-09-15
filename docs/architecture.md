@@ -165,7 +165,11 @@ No additional worker task or generic power-management framework is used.
   for the internal RTC pull-up; the pulldown is disabled. Failure to configure wake aborts entry.
 4. DisplayManager checks input, sends panel display-off/sleep-in, writes backlight duty zero,
   detaches PWM, and drives backlight low. After the 120 ms panel interval it checks input again,
-  stops touch polling, and checks TouchLib's `enableSleep()` result. In the pinned CST-self driver,
+  stops touch polling, resets the touch controller for 200 ms low/200 ms high, probes its address,
+  rechecks input, and checks TouchLib's `enableSleep()` result. Reset/probe is shared with abort
+  recovery; either probe or write failure aborts entry with a stage-specific message. This sequence
+  passed the device first-sleep, button-wake, restored-touch, and subsequent-sleep check.
+  In the pinned CST-self driver,
   this boolean is inverted: `writeRegister()` returns 0 on success and -1 on failure, and
   `enableSleep()` returns that integer as bool. The adapter treats false as success and true as
   failure. Recheck this contract if TouchLib changes; do not assume conventional boolean semantics.

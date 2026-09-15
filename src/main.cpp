@@ -152,11 +152,13 @@ static void Task_UI(void*) {
                        displayManager.touchActive())) {
         uiState.requestResume(commandQueue);
       } else {
-        app::enterDeviceSleep(displayManager);
+        const char* sleepFailure = app::enterDeviceSleep(displayManager);
+        log_e("Sleep aborted: %s", sleepFailure);
         const bool restored = displayManager.restoreAfterSleepAbort(uiSettings().brightness);
         uiState.requestResume(commandQueue);
-        logUi(restored ? "Sleep entry aborted; resuming" : "Touch restoration failed", UiLogLevel::Error);
-        messageBox(restored ? "Sleep aborted - staying awake" : "Sleep aborted - touch unavailable", NAN);
+        logUi(sleepFailure, UiLogLevel::Error);
+        if (!restored) logUi("Touch restoration failed", UiLogLevel::Error);
+        messageBox(restored ? sleepFailure : "Sleep aborted - touch unavailable", NAN);
       }
     } else if (uiState.sleepPhase == app::SleepPhase::Awake &&
                app::sleepDue(uiSettings().sleepMinutes, displayManager.inactiveTime(),

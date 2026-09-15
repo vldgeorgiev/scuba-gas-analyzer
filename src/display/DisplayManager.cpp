@@ -136,9 +136,28 @@ bool DisplayManager::touchActive() {
 #endif
 }
 
+bool DisplayManager::resetTouchController() {
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  pinMode(PIN_TOUCH_RES, OUTPUT);
+  digitalWrite(PIN_TOUCH_RES, LOW);
+  delay(200);
+  digitalWrite(PIN_TOUCH_RES, HIGH);
+  delay(200);
+  Wire.beginTransmission(CTS820_SLAVE_ADDRESS);
+  const uint8_t error = Wire.endTransmission();
+  log_i("Sleep: touch reset address status=%u", static_cast<unsigned>(error));
+  return error == 0;
+#else
+  return false;
+#endif
+}
+
 bool DisplayManager::prepareSleep() {
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
-  if (!touchInputEnabled || touchActive() || digitalRead(PIN_BUTTON_2) == LOW || digitalRead(PIN_BUTTON_1) == LOW) return false;
+  _sleepFailure = "Touch not initialized";
+  if (!touchInputEnabled) return false;
+  _sleepFailure = "Input before panel sleep";
+  if (touchActive() || digitalRead(PIN_BUTTON_2) == LOW || digitalRead(PIN_BUTTON_1) == LOW) return false;
   tft.writecommand(TFT_DISPOFF);
   tft.writecommand(TFT_SLPIN);
   _panelSleeping = true;
@@ -147,10 +166,17 @@ bool DisplayManager::prepareSleep() {
   pinMode(PIN_LCD_BL, OUTPUT);
   digitalWrite(PIN_LCD_BL, LOW);
   delay(120);
+  _sleepFailure = "Input after panel sleep";
   if (touchActive() || digitalRead(PIN_BUTTON_2) == LOW || digitalRead(PIN_BUTTON_1) == LOW) return false;
   _touchSleepAttempted = true;
   touchInputEnabled = false;
+  _sleepFailure = "Touch reset probe failed";
+  if (!resetTouchController()) return false;
+  _sleepFailure = "Input after touch reset";
+  if (touch.read() || digitalRead(PIN_BUTTON_2) == LOW || digitalRead(PIN_BUTTON_1) == LOW) return false;
   const bool touchSleepFailed = touch.enableSleep();
+  _sleepFailure = "Touch sleep write failed";
+  log_i("Sleep: touch sleep failure flag=%d", touchSleepFailed);
   return !touchSleepFailed;
 #else
   return false;
@@ -161,13 +187,7 @@ bool DisplayManager::restoreAfterSleepAbort(uint8_t brightness) {
   bool restored = true;
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
   if (_touchSleepAttempted) {
-    pinMode(PIN_TOUCH_RES, OUTPUT);
-    digitalWrite(PIN_TOUCH_RES, LOW);
-    delay(200);
-    digitalWrite(PIN_TOUCH_RES, HIGH);
-    delay(200);
-    Wire.beginTransmission(CTS820_SLAVE_ADDRESS);
-    restored = Wire.endTransmission() == 0;
+    restored = resetTouchController();
     _touchSleepAttempted = !restored;
     touchInputEnabled = restored;
   }

@@ -15,12 +15,15 @@ public:
   void resetInactivity();
   uint32_t inactiveTime() const;
   bool prepareSleep();
+  const char* sleepFailure() const { return _sleepFailure; }
   bool restoreAfterSleepAbort(uint8_t brightness);
   bool touchActive();
 private:
+  bool resetTouchController();
   lv_obj_t* _sleepDropdown = nullptr;
   bool _panelSleeping = false;
   bool _touchSleepAttempted = false;
+  const char* _sleepFailure = "Display sleep failed";
 };
 
 #endif // DISPLAYMANAGER_H
