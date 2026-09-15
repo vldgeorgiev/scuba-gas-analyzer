@@ -18,11 +18,26 @@ enum class SensorError : uint8_t {
 };
 
 struct sensorsData {
+  static constexpr uint32_t FRESHNESS_MS = 1800;
+
   O2Reading O2Level;
   COReading CoLevel;
   HEReading HeLevel;
   float HeTemperature = NAN;
   SensorError lastError = SensorError::None;
+  uint32_t timestampMs = 0;
+
+  bool isFresh(uint32_t nowMs) const {
+    return static_cast<uint32_t>(nowMs - timestampMs) < FRESHNESS_MS;
+  }
+
+  sensorsData forDisplay(uint32_t nowMs) const {
+    if (isFresh(nowMs)) return *this;
+    sensorsData unavailable;
+    unavailable.timestampMs = timestampMs;
+    unavailable.lastError = lastError;
+    return unavailable;
+  }
 };
 
 class SensorManager {

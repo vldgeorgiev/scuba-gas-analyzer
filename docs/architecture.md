@@ -11,6 +11,7 @@ The application still uses the original EEZ UI, sensor classes, and Preferences-
 Step 1 pins dependencies, adds build/test support, and extracts conversion arithmetic.
 Step 2a removes normal-reading batch averaging; calibration still uses its original sampling.
 Step 2b initializes readings, guards conversions and integer presentation, and resets cycle errors.
+Step 2c adds latest-only publication and UI-clock freshness checks without changing task ownership.
 
 | Responsibility | Current implementation |
 | --- | --- |
@@ -18,7 +19,7 @@ Step 2b initializes readings, guards conversions and integer presentation, and r
 | UI handler | `Task_LVGL`, core 0, configured 10 KB stack |
 | Reading presentation | `Task_Screen_Update`, core 0, configured 3 KB stack; shared GUI mutex and startup delay |
 | Acquisition | `Task_Sensors`, core 1, configured 3 KB stack; nominal 500 ms schedule |
-| Measurement transport | Five-entry `sensorsData` queue; producer and consumer can block indefinitely |
+| Measurement transport | One-entry overwrite `sensorsData` queue; UI polls without blocking and caches the latest sample |
 | Settings/calibration | UI callbacks can access persistence and calibration; `configOpen` is not exclusive ownership |
 | ADC access | Unmodified Adafruit ADS1X15, blocking conversion helpers, one conversion per normal gas reading |
 | Pure arithmetic | `src/sensors/conversions.h` and `.cpp`; used by sensors and native tests |
@@ -26,8 +27,9 @@ Step 2b initializes readings, guards conversions and integer presentation, and r
 The framework `loop()` is empty. A diagnostic task exists behind `DEBUG`, which is not enabled by
 the baseline profiles. Stack sizes above are allocations, not measured high-water marks.
 There is no command/result protocol, automatic sleep, CO startup deadline, or stability detector yet.
-The current queue and shared hardware access are known limitations to address, not reusable APIs
-that later changes must preserve.
+Shared hardware access and blocking ADC/UI operations remain known limitations, not reusable APIs
+that later changes must preserve. Queue or GUI-mutex allocation failure halts application startup
+before tasks start and is reported through serial logging; no on-screen fault is available then.
 
 Normal O2, He, and CO readings no longer allocate average buffers or take 20-conversion batches.
 Temperature is one conversion only while He is enabled. Existing O2 calibration validation can skip a reading entirely.
@@ -65,8 +67,36 @@ error changes. Per-sensor debug logs and the historical log indicator are not re
 
 The EEZ `co_value > 0` condition controls CO-positive colouring and is false for NaN. An empty
 reading is not a zero-CO result; colour is not an all-clear signal. On-device verification of all
-affected views is pending. Explicit disabled/fault/warming presentation, active-fault tracking,
-and freshness are still planned; a stopped producer can still leave an old numeric reading visible.
+affected views is pending. Explicit disabled/fault/warming presentation and active-fault tracking
+are still planned. Stale numeric suppression is implemented in step 2c below.
+
+### Latest measurements and freshness implemented in step 2c
+
+`SensorManager::readSensors()` timestamps the start of each acquisition cycle using Arduino
+`::millis()`, including disabled and invalid cycles. A slow cycle cannot make an early channel
+appear newly measured merely because publication was late. Both publication paths use
+`xQueueOverwrite` on the single-entry queue: a stopped consumer cannot block acquisition or build
+a backlog. This is deliberately lossy telemetry, not a command/completion transport.
+
+The presentation task retains one latest snapshot, polls the queue without waiting, and checks
+freshness every pass, including when no new snapshot arrives. `sensorsData::forDisplay()` returns
+a copy with all numbers set to NaN once unsigned elapsed time reaches 1,800 ms. The original cache
+is unchanged; a new fresh snapshot restores readings. Raw diagnostics and derived MOD also blank.
+Default snapshots contain no numbers, so the initial timestamp of zero cannot fabricate a reading.
+
+The task sleeps 100 ms between passes and waits at most 20 ms per GUI mutex attempt. The 1,800 ms
+cutoff leaves scheduling/rendering margin toward the two-second stale-display target. Freshness
+is evaluated after acquiring the mutex. Numeric globals update only for a pending sample or a
+freshness transition, not on every poll; failed lock attempts leave the update pending. Battery
+sampling stays tied to pending readings, not freshness-only updates. Existing battery values and
+historical log state are not sensor-freshness indicators.
+
+This does not guarantee a two-second visible update if a long callback holds the GUI mutex or
+rendering stops. It prevents waiting for the producer, not waiting for the whole graphics system.
+With the current `configOpen` pause, readings now blank during extended settings/calibration pauses;
+they are not live readings during that pause. Hardware checks must exercise pause/resume and stalled
+producer behavior. The later single-UI-owner change removes the remaining shared-mutex dependency.
+There is no separate stale reason field or settings-generation filter yet.
 
 ## Planned ownership
 
@@ -92,14 +122,14 @@ deadline and the ESP32 Wire timeout. Keep gains and 128 SPS initially. The libra
 failures remain an accepted limitation: a returned number is not proof that its transfer succeeded.
 Do not introduce custom register access or another ADC library to hide this tradeoff.
 
-## Planned messaging
+## Messaging target and current subset
 
 Use plain fixed-size values, without pointers to widgets, mutable settings, or sample arrays.
 No futures, generic event bus, result-reservation service, or multi-operation scheduler.
 
 | Path | Contract |
 | --- | --- |
-| Measurements | Length-one overwrite queue; UI can skip old samples; acquisition never waits for UI |
+| Measurements (implemented) | Length-one overwrite queue; UI can skip old samples; acquisition never waits for UI |
 | Commands | Small FIFO; zero-wait submission; full means not submitted, visibly reported |
 | Completion | Separate bounded path; retain an undelivered result and retry without stopping ordinary measurements |
 | Calibration progress | Latest fixed-capacity snapshot; may be overwritten, never displaces completion |
@@ -120,7 +150,7 @@ the effective values needed by the UI. Enqueue success is not application succes
 cannot undo a calibration already applied: keep its actual completion and effective coefficient.
 Do not discard a committed result merely because the UI has since requested cancellation.
 
-Each measurement carries a timestamp and settings generation. Increment the generation only when
+Timestamps and UI-clock freshness are implemented. A settings generation is planned. Increment it only when
 measurement meaning changes, and include it in completion. UI checks freshness using its own clock
 even if no new sample arrives; cached old-generation values must not survive acknowledgement.
 Use wrap-safe elapsed-time comparisons. Disabled/warming/invalid/unavailable are explicit states,
@@ -177,14 +207,18 @@ overflow, integer boundaries, and MOD. The former He/NaN fallback test now requi
 result. Temperature rounding and valid gas formulas remain characterized.
 Tolerance is 0.0001 in each function's output units for floating arithmetic, not sensor accuracy.
 
-Fourteen sensor/cycle tests check one conversion per normal read, channel selection, response to the
+Nineteen sensor/cycle tests check one conversion per normal read, channel selection, response to the
 next input, raw diagnostics, default snapshots, invalid-to-valid recovery, all-disabled and He-only
 configurations, temperature gating, and unchanged calibration counts/pauses.
+They also exercise latest-only queue consumption, timestamped disabled/invalid cycles, stopped
+producer blanking, exact freshness boundaries, clock wrap, empty boot state, and restored values.
 Small public-API stand-ins for Adafruit, a copying queue, logging, and calibration averaging live under `test/fakes`.
 The averaging stand-in only supports filling a fixed batch, not library ring-buffer behavior.
 Both `-I` and `-iquote` paths are native-only; the latter selects the logging stand-in before the
 real ESP32 header. Target builds use the real libraries. Host tests do not simulate conversion
-timing, prove bus reliability, or measure sensor noise.
+timing, prove bus reliability, or measure sensor noise. The queue stand-in models one copied slot;
+target builds verify the real FreeRTOS calls. Tests do not execute the actual UI task or establish
+display/mutex scheduling latency.
 
 Add tests per changed behavior; do not recreate the discarded infrastructure tests. Target builds
 validate real library integration and sizes only. Device checks cover noise, displayed response,

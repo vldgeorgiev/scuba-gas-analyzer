@@ -50,11 +50,22 @@ void Task_Screen_Update(void *pvParameters) {
     xSemaphoreGive(gui_mutex);
   }
 
+  sensorsData latest;
+  bool pendingReading = true;
+  bool presentedFresh = false;
   while (true) {
     // log_d("[Task_Screen_Update] running on core: %d, Free stack space: %d", xPortGetCoreID(), uxTaskGetStackHighWaterMark(NULL));
-    sensorsData data;
-    if (xQueueReceive(sensorDataQueue, &data, portMAX_DELAY) == pdPASS) {
-      if (xSemaphoreTake(gui_mutex, portMAX_DELAY) == pdTRUE) {
+    sensorsData incoming;
+    const bool received = xQueueReceive(sensorDataQueue, &incoming, 0) == pdPASS;
+    if (received) {
+      latest = incoming;
+      pendingReading = true;
+    }
+    if (xSemaphoreTake(gui_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+      const uint32_t nowMs = ::millis();
+      const bool fresh = latest.isFresh(nowMs);
+      if (pendingReading || fresh != presentedFresh) {
+        const sensorsData data = latest.forDisplay(nowMs);
         const float maxDepthBottomO2 = conversions::maximumOperatingDepth(config.getPO2Bottom(), data.O2Level.percentage);
         const float maxDepthDecoO2 = conversions::maximumOperatingDepth(config.getPO2Deco(), data.O2Level.percentage);
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_VALUE, FloatValue(data.O2Level.percentage));
@@ -67,26 +78,28 @@ void Task_Screen_Update(void *pvParameters) {
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_MILLIVOLTS, FloatValue(data.HeLevel.millivolts));
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_TEMPERATURE, FloatValue(data.HeTemperature));
 
-        switch (UiLog::getInstance().getLevel()) {
-          case UiLogLevel::None:
-            flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_None);
-            break;
-          case UiLogLevel::Warning:
-            flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Warning);
-            break;
-          case UiLogLevel::Error:
-            flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Error);
-            break;
-        }
-
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
         // TODO Should be battery reading be here? No need to check so often. Better place in its own task together with other utility checks
-        float voltage = getBatteryVoltage();
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BATT_VOLTAGE, FloatValue(voltage));
+        if (pendingReading) {
+          float voltage = getBatteryVoltage();
+          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BATT_VOLTAGE, FloatValue(voltage));
+        }
 #endif
-
-        xSemaphoreGive(gui_mutex);
+        pendingReading = false;
+        presentedFresh = fresh;
       }
+      switch (UiLog::getInstance().getLevel()) {
+        case UiLogLevel::None:
+          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_None);
+          break;
+        case UiLogLevel::Warning:
+          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Warning);
+          break;
+        case UiLogLevel::Error:
+          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Error);
+          break;
+      }
+      xSemaphoreGive(gui_mutex);
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
@@ -152,12 +165,14 @@ void setup() {
   if (gui_mutex == NULL) {
     log_e("GUI mutex creation failed");
     logUi("GUI mutex creation failed", UiLogLevel::Error);
+    return;
   }
 
-  sensorDataQueue = xQueueCreate(5, sizeof(sensorsData));
+  sensorDataQueue = xQueueCreate(1, sizeof(sensorsData));
   if (sensorDataQueue == NULL) {
     log_e("Failed to create sensor data queue");
     logUi("Failed to create sensor data queue", UiLogLevel::Error);
+    return;
   }
 
   config.begin();

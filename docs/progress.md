@@ -9,7 +9,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | Step | Status |
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
-| 2. Measurement handling and averaging removal | In progress: averaging removal, initialized readings, validity guards and checked integer presentation verified; timeout/readiness, explicit statuses and freshness pending |
+| 2. Measurement handling and averaging removal | In progress: averaging removal, validity guards, latest publication and freshness verified locally; timeout/readiness and explicit statuses pending |
 | 3. Sleep/wake, five-minute default | Not started |
 | 4. Ownership and live settings | Not started |
 | 5. Stability-gated calibration | Not started |
@@ -157,8 +157,44 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   statuses, bounded ADC reads, independent device recovery, active-fault tracking, and calibration
   transactions remain later work. The existing blocking driver and shared hardware access remain.
 
+## 2026-09-15: Step 2c, latest measurement and UI freshness
+
+- Started from `ba40efb`. Replaced the five-entry blocking measurement queue with one overwrite
+  slot. Both normal and all-disabled cycles publish without waiting for the UI.
+- Timestamped cycle start with `::millis()`; explicit qualification avoids EEZ's competing clock
+  name. Added wrap-safe freshness evaluation to the existing snapshot type, without a new transport
+  class or presentation framework.
+- UI caches the latest measurement and checks freshness without waiting for new samples. At an age
+  of 1,800 ms, all measurement numbers and raw mV become NaN; MOD follows its invalid input.
+  The 100 ms UI polling interval and bounded 20 ms mutex attempt leave margin toward two seconds.
+- Numeric globals update only for new/pending samples or freshness transitions. Pending updates
+  survive mutex contention. Battery sampling is not increased by freshness polling.
+- Queue/mutex allocation failures now stop startup before tasks can use null handles. Failure is
+  reported over serial; an uninitialized display cannot show that message. No automatic reboot loop.
+
+### Verification and review
+
+- All 31 native tests pass: 12 conversion tests and 19 sensor/cycle tests. Five new tests cover a
+  slow consumer receiving only the latest sample, stale blanking without new data, wrap and recovery,
+  timestamps on disabled/invalid paths, and all-NaN initial presentation.
+- Both S3 profiles build with real libraries: debug RAM 159036 bytes, flash 1518017 bytes;
+  release RAM 159036 bytes, flash 1500721 bytes. Compared with step 2b, static RAM is unchanged,
+  debug flash increases 460 bytes, release flash 524 bytes. Runtime queue allocation is smaller;
+  runtime heap and task-stack use have not been measured.
+- Claude reviewed the transport/freshness changes read-only. Addressed misleading indentation and
+  excessive numeric republishing; expanded boot and restored-value checks. Kept serial-only startup
+  failure handling rather than rebooting or starting a UI task with a missing mutex.
+- Deferred a separate stale status, battery freshness, and a cache framework to avoid enlarging this
+  increment. Tests exercise production publication and freshness rules with a one-slot queue fake;
+  they do not prove FreeRTOS scheduling or EEZ rendering latency.
+- Known limitations: GUI callbacks can still block rendering and delay visible stale indication.
+  `configOpen` intentionally stops acquisition, so extended settings/calibration pauses now blank
+  readings. Verify every affected screen on hardware. ADC helpers remain blocking; stale blanking
+  is not a replacement for the next timeout/recovery increment.
+- No generated UI files or LVGL APIs changed. No push, flash, or OTA was performed.
+
 ### Next increment
 
-Continue step 2 with bounded stock-Adafruit acquisition, independent readiness/recovery, and
-latest/stale publication with explicit status. Preserve the simple sensor structure and commit
-tested slices locally. Do not start sleep before the measurement prerequisites are in place.
+Continue step 2 with bounded stock-Adafruit reads, independent ADC readiness/recovery, and explicit
+channel status. Preserve the simple sensor structure and commit tested slices locally. Command
+queues and settings-generation acknowledgement remain part of the later ownership work.

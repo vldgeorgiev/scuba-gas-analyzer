@@ -76,7 +76,8 @@ distinction between local builds, hosted CI execution, and device validation.
 
 Progress: normal-reading batch averaging is removed (step 2a); initialized readings, conversion
 guards, checked integer presentation, and cycle error reset are implemented (step 2b).
-Timeout/readiness, explicit status, and freshness remain pending; see [verification details](progress.md).
+Latest-only measurement publication and UI-clock stale suppression are implemented (step 2c).
+Timeout/readiness and explicit status remain pending; see [verification details](progress.md).
 
 Initialize every measurement field. Distinguish disabled, warming, valid, invalid, and unavailable;
 compute staleness in the UI even when acquisition stops. Never replace unknown values with zero

@@ -10,6 +10,7 @@
 void setUp() {
   delayCalls = 0;
   delayedMs = 0;
+  nowMs = 0;
 }
 void tearDown() {}
 
@@ -213,6 +214,99 @@ void test_he_only_is_unavailable_but_retains_raw_and_temperature() {
   TEST_ASSERT_EQUAL_UINT8(2, Adafruit_ADS1115::devices[1]->lastChannel);
 }
 
+void test_slow_consumer_receives_only_latest_measurement() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager manager(handle);
+  manager.init();
+  manager.setSensorsConfig(true, false, false, 10, NAN, 621.2f);
+  for (unsigned sample = 1; sample <= 10; ++sample) {
+    nowMs = sample * 500;
+    Adafruit_ADS1115::devices[0]->counts = sample * 32;
+    TEST_ASSERT_EQUAL(SensorError::None, manager.readSensors());
+  }
+  TEST_ASSERT_EQUAL_UINT(10, queue.sends);
+  TEST_ASSERT_EQUAL_UINT(10, Adafruit_ADS1115::devices[0]->differential23Reads);
+  sensorsData received;
+  TEST_ASSERT_EQUAL_INT(1, xQueueReceive(handle, &received, 0));
+  TEST_ASSERT_EQUAL_UINT32(5000, received.timestampMs);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20.9f, received.O2Level.percentage);
+  TEST_ASSERT_EQUAL_INT(0, xQueueReceive(handle, &received, 0));
+}
+
+void test_stopped_producer_blanks_all_numbers_without_new_sample() {
+  sensorsData latest;
+  latest.timestampMs = 500;
+  latest.O2Level = {10, 20.9f};
+  latest.CoLevel = {400, 0};
+  latest.HeLevel = {100, 14.3614f};
+  latest.HeTemperature = 25;
+  TEST_ASSERT_EQUAL_FLOAT(20.9f, latest.forDisplay(2299).O2Level.percentage);
+  const sensorsData stale = latest.forDisplay(2300);
+  TEST_ASSERT_TRUE(std::isnan(stale.O2Level.percentage));
+  TEST_ASSERT_TRUE(std::isnan(stale.O2Level.millivolts));
+  TEST_ASSERT_TRUE(std::isnan(stale.CoLevel.ppm));
+  TEST_ASSERT_TRUE(std::isnan(stale.CoLevel.millivolts));
+  TEST_ASSERT_TRUE(std::isnan(stale.HeLevel.percentage));
+  TEST_ASSERT_TRUE(std::isnan(stale.HeLevel.millivolts));
+  TEST_ASSERT_TRUE(std::isnan(stale.HeTemperature));
+  TEST_ASSERT_TRUE(std::isnan(conversions::maximumOperatingDepth(1.4f, stale.O2Level.percentage)));
+  TEST_ASSERT_EQUAL_FLOAT(20.9f, latest.O2Level.percentage);
+}
+
+void test_freshness_survives_clock_wrap_and_new_sample_restores_display() {
+  sensorsData latest;
+  latest.timestampMs = UINT32_MAX - 500;
+  latest.O2Level = {10, 20.9f};
+  latest.CoLevel = {400, 0};
+  latest.HeLevel = {100, 14.3614f};
+  latest.HeTemperature = 25;
+  TEST_ASSERT_EQUAL_FLOAT(20.9f, latest.forDisplay(1298).O2Level.percentage);
+  TEST_ASSERT_TRUE(std::isnan(latest.forDisplay(1299).O2Level.percentage));
+  latest.timestampMs = 1400;
+  TEST_ASSERT_EQUAL_FLOAT(20.9f, latest.forDisplay(1400).O2Level.percentage);
+  const sensorsData restored = latest.forDisplay(1400);
+  TEST_ASSERT_EQUAL_FLOAT(10, restored.O2Level.millivolts);
+  TEST_ASSERT_EQUAL_FLOAT(400, restored.CoLevel.millivolts);
+  TEST_ASSERT_EQUAL_FLOAT(0, restored.CoLevel.ppm);
+  TEST_ASSERT_EQUAL_FLOAT(100, restored.HeLevel.millivolts);
+  TEST_ASSERT_EQUAL_FLOAT(14.3614f, restored.HeLevel.percentage);
+  TEST_ASSERT_EQUAL_FLOAT(25, restored.HeTemperature);
+}
+
+void test_disabled_and_invalid_cycles_are_timestamped_without_reviving_numbers() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager manager(handle);
+  manager.init();
+  nowMs = 123;
+  manager.readSensors();
+  sensorsData latest;
+  xQueueReceive(handle, &latest, 0);
+  TEST_ASSERT_EQUAL_UINT32(123, latest.timestampMs);
+  TEST_ASSERT_TRUE(std::isnan(latest.forDisplay(123).CoLevel.ppm));
+  manager.setSensorsConfig(true, false, false, 10, NAN, 621.2f);
+  Adafruit_ADS1115::devices[0]->counts = 6400;
+  nowMs = 456;
+  manager.readSensors();
+  xQueueReceive(handle, &latest, 0);
+  TEST_ASSERT_EQUAL_UINT32(456, latest.timestampMs);
+  TEST_ASSERT_TRUE(std::isnan(latest.forDisplay(456).O2Level.percentage));
+  TEST_ASSERT_EQUAL(SensorError::Invalid_Reading, latest.forDisplay(3000).lastError);
+}
+
+void test_no_received_sample_is_blank_even_before_freshness_expires() {
+  const sensorsData initial;
+  const sensorsData displayed = initial.forDisplay(0);
+  TEST_ASSERT_TRUE(std::isnan(displayed.O2Level.percentage));
+  TEST_ASSERT_TRUE(std::isnan(displayed.O2Level.millivolts));
+  TEST_ASSERT_TRUE(std::isnan(displayed.CoLevel.ppm));
+  TEST_ASSERT_TRUE(std::isnan(displayed.CoLevel.millivolts));
+  TEST_ASSERT_TRUE(std::isnan(displayed.HeLevel.percentage));
+  TEST_ASSERT_TRUE(std::isnan(displayed.HeLevel.millivolts));
+  TEST_ASSERT_TRUE(std::isnan(displayed.HeTemperature));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_co_reads_one_conversion_and_follows_the_next_input);
@@ -229,5 +323,10 @@ int main(int, char**) {
   RUN_TEST(test_all_disabled_publishes_complete_snapshot_without_reading);
   RUN_TEST(test_cycle_clears_invalid_error_and_skips_unneeded_temperature);
   RUN_TEST(test_he_only_is_unavailable_but_retains_raw_and_temperature);
+  RUN_TEST(test_slow_consumer_receives_only_latest_measurement);
+  RUN_TEST(test_stopped_producer_blanks_all_numbers_without_new_sample);
+  RUN_TEST(test_freshness_survives_clock_wrap_and_new_sample_restores_display);
+  RUN_TEST(test_disabled_and_invalid_cycles_are_timestamped_without_reviving_numbers);
+  RUN_TEST(test_no_received_sample_is_blank_even_before_freshness_expires);
   return UNITY_END();
 }

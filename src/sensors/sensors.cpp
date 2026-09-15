@@ -54,10 +54,11 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
 
 SensorError SensorManager::readSensors() {
   sensorsData data;
+  data.timestampMs = ::millis();
   _lastError = SensorError::None;
 
   if (!_isO2Enabled && !_isCOEnabled && !_isHeEnabled) {
-    xQueueSend(_dataQueue, &data, portMAX_DELAY);
+    xQueueOverwrite(_dataQueue, &data);
     return _lastError;
   }
 
@@ -94,7 +95,7 @@ SensorError SensorManager::readSensors() {
   }
   data.lastError = _lastError;
 
-  xQueueSend(_dataQueue, &data, portMAX_DELAY);
+  xQueueOverwrite(_dataQueue, &data);
   return _lastError;
 }
 
