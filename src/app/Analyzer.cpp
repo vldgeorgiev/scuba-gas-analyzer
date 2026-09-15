@@ -25,6 +25,7 @@ Result Analyzer::begin(bool applicationWake) {
   _settingsStore.begin();
   _effective = _settingsStore.load();
   Result result;
+  if (_settingsStore.loadedDefaults()) result.failure = Failure::LoadedDefaults;
   if (!_effective.valid()) {
     _effective = AnalyzerSettings{};
     result.failure = Failure::LoadedDefaults;

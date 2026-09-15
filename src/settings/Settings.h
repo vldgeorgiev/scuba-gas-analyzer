@@ -29,12 +29,50 @@ struct AnalyzerSettings {
     return false;
   }
 
+  static bool validPo2Bottom(float value) {
+    return std::isfinite(value) && value >= 1 && value <= 1.6f;
+  }
+
+  static bool validPo2Deco(float value, float bottom) {
+    return std::isfinite(value) && value >= bottom && value <= 2;
+  }
+
+  static bool validO2Air(float value) {
+    return std::isfinite(value) && value >= 5 && value <= 50;
+  }
+
+  static bool validO2Pure(float value, float air) {
+    return std::isnan(value) || (std::isfinite(value) && value > air && value <= 100);
+  }
+
+  static bool validHeCalibration(float value) {
+    return std::isfinite(value) && value > 0;
+  }
+
   bool valid() const {
-    return validSleepMinutes(sleepMinutes) && brightness >= 8 && std::isfinite(po2Bottom) && po2Bottom >= 1 && po2Bottom <= 1.6f &&
-           std::isfinite(po2Deco) && po2Deco >= po2Bottom && po2Deco <= 2 &&
-           std::isfinite(o2Air) && o2Air >= 5 && o2Air <= 50 &&
-           (std::isnan(o2Pure) || (std::isfinite(o2Pure) && o2Pure > o2Air && o2Pure <= 100)) &&
-           std::isfinite(heCalibration) && heCalibration > 0;
+    return validSleepMinutes(sleepMinutes) && brightness >= 8 && validPo2Bottom(po2Bottom) &&
+           validPo2Deco(po2Deco, po2Bottom) && validO2Air(o2Air) && validO2Pure(o2Pure, o2Air) &&
+           validHeCalibration(heCalibration);
+  }
+
+  bool repairInvalidFields() {
+    const bool repaired = !valid();
+    const AnalyzerSettings defaults;
+    if (!validSleepMinutes(sleepMinutes)) sleepMinutes = defaults.sleepMinutes;
+    if (brightness < 8) brightness = defaults.brightness;
+    if (!validPo2Bottom(po2Bottom)) {
+      po2Bottom = validPo2Deco(po2Deco, 1) && po2Deco < defaults.po2Bottom ? po2Deco : defaults.po2Bottom;
+    }
+    if (!validPo2Deco(po2Deco, po2Bottom)) {
+      po2Deco = validPo2Deco(po2Deco, 1) ? po2Bottom : defaults.po2Deco;
+    }
+    if (!validO2Air(o2Air)) {
+      o2Air = defaults.o2Air;
+      o2Pure = defaults.o2Pure;
+    }
+    if (!validO2Pure(o2Pure, o2Air)) o2Pure = defaults.o2Pure;
+    if (!validHeCalibration(heCalibration)) heCalibration = defaults.heCalibration;
+    return repaired;
   }
 
   bool sameMeasurementSettings(const AnalyzerSettings& other) const {

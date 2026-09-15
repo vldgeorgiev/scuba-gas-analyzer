@@ -121,7 +121,9 @@ GUI mutex, separate screen-update task, and arbitrary startup delay are removed.
 Step 3c implements analyzer-owned preparation/resume and the fixed CO startup interval. Step 3d
 adds the persisted timeout, configuration dropdown, and tested activity/debounce policy. Step 3e
 enables S3 automatic entry, display/touch shutdown, abort/resume, and GPIO14 wake with confirmed-wake
-calibration preservation. Physical wake/current, UI restoration, and repeated-cycle acceptance remain pending.
+calibration preservation. First-attempt sleep, button wake, restored touch, and another idle sleep
+passed on the device after the touch-reset fix. Ten-cycle endurance, current/pin measurements, and
+the remaining activity/inhibition/abort checks are still pending.
 
 The analyzer owns ADCs, sensor-enable GPIOs, calibration, effective RAM settings, and Preferences.
 UI callbacks submit one operation at a time and receive an outcome with effective values and a
@@ -163,9 +165,12 @@ Do not repeat that restructuring. Keep individual Preferences keys and explicit 
 persistence: a failed multi-key write may have stored a prefix even though runtime state is retained.
 An in-session retry rewrites the complete candidate before reporting success after such a failure.
 
-Finish field-specific invalid-load fallback, calibration-required status, draft/rejection UX, and
-device checks for apply/reset/clear across reboot. Currently an invalid loaded set is visibly
-replaced with defaults as a whole; refine that without adding versioning or migration machinery.
+Step 4a implements field-specific invalid-load recovery, preserving unrelated valid values and
+repairing dependent pO2/O2 pairs. It retains the visible warning and startup-calibration suppression
+when non-timeout fields need repair. No load-time writes, versioning, or migration machinery added.
+Finish per-channel calibration-required handling, draft/rejection UX, and device checks for
+apply/reset/clear across reboot. Repaired loads still conservatively require both calibrations on
+confirmed wake, even when the repaired field is unrelated; refine that in the next increment.
 Check that calibration outcomes cannot overwrite in-progress editable settings drafts, and that
 old-generation readings never accompany new coefficients. Keep tests focused on product behavior.
 

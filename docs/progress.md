@@ -568,8 +568,39 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   by the user. The no-commit-until-fixed-and-tested condition is now met for this regression;
   the fix is ready for the previously authorized local commit, with no push.
 
+## 2026-09-15: Step 4a, field-specific saved-settings recovery
+
+- Started from `8c2d4cb`. Strengthened the existing invalid-load test: a bad saved O2 air coefficient
+  must not reset valid brightness, channel enables, or pO2 limits. It failed with brightness 128
+  instead of the saved 64, confirming whole-set fallback was the controlling defect.
+- Added field repair to AnalyzerSettings using predicates shared with complete-candidate validation.
+  SettingsStore records whether non-timeout values needed repair; Analyzer retains the startup
+  LoadedDefaults warning and skips automatic calibration for that boot without discarding valid
+  neighboring settings. Ordinary ApplySettings still rejects invalid candidates rather than repairing
+  user edits. Invalid timeout alone keeps its existing quiet fallback.
+- Pair rules: an invalid bottom pO2 preserves a valid low deco limit by using it as the bottom
+  fallback; conflicting in-range limits preserve bottom and raise deco only to match. Other invalid
+  deco values use the default. Invalid air calibration resets air and clears dependent pure O2;
+  invalid pure O2 alone clears only that point. Invalid He affects only its coefficient.
+- Loading performs no writes. Repaired loads retain the existing full-candidate rewrite on the next
+  accepted save; failed partial writes remain dirty and retryable. No new keys, schema, or migration.
+- All 93 native tests pass (28 analyzer, 16 sleep, 37 sensor/cycle, 12 conversion). Added coverage for
+  valid no-op repair, numeric/pair boundaries, non-finite inputs, persisted recovery and partial-save
+  retry, repaired-wake suppression, and timeout-only warning compatibility.
+- Both final S3 profiles build: static RAM 159096 bytes; debug flash 1540717 bytes, release flash
+  1526373 bytes. Editor diagnostics and whitespace checks pass. No dependency or generated UI changes.
+- Claude's bounded review prompted the narrower conflicting-deco correction and explicit wake and
+  timeout-only tests. Kept the defensive analyzer validity fallback. The review's claim that removing
+  the load-warning propagation would escape all tests was incorrect: the startup regression checks
+  LoadedDefaults directly. No new store framework or calibration provenance was introduced.
+- Remaining limitation: repaired loads still conservatively mark both wake calibrations required,
+  even for an unrelated UI-field repair. Cold-boot calibration acceptance and persisted calibration
+  provenance are not resolved by field recovery; they remain the next increment, not a completion claim.
+- Native tests use fake Preferences and do not prove corrupt-key behavior on real NVS. No assistant
+  upload or push performed. Device apply/reset/clear/restart checks remain open.
+
 ### Next increment
 
-Review device sleep results before claiming step-3 hardware completion. Continue step 4 with
-field-specific settings fallback, explicit calibration validity and settings UX without more task
-restructuring. Step 5 remains incremental stability-gated calibration and its graph.
+Continue step 4 with per-channel calibration validity and settings draft/rejection UX without more
+task restructuring. Complete device settings checks and remaining step-3 hardware acceptance.
+Step 5 remains incremental stability-gated calibration and its graph.

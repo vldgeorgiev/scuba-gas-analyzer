@@ -177,6 +177,10 @@ void test_routine_commands_and_reads_do_not_reread_preferences() {
 void test_invalid_load_is_visible_and_startup_does_not_calibrate_defaults() {
   Preferences::values["o2_calib_21"] = 0;
   Preferences::values["calib_start"] = 1;
+  Preferences::values["brightness"] = 64;
+  Preferences::values["he_enabled"] = 0;
+  Preferences::values["po2_max_bottom"] = 1.2f;
+  Preferences::values["po2_max_deco"] = 1.5f;
   FakeQueue queue(sizeof(sensorsData));
   QueueHandle_t handle = &queue;
   SensorManager sensors(handle);
@@ -186,7 +190,167 @@ void test_invalid_load_is_visible_and_startup_does_not_calibrate_defaults() {
   TEST_ASSERT_EQUAL(app::CommandType::Startup, result.type);
   TEST_ASSERT_EQUAL(app::Failure::LoadedDefaults, result.failure);
   TEST_ASSERT_TRUE(result.effective.valid());
+  TEST_ASSERT_EQUAL_UINT8(64, result.effective.brightness);
+  TEST_ASSERT_FALSE(result.effective.heEnabled);
+  TEST_ASSERT_EQUAL_FLOAT(1.2f, result.effective.po2Bottom);
+  TEST_ASSERT_EQUAL_FLOAT(1.5f, result.effective.po2Deco);
   TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+}
+
+void test_valid_settings_repair_is_a_noop() {
+  AnalyzerSettings value;
+  value.o2Enabled = false;
+  value.coEnabled = false;
+  value.heEnabled = false;
+  value.calibrateOnStart = false;
+  value.brightness = 8;
+  value.sleepMinutes = 0;
+  value.po2Bottom = 1;
+  value.po2Deco = 2;
+  value.o2Air = 50;
+  value.o2Pure = 100;
+  value.heCalibration = 700;
+  const auto previous = value;
+  TEST_ASSERT_FALSE(value.repairInvalidFields());
+  TEST_ASSERT_TRUE(value.sameMeasurementSettings(previous));
+  TEST_ASSERT_FALSE(value.calibrateOnStart);
+  TEST_ASSERT_EQUAL_UINT8(8, value.brightness);
+  TEST_ASSERT_EQUAL_UINT8(0, value.sleepMinutes);
+  TEST_ASSERT_EQUAL_FLOAT(1, value.po2Bottom);
+  TEST_ASSERT_EQUAL_FLOAT(2, value.po2Deco);
+}
+
+void test_po2_repair_preserves_valid_limits_and_calibration() {
+  const struct { float bottom, deco, expectedBottom, expectedDeco; } cases[] = {
+    {NAN, 1.2f, 1.2f, 1.2f}, {INFINITY, 1.8f, 1.4f, 1.8f},
+    {0.9f, 1.5f, 1.4f, 1.5f}, {1.7f, 1.6f, 1.4f, 1.6f},
+    {1.2f, NAN, 1.2f, 1.6f}, {1.3f, INFINITY, 1.3f, 1.6f},
+    {1.5f, 1.2f, 1.5f, 1.5f}, {1.6f, 2.1f, 1.6f, 1.6f},
+    {-INFINITY, -INFINITY, 1.4f, 1.6f}
+  };
+  for (const auto& entry : cases) {
+    AnalyzerSettings value;
+    value.brightness = 64;
+    value.sleepMinutes = 30;
+    value.o2Air = 12;
+    value.o2Pure = 55;
+    value.heCalibration = 700;
+    const auto previous = value;
+    value.po2Bottom = entry.bottom;
+    value.po2Deco = entry.deco;
+    TEST_ASSERT_TRUE(value.repairInvalidFields());
+    TEST_ASSERT_TRUE(value.valid());
+    TEST_ASSERT_EQUAL_FLOAT(entry.expectedBottom, value.po2Bottom);
+    TEST_ASSERT_EQUAL_FLOAT(entry.expectedDeco, value.po2Deco);
+    TEST_ASSERT_TRUE(value.sameMeasurementSettings(previous));
+    TEST_ASSERT_EQUAL_UINT8(64, value.brightness);
+    TEST_ASSERT_EQUAL_UINT8(30, value.sleepMinutes);
+  }
+}
+
+void test_calibration_repair_is_limited_to_invalid_fields_and_dependencies() {
+  const struct { float air, pure, helium, expectedAir, expectedPure, expectedHelium; } cases[] = {
+    {NAN, 55, 700, 10, NAN, 700}, {INFINITY, 55, 700, 10, NAN, 700},
+    {4.9f, 55, 700, 10, NAN, 700}, {50.1f, 55, 700, 10, NAN, 700},
+    {12, 12, 700, 12, NAN, 700}, {12, INFINITY, 700, 12, NAN, 700},
+    {12, 101, 700, 12, NAN, 700}, {12, -INFINITY, 700, 12, NAN, 700},
+    {12, 55, 0, 12, 55, 620}, {12, 55, NAN, 12, 55, 620},
+    {12, 55, INFINITY, 12, 55, 620}, {12, 55, -1, 12, 55, 620}
+  };
+  for (const auto& entry : cases) {
+    AnalyzerSettings value;
+    value.o2Air = entry.air;
+    value.o2Pure = entry.pure;
+    value.heCalibration = entry.helium;
+    value.coEnabled = false;
+    value.po2Bottom = 1.2f;
+    value.brightness = 64;
+    TEST_ASSERT_TRUE(value.repairInvalidFields());
+    TEST_ASSERT_TRUE(value.valid());
+    TEST_ASSERT_EQUAL_FLOAT(entry.expectedAir, value.o2Air);
+    if (std::isnan(entry.expectedPure)) TEST_ASSERT_TRUE(std::isnan(value.o2Pure));
+    else TEST_ASSERT_EQUAL_FLOAT(entry.expectedPure, value.o2Pure);
+    TEST_ASSERT_EQUAL_FLOAT(entry.expectedHelium, value.heCalibration);
+    TEST_ASSERT_FALSE(value.coEnabled);
+    TEST_ASSERT_EQUAL_FLOAT(1.2f, value.po2Bottom);
+    TEST_ASSERT_EQUAL_UINT8(64, value.brightness);
+  }
+}
+
+void test_repaired_load_defers_writes_and_retries_full_save() {
+  Preferences::values["brightness"] = 0;
+  Preferences::values["po2_max_bottom"] = 1.2f;
+  Preferences::values["o2_calib_21"] = 12;
+  Preferences::values["o2_calib_100"] = 55;
+  Preferences::values["he_calib_100"] = 700;
+  SettingsStore store;
+  store.begin();
+  const auto loaded = store.load();
+  TEST_ASSERT_TRUE(store.loadedDefaults());
+  TEST_ASSERT_TRUE(loaded.valid());
+  TEST_ASSERT_EQUAL_UINT8(128, loaded.brightness);
+  TEST_ASSERT_EQUAL_FLOAT(1.2f, loaded.po2Bottom);
+  TEST_ASSERT_EQUAL_FLOAT(12, loaded.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(55, loaded.o2Pure);
+  TEST_ASSERT_EQUAL_FLOAT(700, loaded.heCalibration);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  const auto reads = Preferences::reads;
+  Preferences::failAfter = 3;
+  TEST_ASSERT_FALSE(store.save(loaded, loaded));
+  TEST_ASSERT_EQUAL_FLOAT(0, Preferences::values["brightness"]);
+  Preferences::failAfter = -1;
+  TEST_ASSERT_TRUE(store.save(loaded, loaded));
+  TEST_ASSERT_EQUAL_UINT(reads, Preferences::reads);
+  const auto writes = Preferences::writes;
+  TEST_ASSERT_TRUE(store.save(loaded, loaded));
+  TEST_ASSERT_EQUAL_UINT(writes, Preferences::writes);
+  SettingsStore restarted;
+  restarted.begin();
+  const auto reloaded = restarted.load();
+  TEST_ASSERT_FALSE(restarted.loadedDefaults());
+  TEST_ASSERT_TRUE(reloaded.sameMeasurementSettings(loaded));
+  TEST_ASSERT_EQUAL_UINT8(loaded.brightness, reloaded.brightness);
+  TEST_ASSERT_EQUAL_FLOAT(loaded.po2Bottom, reloaded.po2Bottom);
+}
+
+void test_repaired_wake_preserves_values_but_keeps_calibration_required() {
+  Preferences::values["brightness"] = 0;
+  Preferences::values["calib_start"] = 1;
+  Preferences::values["o2_calib_21"] = 12;
+  Preferences::values["he_calib_100"] = 700;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  const auto result = analyzer.begin(true);
+  TEST_ASSERT_EQUAL(app::Failure::CalibrationRequired, result.failure);
+  TEST_ASSERT_EQUAL_FLOAT(12, result.effective.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(700, result.effective.heCalibration);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  analyzer.measure();
+  sensorsData sample;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(handle, &sample, 0));
+  TEST_ASSERT_TRUE(std::isnan(sample.O2Level.percentage));
+  TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
+}
+
+void test_invalid_timeout_alone_does_not_flag_general_settings_recovery() {
+  Preferences::values["sleep_minutes"] = 3;
+  Preferences::values["calib_start"] = 1;
+  Preferences::values["brightness"] = 64;
+  Preferences::values["o2_calib_21"] = 12;
+  SettingsStore store;
+  store.begin();
+  const auto loaded = store.load();
+  TEST_ASSERT_TRUE(loaded.valid());
+  TEST_ASSERT_FALSE(store.loadedDefaults());
+  TEST_ASSERT_TRUE(loaded.calibrateOnStart);
+  TEST_ASSERT_EQUAL_UINT8(app::DEFAULT_SLEEP_MINUTES, loaded.sleepMinutes);
+  TEST_ASSERT_EQUAL_UINT8(64, loaded.brightness);
+  TEST_ASSERT_EQUAL_FLOAT(12, loaded.o2Air);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
 }
 
 void test_startup_reports_adc_failure_without_blocking_other_device() {
@@ -516,6 +680,12 @@ int main(int, char**) {
   RUN_TEST(test_partial_write_is_reconciled_before_later_unchanged_success);
   RUN_TEST(test_routine_commands_and_reads_do_not_reread_preferences);
   RUN_TEST(test_invalid_load_is_visible_and_startup_does_not_calibrate_defaults);
+  RUN_TEST(test_valid_settings_repair_is_a_noop);
+  RUN_TEST(test_po2_repair_preserves_valid_limits_and_calibration);
+  RUN_TEST(test_calibration_repair_is_limited_to_invalid_fields_and_dependencies);
+  RUN_TEST(test_repaired_load_defers_writes_and_retries_full_save);
+  RUN_TEST(test_repaired_wake_preserves_values_but_keeps_calibration_required);
+  RUN_TEST(test_invalid_timeout_alone_does_not_flag_general_settings_recovery);
   RUN_TEST(test_startup_reports_adc_failure_without_blocking_other_device);
   RUN_TEST(test_full_result_path_retains_outcome_without_blocking_measurements);
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);

@@ -15,6 +15,7 @@ public:
   }
 
   bool ready() const { return _ready; }
+  bool loadedDefaults() const { return _loadedDefaults; }
   bool hasOxygenCalibration() { return _ready && _preferences.isKey("o2_calib_21"); }
   bool hasHeliumCalibration() { return _ready && _preferences.isKey("he_calib_100"); }
 
@@ -36,7 +37,8 @@ public:
     value.o2Air = _preferences.getFloat("o2_calib_21", value.o2Air);
     value.o2Pure = _preferences.getFloat("o2_calib_100", value.o2Pure);
     value.heCalibration = _preferences.getFloat("he_calib_100", value.heCalibration);
-    _rewrite = invalidSleep || !value.valid();
+    _loadedDefaults = value.repairInvalidFields();
+    _rewrite = invalidSleep || _loadedDefaults;
     return value;
   }
 
@@ -65,6 +67,7 @@ private:
   Preferences _preferences;
   bool _ready = false;
   bool _rewrite = false;
+  bool _loadedDefaults = false;
 };
 
 #endif

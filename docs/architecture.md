@@ -242,9 +242,16 @@ Both headers live under `src/settings`: `Settings.h` contains the RAM data/defau
 `config` for existing stored data; this naming cleanup does not change its keys or format.
 
 Startup loads the individual Preferences keys once. Missing keys use defaults. The sleep-timeout
-field has its own fallback as described above. Any other invalid loaded
-set that fails validation is visibly replaced with defaults as a whole and startup calibration is
-skipped for that boot. Field-specific sanitization and calibration-required presentation are step 4.
+field retains its separate quiet fallback. Step 4a repairs other invalid fields individually and
+reports LoadedDefaults, preserving unrelated valid fields and skipping startup calibration for that
+boot. Validation and repair share the same numeric predicates. Invalid brightness, out-of-range or
+non-finite limits, and invalid calibration values use defaults; invalid pure O2 is cleared. Replacing
+invalid air calibration also clears its dependent pure-O2 point. An invalid bottom pO2 uses the lower
+of its default and a valid deco limit. For an in-range but conflicting pair, bottom is preserved and
+deco is raised only to match it. Other invalid deco values use the default. No repair writes NVS
+during load; the existing dirty-save path reconciles values on the next accepted save.
+General repaired loads still conservatively require both calibrations on wake, even for an unrelated
+field repair. Per-channel calibration acceptance and its presentation remain the next step-4 increment.
 Normal cold boot still respects a valid calibrate-on-start preference. Confirmed application wake
 skips it and applies the calibration-presence checks described above.
 
