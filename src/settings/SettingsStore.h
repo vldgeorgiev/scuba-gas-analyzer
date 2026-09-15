@@ -15,6 +15,8 @@ public:
   }
 
   bool ready() const { return _ready; }
+  bool hasOxygenCalibration() { return _ready && _preferences.isKey("o2_calib_21"); }
+  bool hasHeliumCalibration() { return _ready && _preferences.isKey("he_calib_100"); }
 
   AnalyzerSettings load() {
     AnalyzerSettings value;

@@ -144,6 +144,153 @@ void test_timeout_write_failure_returns_previous_effective_value() {
   TEST_ASSERT_EQUAL_UINT(5, analyzer.effective().sleepMinutes);
 }
 
+void test_only_confirmed_application_wake_consumes_valid_marker() {
+  uint32_t marker = app::APPLICATION_SLEEP_MARKER;
+  TEST_ASSERT_TRUE(app::consumeSleepMarker(marker, true));
+  TEST_ASSERT_EQUAL_UINT32(0, marker);
+  TEST_ASSERT_FALSE(app::consumeSleepMarker(marker, true));
+  marker = app::APPLICATION_SLEEP_MARKER;
+  TEST_ASSERT_FALSE(app::consumeSleepMarker(marker, false));
+  TEST_ASSERT_EQUAL_UINT32(0, marker);
+  marker = 123;
+  TEST_ASSERT_FALSE(app::consumeSleepMarker(marker, true));
+  TEST_ASSERT_EQUAL_UINT32(0, marker);
+}
+
+void test_application_wake_keeps_calibration_even_when_startup_calibration_enabled() {
+  Preferences::values["calib_start"] = 1;
+  Preferences::values["o2_calib_21"] = 12;
+  Preferences::values["he_calib_100"] = 620;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  const auto result = analyzer.begin(true);
+  TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+  TEST_ASSERT_EQUAL_FLOAT(12, result.effective.o2Air);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  TEST_ASSERT_TRUE(analyzer.coWarming());
+}
+
+void test_missing_wake_calibration_does_not_publish_defaults_as_accepted() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  const auto startup = analyzer.begin(true);
+  TEST_ASSERT_EQUAL(app::Failure::CalibrationRequired, startup.failure);
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  Adafruit_ADS1115::devices[1]->counts = 1600;
+  analyzer.measure();
+  sensorsData sample;
+  xQueueReceive(handle, &sample, 0);
+  TEST_ASSERT_TRUE(std::isnan(sample.O2Level.percentage));
+  TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
+  app::Command command;
+  command.type = app::CommandType::CalibrateAir;
+  const auto calibrated = analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, calibrated.failure);
+  TEST_ASSERT_TRUE(store.hasOxygenCalibration());
+  TEST_ASSERT_FALSE(store.hasHeliumCalibration());
+  TEST_ASSERT_TRUE(calibrated.generation != startup.generation);
+  analyzer.measure();
+  xQueueReceive(handle, &sample, 0);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20.9f, sample.O2Level.percentage);
+  TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
+}
+
+void test_missing_oxygen_on_wake_also_suppresses_stored_helium_calibration() {
+  Preferences::values["he_calib_100"] = 620;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  TEST_ASSERT_EQUAL(app::Failure::CalibrationRequired, analyzer.begin(true).failure);
+  Adafruit_ADS1115::devices[1]->counts = 1600;
+  analyzer.measure();
+  sensorsData sample;
+  xQueueReceive(handle, &sample, 0);
+  TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
+  TEST_ASSERT_TRUE(std::isfinite(sample.HeLevel.millivolts));
+}
+
+void test_storage_failure_on_wake_is_reported_without_auto_calibration() {
+  Preferences::available = false;
+  Preferences::values["calib_start"] = 1;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  TEST_ASSERT_EQUAL(app::Failure::Storage, analyzer.begin(true).failure);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+}
+
+void test_activity_during_prepare_requires_resume_not_sleep() {
+  TEST_ASSERT_FALSE(app::preparationInterrupted(300000, 300100, true, false));
+  TEST_ASSERT_TRUE(app::preparationInterrupted(300000, 0, true, false));
+  TEST_ASSERT_TRUE(app::preparationInterrupted(300000, 300100, false, false));
+  TEST_ASSERT_TRUE(app::preparationInterrupted(300000, 300100, true, true));
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  app::Command prepare;
+  prepare.type = app::CommandType::PrepareSleep;
+  TEST_ASSERT_TRUE(ui.submit(prepare, &commands));
+  app::Command accepted;
+  xQueueReceive(&commands, &accepted, 0);
+  if (app::preparationInterrupted(300000, 0, true, false)) ui.requestResume(&commands);
+  app::Result late;
+  late.type = app::CommandType::PrepareSleep;
+  late.id = accepted.id;
+  TEST_ASSERT_FALSE(ui.accept(late));
+  TEST_ASSERT_EQUAL(app::SleepPhase::Resuming, ui.sleepPhase);
+}
+
+void test_ten_confirmed_sleep_wakes_preserve_settings_and_never_recalibrate() {
+  Preferences::values["calib_start"] = 1;
+  Preferences::values["o2_calib_21"] = 12;
+  Preferences::values["he_calib_100"] = 625;
+  Preferences::values["sleep_minutes"] = 2;
+  for (unsigned cycle = 0; cycle < 10; ++cycle) {
+    uint32_t marker = app::APPLICATION_SLEEP_MARKER;
+    FakeQueue queue(sizeof(sensorsData));
+    QueueHandle_t handle = &queue;
+    SensorManager sensors(handle);
+    SettingsStore store;
+    app::Analyzer analyzer(store, sensors);
+    const auto boot = analyzer.begin(app::consumeSleepMarker(marker, true));
+    TEST_ASSERT_EQUAL(app::Failure::None, boot.failure);
+    TEST_ASSERT_EQUAL_FLOAT(12, boot.effective.o2Air);
+    TEST_ASSERT_EQUAL_FLOAT(625, boot.effective.heCalibration);
+    TEST_ASSERT_EQUAL_UINT(2, boot.effective.sleepMinutes);
+    TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+    TEST_ASSERT_TRUE(analyzer.coWarming());
+    app::Command prepare;
+    prepare.type = app::CommandType::PrepareSleep;
+    prepare.id = cycle + 1;
+    TEST_ASSERT_EQUAL(app::Failure::None, analyzer.execute(prepare).failure);
+    TEST_ASSERT_TRUE(analyzer.preparedForSleep());
+    TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  }
+}
+
+void test_cold_boot_still_attempts_enabled_automatic_calibration() {
+  Preferences::values["calib_start"] = 1;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  uint32_t marker = app::APPLICATION_SLEEP_MARKER;
+  analyzer.begin(app::consumeSleepMarker(marker, false));
+  TEST_ASSERT_EQUAL_UINT(100, Adafruit_ADS1115::devices[0]->differential23Reads);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_sleep_default_and_invalid_load_do_not_reset_other_settings);
@@ -154,5 +301,13 @@ int main(int, char**) {
   RUN_TEST(test_dropdown_selection_maps_to_valid_timeout_values);
   RUN_TEST(test_timeout_command_acknowledges_persistence_without_changing_generation);
   RUN_TEST(test_timeout_write_failure_returns_previous_effective_value);
+  RUN_TEST(test_only_confirmed_application_wake_consumes_valid_marker);
+  RUN_TEST(test_application_wake_keeps_calibration_even_when_startup_calibration_enabled);
+  RUN_TEST(test_missing_wake_calibration_does_not_publish_defaults_as_accepted);
+  RUN_TEST(test_missing_oxygen_on_wake_also_suppresses_stored_helium_calibration);
+  RUN_TEST(test_storage_failure_on_wake_is_reported_without_auto_calibration);
+  RUN_TEST(test_activity_during_prepare_requires_resume_not_sleep);
+  RUN_TEST(test_ten_confirmed_sleep_wakes_preserve_settings_and_never_recalibrate);
+  RUN_TEST(test_cold_boot_still_attempts_enabled_automatic_calibration);
   return UNITY_END();
 }

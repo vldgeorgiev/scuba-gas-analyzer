@@ -22,6 +22,7 @@ TFT_eSPI tft;
 
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
 TouchLib touch(Wire, PIN_TOUCH_SDA, PIN_TOUCH_SCL, CTS820_SLAVE_ADDRESS, PIN_TOUCH_RES);
+static bool touchInputEnabled = false;
 #endif
 
 void display_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *pixelmap)
@@ -42,7 +43,7 @@ void my_input_read(lv_indev_t * indev, lv_indev_data_t*data)
 {
   uint16_t x = 0, y = 0;
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
-  bool pressed = touch.read();
+  bool pressed = touchInputEnabled && touch.read();
   if (pressed) {
     TP_Point t = touch.getPoint(0);
     uint16_t temp = t.y;
@@ -69,7 +70,8 @@ void DisplayManager::init() {
   digitalWrite(PIN_POWER_ON, HIGH);
   tft.setRotation(3);
   // touch.setRotation(3); // The lib doesn't support rot 3. Do it manually in the input read above
-  if (!touch.init())
+  touchInputEnabled = touch.init();
+  if (!touchInputEnabled)
     log_e("Touch IC not found");
 #else
   tft.setRotation(1);
@@ -123,6 +125,62 @@ uint8_t DisplayManager::getSleepMinutes() const {
 
 void DisplayManager::resetInactivity() { lv_display_trigger_activity(nullptr); }
 uint32_t DisplayManager::inactiveTime() const { return lv_display_get_inactive_time(nullptr); }
+
+bool DisplayManager::touchActive() {
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  const bool active = touchInputEnabled && touch.read();
+  if (active) resetInactivity();
+  return active;
+#else
+  return false;
+#endif
+}
+
+bool DisplayManager::prepareSleep() {
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  if (!touchInputEnabled || touchActive() || digitalRead(PIN_BUTTON_2) == LOW || digitalRead(PIN_BUTTON_1) == LOW) return false;
+  tft.writecommand(TFT_DISPOFF);
+  tft.writecommand(TFT_SLPIN);
+  _panelSleeping = true;
+  ledcWrite(0, 0);
+  ledcDetachPin(PIN_LCD_BL);
+  pinMode(PIN_LCD_BL, OUTPUT);
+  digitalWrite(PIN_LCD_BL, LOW);
+  delay(120);
+  if (touchActive() || digitalRead(PIN_BUTTON_2) == LOW || digitalRead(PIN_BUTTON_1) == LOW) return false;
+  _touchSleepAttempted = true;
+  touchInputEnabled = false;
+  return touch.enableSleep();
+#else
+  return false;
+#endif
+}
+
+bool DisplayManager::restoreAfterSleepAbort(uint8_t brightness) {
+  bool restored = true;
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  if (_touchSleepAttempted) {
+    pinMode(PIN_TOUCH_RES, OUTPUT);
+    digitalWrite(PIN_TOUCH_RES, LOW);
+    delay(200);
+    digitalWrite(PIN_TOUCH_RES, HIGH);
+    delay(200);
+    Wire.beginTransmission(CTS820_SLAVE_ADDRESS);
+    restored = Wire.endTransmission() == 0;
+    _touchSleepAttempted = !restored;
+    touchInputEnabled = restored;
+  }
+#endif
+  if (_panelSleeping) {
+    tft.writecommand(TFT_SLPOUT);
+    delay(120);
+    tft.writecommand(TFT_DISPON);
+    _panelSleeping = false;
+  }
+  setBrightness(brightness);
+  resetInactivity();
+  return restored;
+}
 
 void DisplayManager::tick() {
   lv_timer_handler();

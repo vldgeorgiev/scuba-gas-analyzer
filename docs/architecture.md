@@ -1,6 +1,6 @@
 # Current firmware architecture
 
-Updated 2026-09-15 after step 3d. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-09-15 after step 3e. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
@@ -73,9 +73,9 @@ stuck task requires explicit recovery policy later, not silent readmission.
 
 ## Sleep preparation and resume
 
-Step 3c adds the handshake on the existing queues, without a shared sensor-access flag or a new
-task. No inactivity trigger or deep-sleep call exists yet, so normal use cannot initiate preparation
-in this increment. The backend and UI timeout/resume pump are ready for that next integration.
+Step 3c added the handshake on the existing queues, without a shared sensor-access flag or a new
+task. Step 3e connects it to automatic deep sleep on the primary T-Display-S3 target. The experimental
+esp32dev profile does not automatically sleep or use this wake path.
 
 On PrepareSleep with a nonzero ID, the analyzer records the active sleep ID, advances measurement
 generation, deasserts He/CO sensor power, clears the measurement queue, and only then produces its
@@ -98,9 +98,8 @@ retrying a full command queue without clearing busy. A resume is enqueued once a
 result reports failure, it may be retried after one second; the UI remains busy until success.
 Late prepare acknowledgements are consumed but ignored during resume. Timing is wrap-safe.
 
-Prepared deliberately awaits a decision by the future power-down sequence, not another automatic
-deadline: that sequence must enter deep sleep or request resume on abort/new activity. It is not yet
-wired and there is no claim of an end-to-end sleep feature. A permanently stuck analyzer cannot be
+Prepared proceeds through the power-down sequence below or requests resume on abort/new activity.
+A permanently stuck analyzer cannot be
 recovered by forgetting the pending ID. Device checks must confirm publication and power restoration,
 not infer physical recovery merely from host state-machine tests.
 
@@ -130,20 +129,80 @@ not reset it.
 On the primary S3 target, UI polls GPIO14/button 2 with its input pull-up. `WakeButton` treats a held
 press as activity and requires 50 ms of uninterrupted release before reporting released. Raw changes
 and completion of the release interval count as activity. It starts in wait-for-release state, so
-the press that will eventually cause wake cannot activate a UI control. Elapsed comparisons handle
+the press that caused wake cannot activate a UI control. Button 1 also resets activity while pressed,
+but is not a wake source. Elapsed comparisons handle
 clock wrap. The other experimental board profile does not yet have this wake-button integration.
 
 `SleepPolicy.h` provides the tested `sleepDue` decision using selected minutes, LVGL inactivity,
-an inhibition flag, and the debounced release state. It adds no second idle timer or task. It is
-not yet invoked to submit PrepareSleep: automatic sleep remains disabled in this build, despite
-the selectable/saved timeout. The next increment must connect it only with complete display/touch
-shutdown, abort restoration, wake classification, and scan/OTA activity handling. Synchronous network
-callbacks cannot sleep while running, but a fresh idle interval after they return still needs wiring.
+an inhibition flag, and the debounced release state. It adds no second idle timer or task. On S3,
+the UI evaluates it after its normal input/render pass. Startup, pending operations, network work,
+and an open settings editor inhibit entry. Keeping settings open is deliberately more conservative
+than the original all-screens policy: an unsaved draft is not discarded by sleeping.
+
+Scan/update callbacks use a small scoped network-activity guard which resets inactivity on entry
+and every return. Those callbacks still block the UI, so the sleep pump cannot run during them;
+the guard additionally ensures a full new idle interval after completion/failure. Measurement
+changes never reset inactivity. Off disables automatic entry. A failed submit resets inactivity
+instead of immediately retrying sleep every UI tick.
 
 LVGL MCP guidance and installed 9.1 headers confirm `lv_display_get_inactive_time`,
 `lv_display_trigger_activity`, and dropdown selection APIs. Installed SDK headers also expose S3
 `ESP_EXT1_WAKEUP_ANY_LOW` and GPIO hold APIs, and pinned TouchLib has a checked `enableSleep()` call.
-These are integration evidence for the next step, not proof of physical wake/current behavior.
+These are integration evidence, not proof of physical wake/current behavior.
+
+## S3 deep-sleep entry and wake
+
+`DeviceSleep.h` contains S3-specific entry/wake functions; `DeviceSleep.cpp` defines the single
+RTC-retained marker. Main consumes/classifies the marker before either application task starts.
+No additional worker task or generic power-management framework is used.
+
+1. UI submits PrepareSleep only when idle and button 2 has been released for at least 50 ms.
+  Analyzer finishes its current bounded work, powers He/CO off, clears queued readings, and acks.
+2. UI checks timeout/activity before accepting a late result and again after processing input.
+  Touch or either physical button aborts preparation. The retained sleep ID drives Resume; new
+  ordinary commands remain blocked until its acknowledgement. Timeout reports a visible dialog.
+3. After acknowledgement, UI configures active-low EXT1 wake on GPIO14. RTC peripherals remain on
+  for the internal RTC pull-up; the pulldown is disabled. Failure to configure wake aborts entry.
+4. DisplayManager checks input, sends panel display-off/sleep-in, writes backlight duty zero,
+  detaches PWM, and drives backlight low. After the 120 ms panel interval it checks input again,
+  stops touch polling, and checks TouchLib's `enableSleep()` result.
+5. Wi-Fi is stopped if active. The already-low sensor outputs and backlight, plus the board's
+  existing power-on output level, are held using checked GPIO hold calls and deep-sleep hold.
+  Buttons are checked again, the application marker is written, and `esp_deep_sleep_start()` runs.
+
+No LVGL handler runs while the display/touch are shut down. The final touch check is immediately
+before touch is put to sleep; touches after that point cannot cancel, and only GPIO14 can wake.
+The short shutdown/rollback delays intentionally block the UI during entry, not during normal
+acquisition or the inactivity countdown. Panel commands have no transport acknowledgement; only
+touch, wake configuration, and hold APIs expose checked outcomes. Do not claim every hardware
+shutdown failure is detectable.
+
+On any returned entry attempt, release holds, disable EXT1, restore the previous Wi-Fi mode if it
+was stopped, and restore the display/touch before requesting analyzer Resume. TouchLib's repeated
+`init()` does not reset an initialized device, so abort recovery explicitly pulses its reset pin
+for 200 ms low/200 ms high and probes the controller address. A failed probe keeps touch polling
+disabled and reports a visible error; an ACK is not proof of complete functional recovery. Panel
+sleep-out waits 120 ms before display-on and restores effective brightness. The normal brightness
+minimum remains unchanged. Wi-Fi reconnection is not guaranteed by restoring its prior mode.
+
+Wake is confirmed only for a deep-sleep reset, EXT1 cause, GPIO14 wake status, and matching RTC
+marker. The marker is cleared when inspected, including wrong-cause/invalid-marker cases. Cold
+boot and unrelated resets follow the original calibrate-on-start preference. GPIO hold release
+follows the SDK's configure-known-output-level-before-release rule; levels are reasserted afterward.
+Sensor/backlight outputs start low and the board power-on pin returns to its normal high level.
+The wake pin leaves RTC mode before normal input polling. The board rail is not redesigned or
+powered off speculatively; retained levels/current still need measurement on the actual board.
+
+On confirmed application wake, the analyzer skips automatic calibration and reloads settings.
+Stored calibration-key presence and loaded-value validation are checked. Missing O2 calibration
+suppresses O2 and dependent He; missing He calibration suppresses He. Defaults remain available as
+settings values but are not used for these readings until a successful calibration restores the
+required channel. That accepted calibration is persisted even if it equals the numerical default.
+An unavailable store reports Storage rather than only CalibrationRequired. Existing explicit reset
+commands still store defaults by design; there is no calibration provenance/version record.
+
+This is implemented but not device-validated. See the acceptance checklist in progress for held
+buttons, abort restoration, retained pins/settings, cold boot vs wake, and repeated cycles.
 
 ## UI and drafts
 
@@ -179,8 +238,8 @@ Startup loads the individual Preferences keys once. Missing keys use defaults. T
 field has its own fallback as described above. Any other invalid loaded
 set that fails validation is visibly replaced with defaults as a whole and startup calibration is
 skipped for that boot. Field-specific sanitization and calibration-required presentation are step 4.
-Normal cold boot still respects a valid calibrate-on-start preference. No wake suppression exists
-yet because application deep sleep is not implemented.
+Normal cold boot still respects a valid calibrate-on-start preference. Confirmed application wake
+skips it and applies the calibration-presence checks described above.
 
 Apply-settings commands validate brightness, pO2 ranges/relationship, and calibration relationships.
 Draft calibration fields are replaced by current coefficients before validation, so an old settings
@@ -217,12 +276,14 @@ devices retry no more than once per second when needed; explicit calibration may
 skip remaining channels on that ADC, not the other ADC. Invalid numerical data does not cause device
 reinitialization. The analyzer owns all ADC work and power GPIO writes; retries do not cycle power.
 CO power-start timing is implemented in the analyzer. It records the time only when the CO output
-changes from off to on, including startup, re-enable, and resume after preparation. For 3,000 ms it
+changes from off to on, including startup, re-enable, and resume after preparation. For 5,000 ms it
 reports Warming and skips CO conversions entirely; raw mV and ppm remain NaN. Other enabled channels
 continue. The first accepted CO read starts after the deadline and must still pass normal checks.
 Warm-up is evaluated before the cycle, so a cycle starting just before expiry may defer CO until
 the next cycle rather than sample early. ADC-only retry or unrelated settings do not restart the
 timer. If only warming CO needs ADC2, no conversion or recovery attempt is made for it until due.
+The five-second value preserves the user's change before step 3e; previous milestone records retain
+their original three-second timing. Tests use `Analyzer::CO_STARTUP_MS` for boundary checks.
 
 Every snapshot carries cycle-start timestamp, generation, initialized numeric fields, and channel
 states for O2/CO/He/temperature: Disabled, Valid, Invalid, Unavailable, and Warming (CO).
@@ -253,7 +314,8 @@ The native suite uses real conversions, sensors, SettingsStore, Analyzer, and Ui
 stand-ins. It checks sampling/validity/freshness, independent recovery, candidate application and
 failure retention, changed-key writes, startup admission, matching IDs, queue-full refusal, result
 backpressure with continued measurements, generation filtering, sleep-ID matching, late acknowledgements,
-resume retries, queue clearing, power restoration, and CO warm-up boundaries/recovery. It does not execute actual UI
+resume retries, queue clearing, power restoration, CO warm-up boundaries/recovery, consumed markers,
+confirmed-wake calibration handling, and ten simulated wake cycles. It does not execute actual UI
 callbacks or FreeRTOS scheduling. Target debug/release builds use real libraries and generated assets.
 
 Current measured test counts and binary sizes live in progress. Device checks remain required for startup, setting/calibration
@@ -261,9 +323,8 @@ navigation, latency, stack high-water marks, ADC fault behavior, status layout, 
 
 ## Planned next
 
-- Step 3: connect the implemented timeout setting, idle policy, PrepareSleep/Resume and CO timing
-  to operation inhibition, display/touch shutdown, GPIO14 wake, and confirmed-wake calibration
-  preservation. No automatic sleep is enabled yet.
+- Step 3: physically validate the now-enabled S3 automatic sleep, abort restoration, GPIO14 wake,
+  output holds and calibration preservation. No hardware acceptance is implied by native tests.
 - Step 4: finish field-specific invalid-load handling, calibration-required state, settings UX and
   reboot/failure acceptance. Do not repeat the ownership refactor already done here.
 - Step 5: incremental cancellable stability-gated calibration with graph progress and a qualified

@@ -10,6 +10,12 @@
 #include <HTTPClient.h>
 #include <Update.h>
 
+class NetworkOperation {
+public:
+  NetworkOperation() { setNetworkOperationActive(true); }
+  ~NetworkOperation() { setNetworkOperationActive(false); }
+};
+
 void messageBox(const char * title, float value) {
   char text[32] = "";
   if (std::isfinite(value)) snprintf(text, sizeof(text), "%.2f mv", value);
@@ -90,6 +96,7 @@ void showAnalyzerResult(const app::Result& result) {
       case app::Failure::Sampling: title = "Calibration read failed"; break;
       case app::Failure::LoadedDefaults: title = "Invalid saved settings - defaults loaded"; break;
       case app::Failure::Busy: title = "Analyzer is preparing for sleep"; break;
+      case app::Failure::CalibrationRequired: title = "Calibration required"; break;
       default: title = "Operation failed"; break;
     }
     logUi(title, UiLogLevel::Error);
@@ -118,6 +125,7 @@ void action_brightness_change(lv_event_t * e) {
 }
 
 void action_list_wifi(lv_event_t * e) {
+  NetworkOperation operation;
   log_i("Listing WiFi networks");
   std::vector<String> ssidList = scanWifiNetworks();
   for (const auto &ssid : ssidList) {
@@ -269,6 +277,7 @@ bool updateFromURL(const char* url) {
 }
 
 void action_update_firmware(lv_event_t * e) {
+  NetworkOperation operation;
   log_i("Updating firmware");
   log_i("Free heap before OTA: %d", ESP.getFreeHeap());
   char selectedSSID[64];

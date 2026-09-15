@@ -257,14 +257,14 @@ void test_successful_calibration_then_reset_changes_live_and_stored_values() {
   TEST_ASSERT_EQUAL_UINT32(calibrated.generation + 1, reset.generation);
 }
 
-void test_co_warmup_skips_conversions_until_three_seconds() {
+void test_co_warmup_skips_conversions_until_configured_deadline() {
   Rig rig;
   auto* oxygen = Adafruit_ADS1115::devices[0];
   auto* secondary = Adafruit_ADS1115::devices[1];
   oxygen->counts = 320;
   secondary->counts = 6400;
   TEST_ASSERT_TRUE(rig.analyzer.coWarming());
-  nowMs = 2999;
+  nowMs = app::Analyzer::CO_STARTUP_MS - 1;
   rig.analyzer.measure();
   sensorsData sample;
   xQueueReceive(rig.handle, &sample, 0);
@@ -274,7 +274,7 @@ void test_co_warmup_skips_conversions_until_three_seconds() {
   TEST_ASSERT_EQUAL(ChannelState::Valid, sample.o2State);
   TEST_ASSERT_EQUAL(ChannelState::Valid, sample.heState);
   TEST_ASSERT_EQUAL_UINT(1, secondary->singleEndedReads);
-  nowMs = 3000;
+  nowMs = app::Analyzer::CO_STARTUP_MS;
   TEST_ASSERT_FALSE(rig.analyzer.coWarming());
   rig.analyzer.measure();
   xQueueReceive(rig.handle, &sample, 0);
@@ -294,7 +294,7 @@ void test_co_reenable_restarts_warmup_across_clock_wrap() {
   command.settings.coEnabled = true;
   rig.analyzer.execute(command);
   TEST_ASSERT_TRUE(rig.analyzer.coWarming());
-  nowMs += 2999;
+  nowMs += app::Analyzer::CO_STARTUP_MS - 1;
   command.settings.brightness = 64;
   rig.analyzer.execute(command);
   TEST_ASSERT_TRUE(rig.analyzer.coWarming());
@@ -305,7 +305,7 @@ void test_co_reenable_restarts_warmup_across_clock_wrap() {
 void test_adc_recovery_does_not_restart_co_warmup() {
   Rig rig;
   auto* secondary = Adafruit_ADS1115::devices[1];
-  nowMs = 3000;
+  nowMs = app::Analyzer::CO_STARTUP_MS;
   secondary->conversionCompletes = false;
   rig.analyzer.measure();
   TEST_ASSERT_FALSE(rig.analyzer.coWarming());
@@ -322,7 +322,7 @@ void test_adc_recovery_does_not_restart_co_warmup() {
 
 void test_prepare_stops_publication_and_resume_restores_power_with_fresh_generation() {
   Rig rig;
-  nowMs = 3000;
+  nowMs = app::Analyzer::CO_STARTUP_MS;
   rig.analyzer.measure();
   TEST_ASSERT_TRUE(rig.queue.occupied);
   app::Command prepare;
@@ -467,7 +467,7 @@ void test_sleep_handshake_preserves_disabled_sensor_power_and_settings() {
 
 void test_resume_when_already_awake_is_harmless_and_does_not_restart_co() {
   Rig rig;
-  nowMs = 3000;
+  nowMs = app::Analyzer::CO_STARTUP_MS;
   rig.analyzer.measure();
   app::Command resume;
   resume.type = app::CommandType::Resume;
@@ -519,7 +519,7 @@ int main(int, char**) {
   RUN_TEST(test_startup_reports_adc_failure_without_blocking_other_device);
   RUN_TEST(test_full_result_path_retains_outcome_without_blocking_measurements);
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);
-  RUN_TEST(test_co_warmup_skips_conversions_until_three_seconds);
+  RUN_TEST(test_co_warmup_skips_conversions_until_configured_deadline);
   RUN_TEST(test_co_reenable_restarts_warmup_across_clock_wrap);
   RUN_TEST(test_adc_recovery_does_not_restart_co_warmup);
   RUN_TEST(test_prepare_stops_publication_and_resume_restores_power_with_fresh_generation);

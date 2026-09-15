@@ -10,7 +10,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
 | 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
-| 3. Task ownership and sleep/wake | In progress: owners, handshake, CO timing, 3d timeout setting/UI and activity policy implemented; automatic entry and deep-sleep/wake integration pending |
+| 3. Task ownership and sleep/wake | Software implemented through 3e: automatic S3 sleep/wake enabled; physical acceptance pending |
 | 4. Remaining settings behavior | Ownership/basic validated RAM settings moved into 3b; field-specific fallback, calibration-required state and device acceptance pending |
 | 5. Stability-gated calibration | Not started |
 | 6. Replacement UI | Not started; sample Editor export required |
@@ -437,9 +437,70 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   selection/rejection/restart behavior, touch/button activity, and sustained UI behavior. No push,
   upload, flash, or OTA performed by the assistant.
 
+## 2026-09-15: Step 3e, automatic S3 deep sleep and wake
+
+- Started from `baae3f0` plus the user's uncommitted `CO_STARTUP_MS = 5000` adjustment. Preserved
+  that change, updated timing tests to use the constant, and updated current plan/architecture.
+  The older three-second records above are historical; five seconds is now effective.
+- Connected `sleepDue` after input processing to PrepareSleep on S3 only. Default is five minutes;
+  Off and all configured alternatives apply. Startup, pending calibration/settings, network work,
+  and an open settings draft inhibit entry. Network callbacks reset activity on every return.
+- Input during preparation or a late acknowledgement causes Resume with the same operation ID.
+  Wake button must be released/debounced; either button can abort entry. Raw touch checks cover
+  preparation and the panel shutdown interval before the touch controller itself sleeps.
+- Added primary-board power entry functions, checked RTC GPIO14 wake and GPIO holds, panel sleep,
+  full backlight-off, checked touch sleep, and radio shutdown. Kept existing board power-on high
+  rather than inventing a rail shutdown policy. UI/render polling stops during hardware entry.
+- On returned entry, restore holds/radio/display/touch, report failure, and request analyzer Resume.
+  Touch reset is explicit because repeated TouchLib init short-circuits; failed touch restoration
+  disables polling and is reported. Wi-Fi mode restore is not a reconnection guarantee.
+- Added one RTC-retained marker definition. Confirmed wake requires deep-sleep reset, EXT1 GPIO14
+  status and the marker; all other restarts follow cold-boot behavior. Marker is consumed before
+  tasks start. Outputs are configured before hold release and reasserted after it.
+- Confirmed wake skips automatic calibration, preserves stored coefficients, and starts CO warming.
+  Missing/invalid wake calibration suppresses affected derived readings and reports calibration
+  required; successful recalibration persists even an unchanged numerical default. Existing reset
+  commands retain their deliberate default-storage behavior, not a new provenance framework.
+
+### Verification and review
+
+- All 87 native tests pass: 12 conversions, 37 sensor/cycle/adapter, 22 analyzer/message, 16 sleep.
+  Eight new sleep tests cover marker validation/consumption, cold boot vs wake, missing calibration,
+  missing-O2 dependency, store failure, activity-driven abort, and ten simulated wake cycles.
+  These simulations use host ADC/storage/queue stand-ins, not ESP32 sleep or real peripherals.
+- Both S3 profiles pass with real libraries: debug static RAM 159096 bytes, flash 1538985 bytes;
+  release static RAM 159096 bytes, flash 1525121 bytes. Against 3d: static RAM +172 bytes,
+  debug flash +11632 bytes, release flash +11648 bytes. Runtime stack/heap and sleep current unmeasured.
+- Consulted LVGL MCP, pinned 9.1 headers, IDF4.4.7 sleep/hold documentation, TFT panel command
+  definitions, and TouchLib reset/sleep implementation. No SDK/library or generated UI edits.
+- Claude read-only review: made the RTC marker a single definition, kept failed touch polling
+  disabled, explicitly configured touch reset output, and prioritized wake storage failure. Kept
+  the SDK-documented known-output-before-hold-release order and added output reassertion afterward.
+  Kept backlight hold failure fatal instead of claiming a safe sleep with uncontrolled output.
+- Rejected the asserted He dependency leak: He conversion already rejects missing O2; added a
+  direct wake test with stored He/missing O2. Explicit reset defaults remain the existing product
+  operation; full calibration provenance and field-specific fallback remain step 4 refinements.
+- No native test executes actual DeviceSleep/DisplayManager shutdown, RTC pin holds, Wi-Fi mode
+  restoration, or real UI scheduling. Panel writes cannot acknowledge success. Final touch input
+  after touch sleep cannot cancel entry; GPIO14 remains the configured wake source.
+- No push, upload, flash, or OTA performed by the assistant. Automatic sleep will become active
+  when this firmware is manually flashed; physical acceptance is still required.
+
+### Device acceptance (not run)
+
+- [ ] Select one minute, leave the main screen idle, observe full backlight-off and wake on GPIO14.
+- [ ] Confirm Off stays awake and the five-minute default/each offered interval survives restart.
+- [ ] Exercise touch/button activity, held wake button for five seconds, bounce/release, and settings drafts.
+- [ ] Confirm calibration, settings writes, scans, and OTA do not sleep mid-operation or immediately afterward.
+- [ ] Abort preparation via touch/either button; verify visible UI, touch response, resumed readings and CO warm-up.
+- [ ] Verify failed touch sleep/wake-arm/hold handling on a debug fault-injected build; no black stranded state.
+- [ ] Run ten physical sleep/wake cycles and check accepted coefficients, no automatic recalibration on wake,
+      normal cold-boot calibration, and five-second CO warming after each power restoration.
+- [ ] Measure sleep current, wake reliability and CO/He/backlight/board-power levels; verify hold behavior on S3.
+- [ ] Check task stack/heap and status/dropdown layout during long runs. Step-2 hardware checks remain open.
+
 ### Next increment
 
-Connect the idle policy to PrepareSleep and implement reversible display/touch shutdown plus
-GPIO14 deep-sleep wake. Preserve calibration on confirmed application wake, reset inactivity after
-network operations, and verify the board's required output states. Do not enable automatic preparation
-without completing the entry/abort path. Step-2 device checks remain open.
+Review device sleep results before claiming step-3 hardware completion. Continue step 4 with
+field-specific settings fallback, explicit calibration validity and settings UX without more task
+restructuring. Step 5 remains incremental stability-gated calibration and its graph.

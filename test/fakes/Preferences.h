@@ -15,6 +15,7 @@ public:
   inline static int failAfter = -1;
   bool begin(const char*, bool) { return available; }
   void end() {}
+  bool isKey(const char* key) { return values.find(key) != values.end(); }
   float getFloat(const char* key, float fallback) {
     ++reads;
     const auto found = values.find(key);

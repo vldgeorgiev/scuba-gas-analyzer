@@ -8,6 +8,14 @@
 
 namespace app {
 
+constexpr uint32_t APPLICATION_SLEEP_MARKER = 0x534C4550;
+
+inline bool consumeSleepMarker(uint32_t& marker, bool expectedWake) {
+  const bool confirmed = expectedWake && marker == APPLICATION_SLEEP_MARKER;
+  marker = 0;
+  return confirmed;
+}
+
 inline uint8_t sleepMinutesForSelection(uint32_t index) {
   return index < sizeof(SLEEP_OPTIONS) / sizeof(SLEEP_OPTIONS[0]) ? SLEEP_OPTIONS[index] : DEFAULT_SLEEP_MINUTES;
 }
@@ -35,6 +43,11 @@ inline bool formatSleepOptions(char* text, size_t capacity) {
 inline bool sleepDue(uint8_t minutes, uint32_t inactiveMs, bool inhibited, bool buttonReleased) {
   return AnalyzerSettings::validSleepMinutes(minutes) && minutes != 0 && !inhibited && buttonReleased &&
          inactiveMs >= static_cast<uint32_t>(minutes) * 60000;
+}
+
+inline bool preparationInterrupted(uint32_t initialInactivity, uint32_t currentInactivity,
+                                   bool buttonReleased, bool touchPressed) {
+  return !buttonReleased || touchPressed || currentInactivity < initialInactivity;
 }
 
 class WakeButton {

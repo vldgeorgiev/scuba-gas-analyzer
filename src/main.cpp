@@ -6,6 +6,7 @@
 #include "ui-log.h"
 #include "utils.h"
 #include "app/SleepPolicy.h"
+#include "app/DeviceSleep.h"
 
 DisplayManager displayManager;
 
@@ -14,6 +15,13 @@ static QueueHandle_t commandQueue;
 static QueueHandle_t resultQueue;
 static app::UiState uiState;
 static bool settingsEditing = false;
+static bool networkOperationActive = false;
+static bool applicationWake = false;
+
+void setNetworkOperationActive(bool active) {
+  networkOperationActive = active;
+  displayManager.resetInactivity();
+}
 
 const AnalyzerSettings& uiSettings() { return uiState.effective; }
 void setUiSettingsEditing(bool editing) { settingsEditing = editing; }
@@ -68,15 +76,24 @@ static void Task_UI(void*) {
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
   pinMode(PIN_BUTTON_2, INPUT_PULLUP);
   app::WakeButton wakeButton;
+  pinMode(PIN_BUTTON_1, INPUT_PULLUP);
+  uint32_t idleAtPreparation = 0;
 #endif
 
   for (;;) {
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
     if (wakeButton.update(digitalRead(PIN_BUTTON_2) == LOW, ::millis())) displayManager.resetInactivity();
+    if (digitalRead(PIN_BUTTON_1) == LOW) displayManager.resetInactivity();
+    if ((uiState.sleepPhase == app::SleepPhase::Preparing || uiState.sleepPhase == app::SleepPhase::Prepared) &&
+      app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),
+                wakeButton.released(), displayManager.touchActive())) {
+      uiState.requestResume(commandQueue);
+    }
 #endif
     if (uiState.preparationExpired(::millis())) {
       uiState.requestResume(commandQueue);
       logUi("Sleep preparation timed out; resuming", UiLogLevel::Error);
+      messageBox("Sleep preparation timed out - staying awake", NAN);
     }
     if (uiState.sleepPhase == app::SleepPhase::Resuming && !uiState.resumeQueued) {
       uiState.requestResume(commandQueue);
@@ -128,6 +145,29 @@ static void Task_UI(void*) {
     }
     displayManager.tick();
     applyReadingStatus(displayed);
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+    if (uiState.sleepPhase == app::SleepPhase::Prepared) {
+        if (app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),
+                       wakeButton.released() && digitalRead(PIN_BUTTON_2) != LOW,
+                       displayManager.touchActive())) {
+        uiState.requestResume(commandQueue);
+      } else {
+        app::enterDeviceSleep(displayManager);
+        const bool restored = displayManager.restoreAfterSleepAbort(uiSettings().brightness);
+        uiState.requestResume(commandQueue);
+        logUi(restored ? "Sleep entry aborted; resuming" : "Touch restoration failed", UiLogLevel::Error);
+        messageBox(restored ? "Sleep aborted - staying awake" : "Sleep aborted - touch unavailable", NAN);
+      }
+    } else if (uiState.sleepPhase == app::SleepPhase::Awake &&
+               app::sleepDue(uiSettings().sleepMinutes, displayManager.inactiveTime(),
+                             uiState.busy() || networkOperationActive || settingsEditing,
+                             wakeButton.released())) {
+      app::Command prepare;
+      prepare.type = app::CommandType::PrepareSleep;
+      idleAtPreparation = displayManager.inactiveTime();
+      if (!uiState.submit(prepare, commandQueue)) displayManager.resetInactivity();
+    }
+#endif
     vTaskDelay(pdMS_TO_TICKS(5));
   }
 }
@@ -136,7 +176,7 @@ static void Task_Analyzer(void*) {
   SettingsStore settingsStore;
   SensorManager sensors(measurementQueue);
   app::Analyzer analyzer(settingsStore, sensors);
-  analyzer.begin();
+  analyzer.begin(applicationWake);
   uint32_t lastMeasurement = ::millis() - 500;
 
   for (;;) {
@@ -155,6 +195,7 @@ void setup() {
   Serial.begin(115200);
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
   Serial.setDebugOutput(true);
+  applicationWake = app::consumeDeviceWake();
 #endif
   measurementQueue = xQueueCreate(1, sizeof(sensorsData));
   commandQueue = xQueueCreate(1, sizeof(app::Command));

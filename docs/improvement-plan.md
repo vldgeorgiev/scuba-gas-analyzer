@@ -38,7 +38,8 @@ the next change when requested; do not recreate the discarded framework.
   output; keep application bindings in a small handwritten adapter.
 - Calibration must have a live millivolt graph, cancellation, and automatic stability-gated
   completion. These are required improvements, not an indefinite backlog item.
-- Add configurable inactivity sleep and button wake. CO has a fixed 3,000 ms startup interval.
+- Add configurable inactivity sleep and button wake. CO has a fixed 5,000 ms startup interval
+  (user-adjusted from three seconds before step 3e).
 - Keep individual Preferences keys, defaults, and one validated RAM settings value. No settings
   blobs, migration, schema versions, CRCs, redundant records, or atomic multi-key guarantees.
 - Preserve existing OTA access. OTA security/protocol redesign and additional product features
@@ -118,8 +119,9 @@ to avoid accumulating temporary synchronization. Step 3a's interim gate is repla
 one analyzer task, one UI task, and a small fixed command/result path. The gate, `configOpen`,
 GUI mutex, separate screen-update task, and arbitrary startup delay are removed.
 Step 3c implements analyzer-owned preparation/resume and the fixed CO startup interval. Step 3d
-adds the persisted timeout, configuration dropdown, and tested activity/debounce policy. Automatic
-sleep is not enabled yet: connecting the policy to display/touch shutdown and wake remains pending.
+adds the persisted timeout, configuration dropdown, and tested activity/debounce policy. Step 3e
+enables S3 automatic entry, display/touch shutdown, abort/resume, and GPIO14 wake with confirmed-wake
+calibration preservation. Physical wake/current, UI restoration, and repeated-cycle acceptance remain pending.
 
 The analyzer owns ADCs, sensor-enable GPIOs, calibration, effective RAM settings, and Preferences.
 UI callbacks submit one operation at a time and receive an outcome with effective values and a
@@ -132,6 +134,7 @@ Persist the selected timeout; use 5 minutes when the stored value is missing or 
 Measure touch/button inactivity, not redraws. Inhibit sleep during calibration, pending settings,
 Wi-Fi scans, and OTA using explicit activity flags, not a nested inhibitor registry. Start a fresh
 idle interval after operations finish.
+Also inhibit sleep while the settings editor contains a draft; do not discard unsaved changes.
 
 Deliver ownership and sleep against the existing UI before the replacement UI. Reuse the analyzer
 command path for sleep preparation/resume and owner-driven sensor power timing. No more temporary

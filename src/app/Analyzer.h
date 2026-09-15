@@ -11,7 +11,7 @@ enum class CommandType : uint8_t {
   Startup, ApplySettings, CalibrateAir, CalibratePure, CalibrateHe, ResetAir, ClearPure, ResetHe,
   PrepareSleep, Resume
 };
-enum class Failure : uint8_t { None, Invalid, Storage, Sampling, LoadedDefaults, Busy };
+enum class Failure : uint8_t { None, Invalid, Storage, Sampling, LoadedDefaults, Busy, CalibrationRequired };
 enum class SleepPhase : uint8_t { Awake, Preparing, Prepared, Resuming };
 
 struct Command {
@@ -117,9 +117,9 @@ struct UiState {
 
 class Analyzer {
 public:
-  static constexpr uint32_t CO_STARTUP_MS = 3000;
+  static constexpr uint32_t CO_STARTUP_MS = 5000;
   Analyzer(SettingsStore& settingsStore, SensorManager& sensors) : _settingsStore(settingsStore), _sensors(sensors) {}
-  Result begin();
+  Result begin(bool applicationWake = false);
   Result execute(const Command& command);
   bool service(QueueHandle_t commands, QueueHandle_t results);
   SensorError measure() { return preparedForSleep() ? SensorError::None : _sensors.readSensors(coWarming()); }
@@ -141,6 +141,8 @@ private:
   bool _coPowered = false;
   uint32_t _coPoweredAt = 0;
   uint32_t _sleepId = 0;
+  bool _oxygenRequired = false;
+  bool _heliumRequired = false;
 };
 
 }

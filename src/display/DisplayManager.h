@@ -14,8 +14,13 @@ public:
   uint8_t getSleepMinutes() const;
   void resetInactivity();
   uint32_t inactiveTime() const;
+  bool prepareSleep();
+  bool restoreAfterSleepAbort(uint8_t brightness);
+  bool touchActive();
 private:
   lv_obj_t* _sleepDropdown = nullptr;
+  bool _panelSleeping = false;
+  bool _touchSleepAttempted = false;
 };
 
 #endif // DISPLAYMANAGER_H
