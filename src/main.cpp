@@ -26,7 +26,7 @@ const AnalyzerSettings& uiSettings() { return uiState.effective; }
 
 void openUiSettings() {
   if (uiState.settingsEditing) return;
-  uiState.openSettings();
+  uiState.settingsEditing = true;
   syncUiSettings();
 }
 
@@ -34,14 +34,8 @@ bool closeUiSettings(const AnalyzerSettings& draft) {
   if (!uiState.settingsEditing) return true;
   const bool submitted = uiState.closeSettings(draft, commandQueue);
   syncUiSettings();
-  return submitted;
-}
-
-bool discardUiSettingsDraft() {
-  if (!uiState.discardSettings()) return false;
-  syncUiSettings();
   displayManager.resetInactivity();
-  return true;
+  return submitted;
 }
 
 bool submitAnalyzerCommand(app::Command command) {
@@ -49,7 +43,7 @@ bool submitAnalyzerCommand(app::Command command) {
 }
 
 void syncUiSettings() {
-  const AnalyzerSettings& settings = uiState.settingsEditing ? uiState.settingsDraft : uiSettings();
+  const AnalyzerSettings& settings = uiSettings();
   flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED, settings.o2Enabled);
   flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED, settings.coEnabled);
   flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED, settings.heEnabled);
@@ -103,7 +97,7 @@ static void Task_UI(void*) {
     if (wakeButton.update(digitalRead(PIN_BUTTON_2) == LOW, ::millis())) displayManager.resetInactivity();
     if (digitalRead(PIN_BUTTON_1) == LOW) displayManager.resetInactivity();
     if ((uiState.sleepPhase == app::SleepPhase::Preparing || uiState.sleepPhase == app::SleepPhase::Prepared) &&
-        (uiState.settingsInhibitSleep() ||
+        (uiState.settingsEditing ||
          app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),
                                     wakeButton.released(), displayManager.touchActive()))) {
       uiState.requestResume(commandQueue);
@@ -120,7 +114,7 @@ static void Task_UI(void*) {
     app::Result result;
     if (xQueueReceive(resultQueue, &result, 0) == pdPASS && uiState.accept(result)) {
       if (!uiState.busy()) displayManager.resetInactivity();
-      if (!uiState.settingsEditing || result.type == app::CommandType::Startup) syncUiSettings();
+      if (uiState.shouldSyncSettings(result)) syncUiSettings();
       displayed = latest.forDisplay(::millis(), uiState.generation);
       presentReadings(displayed);
       pendingReading = true;
@@ -166,7 +160,7 @@ static void Task_UI(void*) {
     applyReadingStatus(displayed);
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
     if (uiState.sleepPhase == app::SleepPhase::Prepared) {
-      if (uiState.settingsInhibitSleep() || app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),
+      if (uiState.settingsEditing || app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),
                        wakeButton.released() && digitalRead(PIN_BUTTON_2) != LOW,
                        displayManager.touchActive())) {
         uiState.requestResume(commandQueue);
@@ -181,7 +175,7 @@ static void Task_UI(void*) {
       }
     } else if (uiState.sleepPhase == app::SleepPhase::Awake &&
                app::sleepDue(uiSettings().sleepMinutes, displayManager.inactiveTime(),
-                             uiState.busy() || networkOperationActive || uiState.settingsInhibitSleep(),
+                             uiState.busy() || networkOperationActive || uiState.settingsEditing,
                              wakeButton.released())) {
       app::Command prepare;
       prepare.type = app::CommandType::PrepareSleep;

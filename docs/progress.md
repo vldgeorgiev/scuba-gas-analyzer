@@ -638,6 +638,7 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 
 ## 2026-09-15: Step 4c, retained settings drafts and rejection UX
 
+- Superseded by the save-on-exit simplification below at the user's request.
 - Started from `4db91c9`. Confirmed the generated callbacks use SCREEN_LOADED/SCREEN_UNLOADED;
   closing happens after navigation and cannot assume a synchronous result. Added a regression for
   rejected edits surviving reopening, then implemented the small UiState-owned draft lifecycle.
@@ -671,8 +672,29 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   fit on 320x170, and inactivity behavior with retained/discarded drafts. Native tests do not execute
   real EEZ/LVGL events. No assistant upload or push performed.
 
+## 2026-09-15: Simplify settings to save on exit
+
+- User rejected retained drafts as disproportionate for this device. Removed the retained value,
+  retention/reopened flags, extra settings request ID, coefficient rebasing of retained drafts,
+  discard API/button, and retention-based sleep inhibition introduced in `85212f5`.
+- Settings save on exit through the existing analyzer command. Until acknowledgement the UI restores
+  effective values/brightness. Failure or busy refusal shows an ordinary error; edits are not retained
+  and reopening uses the latest effective settings. Close starts a fresh inactivity interval.
+- Kept one editing flag and a tested result-sync predicate so asynchronous save/calibration results
+  cannot overwrite an open editor. Startup still seeds controls. Analyzer validation, per-channel
+  calibration acceptance, persistence checks, and generation filtering are unchanged.
+- An open editor still inhibits/interrupts sleep preparation. Once closed, failed edits no longer
+  block sleep; only an actual pending operation or another existing inhibitor does.
+- Replaced nine retention tests with three save-on-exit tests: success/rejection acknowledgements,
+  queue refusal/duplicate close, and protection of open controls from delayed results.
+  All 104 native tests pass (39 analyzer, 16 sleep, 37 sensor/cycle, 12 conversion).
+- Both S3 builds pass: RAM 159096 bytes; debug flash 1540573 bytes, release flash 1526217 bytes.
+  LVGL MCP consulted; only existing message-box APIs remain, with no generated UI changes.
+- Device checks still needed: save/reopen, busy/invalid rejection and brightness restoration,
+  results during editing, and sleep after rejected saves. No assistant upload or push performed.
+
 ### Next increment
 
-Step-4 implementation is in place; device settings/draft/apply/reset/clear/restart acceptance remains
+Step-4 implementation is in place; device settings/save-on-exit/apply/reset/clear/restart acceptance remains
 open, alongside earlier sleep/current and sensor checks. Step 5 is incremental stability-gated
 calibration with cancellation, bounded progress/history, and the required live graph.

@@ -50,11 +50,7 @@ struct UiState {
   AnalyzerSettings effective;
   uint32_t generation = 1;
   uint32_t pendingId = 0;
-  AnalyzerSettings settingsDraft;
   bool settingsEditing = false;
-  bool settingsDraftRetained = false;
-  uint32_t settingsRequestId = 0;
-  bool settingsReopened = false;
   bool ready = false;
   uint32_t nextId = 1;
   SleepPhase sleepPhase = SleepPhase::Awake;
@@ -64,39 +60,15 @@ struct UiState {
   uint32_t resumeFailedAt = 0;
 
   bool busy() const { return !ready || pendingId != 0; }
-  bool settingsInhibitSleep() const { return settingsEditing || settingsDraftRetained; }
-  void openSettings() {
-    if (settingsEditing) return;
-    if (!settingsDraftRetained) settingsDraft = effective;
-    settingsEditing = true;
-    settingsDraftRetained = true;
-    if (settingsRequestId != 0) settingsReopened = true;
-    refreshDraftCalibration();
+  bool shouldSyncSettings(const Result& result) const {
+    return !settingsEditing || result.type == CommandType::Startup;
   }
   bool closeSettings(const AnalyzerSettings& draft, QueueHandle_t queue) {
     if (!settingsEditing) return false;
     settingsEditing = false;
-    settingsDraft = draft;
-    settingsDraftRetained = true;
-    refreshDraftCalibration();
     Command command;
-    command.settings = settingsDraft;
-    if (!submit(command, queue)) return false;
-    settingsRequestId = pendingId;
-    settingsReopened = false;
-    return true;
-  }
-  bool discardSettings() {
-    if (settingsRequestId != 0) return false;
-    settingsDraft = effective;
-    settingsDraftRetained = false;
-    settingsReopened = false;
-    return true;
-  }
-  void refreshDraftCalibration() {
-    settingsDraft.o2Air = effective.o2Air;
-    settingsDraft.o2Pure = effective.o2Pure;
-    settingsDraft.heCalibration = effective.heCalibration;
+    command.settings = draft;
+    return submit(command, queue);
   }
   bool submit(Command command, QueueHandle_t queue) {
     if (busy() || command.type == CommandType::Startup || command.type == CommandType::Resume) return false;
@@ -161,13 +133,6 @@ struct UiState {
     }
     effective = result.effective;
     generation = result.generation;
-    if (result.type == CommandType::Startup && settingsEditing) settingsDraft = effective;
-    if (result.type == CommandType::ApplySettings && result.id == settingsRequestId) {
-      settingsRequestId = 0;
-      if (result.failure == Failure::None && !settingsReopened) settingsDraftRetained = false;
-      settingsReopened = false;
-    }
-    refreshDraftCalibration();
     return true;
   }
 };

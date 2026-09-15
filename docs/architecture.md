@@ -220,31 +220,22 @@ acceptance checklist in progress for held buttons, aborts, retained settings/pin
 ## UI and drafts
 
 Settings are loaded on the analyzer and copied into `UiState::effective` through results.
-UI refreshes never read Preferences. UiState retains one draft separately from effective settings.
-Opening seeds existing EEZ controls from that draft, or from effective settings if none is retained.
-Closing captures all editable controls and submits a candidate, then restores effective globals and
-brightness outside the editor. A rejected/queue-refused draft remains available on reopening; no
-unsaved value is presented as applied. While editing, brightness remains a preview and unrelated
-results do not overwrite controls. Startup synchronization remains the exception.
+UI refreshes never read Preferences. Opening seeds the existing EEZ controls from effective settings.
+Closing captures editable controls and submits ApplySettings, then restores effective globals and
+brightness while awaiting acknowledgement. A failure or busy/queue refusal shows an ordinary error
+dialog and keeps the effective settings; rejected edits are not retained. Reopening always starts
+from the latest effective values. There is no retained draft, discard action, or separate save ID.
 
-The settings request ID and a reopened flag distinguish an acknowledged draft from a newer editing
-session. Success clears only its own non-reopened draft; failure keeps the draft. Calibration results
-refresh only its three coefficient fields, and submission rebases those fields from current effective
-values. The analyzer also continues stripping calibration fields from ApplySettings commands.
-Duplicate close notifications outside an editing session do not enqueue or overwrite anything.
+One editing flag protects controls and brightness preview from asynchronous result synchronization
+while the editor is open; startup synchronization remains the exception. Results still update
+effective settings and measurement generation. Closing builds the candidate from current effective
+settings plus editable controls; the analyzer also strips calibration fields from ApplySettings.
+Duplicate close notifications outside an editing session are ignored. Closing an unchanged editor
+still submits, allowing the existing dirty-store retry to reconcile a prior partial failure.
 
-Settings rejection uses the existing modal with an Edits retained state and Discard edits action.
-Closing the modal keeps edits; reopening settings allows correction/resubmission. Discard restores
-effective controls/brightness and resets inactivity. Discard cannot cancel a queued settings write;
-the existing dialog shows Settings update pending instead of stacking another modal. If discarded
-while the editor is open, it remains an editor and accepts fresh edits normally. Closing an unchanged
-editor still submits through the analyzer, allowing a dirty store to reconcile after partial failure.
-
-Both open and retained drafts inhibit sleep until successfully saved or explicitly discarded. The
-preparing/prepared checks also request Resume if settings become active, including programmatic
-navigation. This deliberately trades automatic sleep for retaining unsaved edits; dismissing a
-rejection dialog alone does not re-enable sleep. Drafts are RAM-only and do not survive reset/power
-loss. There is no automatic retry, draft timeout, new queue, or persistent draft format.
+An open editor or pending operation inhibits sleep, but failed edits do not inhibit it after exit.
+Closing starts a fresh inactivity interval, as does completion of an operation. Opening settings
+during sleep preparation still requests Resume. No draft persistence or automatic retry is added.
 
 Callbacks no longer calibrate, write NVS, or drive sensor power. They enqueue and return, or show
 busy through the existing message box. Calibration success/failure is displayed when its result is

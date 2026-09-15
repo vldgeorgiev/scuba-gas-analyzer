@@ -16,7 +16,7 @@ public:
   ~NetworkOperation() { setNetworkOperationActive(false); }
 };
 
-static lv_obj_t* createMessageBox(const char * title, float value) {
+void messageBox(const char * title, float value) {
   char text[32] = "";
   if (std::isfinite(value)) snprintf(text, sizeof(text), "%.2f mv", value);
 
@@ -25,25 +25,6 @@ static lv_obj_t* createMessageBox(const char * title, float value) {
   lv_msgbox_add_title(mbox, title);
   lv_msgbox_add_text(mbox, text);
   lv_obj_set_size(mbox, LV_PCT(70), LV_SIZE_CONTENT);
-  return mbox;
-}
-
-void messageBox(const char * title, float value) {
-  createMessageBox(title, value);
-}
-
-static void showSettingsRejection(const char* title) {
-  lv_obj_t* dialog = createMessageBox(title, NAN);
-  lv_msgbox_add_text(dialog, "Edits retained");
-  lv_obj_t* discard = lv_msgbox_add_footer_button(dialog, "Discard edits");
-  lv_obj_add_event_cb(discard, [](lv_event_t* event) {
-    lv_obj_t* dialog = static_cast<lv_obj_t*>(lv_event_get_user_data(event));
-    if (!discardUiSettingsDraft()) {
-      lv_label_set_text(lv_msgbox_get_title(dialog), "Settings update pending");
-      return;
-    }
-    lv_msgbox_close_async(dialog);
-  }, LV_EVENT_CLICKED, dialog);
 }
 
 void action_calibrate_o2_21(lv_event_t * e) {
@@ -97,7 +78,7 @@ void action_close_config(lv_event_t * e) {
   command.settings.calibrateOnStart = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean();
   command.settings.brightness = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8();
   command.settings.sleepMinutes = displayManager.getSleepMinutes();
-  if (!closeUiSettings(command.settings)) showSettingsRejection("Settings not applied - analyzer busy");
+  if (!closeUiSettings(command.settings)) messageBox("Settings not applied - analyzer busy", NAN);
 }
 
 void showAnalyzerResult(const app::Result& result) {
@@ -133,11 +114,7 @@ void showAnalyzerResult(const app::Result& result) {
     }
   }
   if (!title && required && result.type == app::CommandType::ApplySettings) title = required;
-  if (title && result.type == app::CommandType::ApplySettings && result.failure != app::Failure::None) {
-    showSettingsRejection(title);
-  } else if (title) {
-    messageBox(title, result.calibration);
-  }
+  if (title) messageBox(title, result.calibration);
 }
 
 const char *get_var_ui_log() {
