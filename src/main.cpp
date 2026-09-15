@@ -1,5 +1,6 @@
 #include <atomic>
 #include "display/DisplayManager.h"
+#include "display/ReadingStatus.h"
 #include "ui.h"
 #include "vars.h"
 #include "structs.h"
@@ -19,6 +20,7 @@ SemaphoreHandle_t gui_mutex;
 SensorManager sensors(sensorDataQueue);
 
 std::atomic<bool> configOpen;
+static sensorsData displayedReadings;
 
 static eez::Value integerOrUnavailable(float value) {
   int integer;
@@ -31,6 +33,7 @@ void Task_LVGL(void *pvParameters) {
   while (1) {
     if (xSemaphoreTake(gui_mutex, portMAX_DELAY) == pdTRUE) {
       displayManager.tick();
+      applyReadingStatus(displayedReadings);
       xSemaphoreGive(gui_mutex);
     }
     vTaskDelay(pdMS_TO_TICKS(5));
@@ -66,6 +69,7 @@ void Task_Screen_Update(void *pvParameters) {
       const bool fresh = latest.isFresh(nowMs);
       if (pendingReading || fresh != presentedFresh) {
         const sensorsData data = latest.forDisplay(nowMs);
+        displayedReadings = data;
         const float maxDepthBottomO2 = conversions::maximumOperatingDepth(config.getPO2Bottom(), data.O2Level.percentage);
         const float maxDepthDecoO2 = conversions::maximumOperatingDepth(config.getPO2Deco(), data.O2Level.percentage);
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_VALUE, FloatValue(data.O2Level.percentage));

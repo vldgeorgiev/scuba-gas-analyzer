@@ -50,14 +50,16 @@ void SensorManager::recoverDevice(Adafruit_ADS1115& adc, DeviceState& state,
   }
 }
 
-void SensorManager::recordRead(DeviceState& state, bool timedOut, bool valid) {
+ChannelState SensorManager::recordRead(DeviceState& state, bool timedOut, bool valid) {
   if (timedOut) {
     state.ready = false;
     state.lastAttemptMs = ::millis();
     _lastError = SensorError::ADC_Timeout;
+    return ChannelState::Unavailable;
   } else if (!valid && _lastError == SensorError::None) {
     _lastError = SensorError::Invalid_Reading;
   }
+  return valid ? ChannelState::Valid : ChannelState::Invalid;
 }
 
 void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100) {
@@ -76,6 +78,10 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
 SensorError SensorManager::readSensors() {
   sensorsData data;
   data.timestampMs = ::millis();
+  data.o2State = _isO2Enabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  data.coState = _isCOEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  data.heState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  data.temperatureState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
   _lastError = SensorError::None;
 
   if (!_isO2Enabled && !_isCOEnabled && !_isHeEnabled) {
@@ -93,22 +99,22 @@ SensorError SensorManager::readSensors() {
   bool timedOut = false;
   if (_isO2Enabled && _adc1State.ready) {
     data.O2Level = _o2Sensor.readLevel(&timedOut);
-    recordRead(_adc1State, timedOut, std::isfinite(data.O2Level.percentage));
+    data.o2State = recordRead(_adc1State, timedOut, std::isfinite(data.O2Level.percentage));
   }
 
   if (_isCOEnabled && _adc2State.ready) {
     data.CoLevel = _coSensor.readLevel(&timedOut);
-    recordRead(_adc2State, timedOut, std::isfinite(data.CoLevel.ppm));
+    data.coState = recordRead(_adc2State, timedOut, std::isfinite(data.CoLevel.ppm));
   }
 
   if (_isHeEnabled && _adc2State.ready) {
     data.HeLevel = _heSensor.readLevel(data.O2Level.percentage, &timedOut);
-    recordRead(_adc2State, timedOut, std::isfinite(data.HeLevel.percentage));
+    data.heState = recordRead(_adc2State, timedOut, std::isfinite(data.HeLevel.percentage));
   }
 
   if (_isHeEnabled && _adc2State.ready) {
     data.HeTemperature = _tempSensor.readLevel(&timedOut);
-    recordRead(_adc2State, timedOut, std::isfinite(data.HeTemperature));
+    data.temperatureState = recordRead(_adc2State, timedOut, std::isfinite(data.HeTemperature));
   }
   data.lastError = _lastError;
 

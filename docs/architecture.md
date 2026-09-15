@@ -13,6 +13,7 @@ Step 2a removes normal-reading batch averaging; calibration still uses its origi
 Step 2b initializes readings, guards conversions and integer presentation, and resets cycle errors.
 Step 2c adds latest-only publication and UI-clock freshness checks without changing task ownership.
 Step 2d uses deadline-polled Adafruit conversions and independent per-device initialization/retry.
+Step 2e carries per-channel state and displays status text in existing reading labels.
 
 | Responsibility | Current implementation |
 | --- | --- |
@@ -69,7 +70,7 @@ An observed conversion timeout marks only that ADC unready, starts its retry int
 its remaining channels for the cycle. The other ADC continues. Invalid numerical data does not
 request initialization. The old global error-count/reinitialize-both loop is removed. The existing
 summary error prioritizes an observed timeout over an unavailable device over invalid data;
-individual channel reason codes remain pending. `ADC_Init_Failed` is presented as "ADC unavailable"
+step 2e additionally carries individual channel states. `ADC_Init_Failed` is presented as "ADC unavailable"
 because it also represents waiting for retry after a runtime timeout.
 
 Calibration requests may perform the same rate-limited device retry even while `configOpen` pauses
@@ -112,8 +113,8 @@ error changes. Per-sensor debug logs and the historical log indicator are not re
 
 The EEZ `co_value > 0` condition controls CO-positive colouring and is false for NaN. An empty
 reading is not a zero-CO result; colour is not an all-clear signal. On-device verification of all
-affected views is pending. Explicit disabled/fault/warming presentation and active-fault tracking
-are still planned. Stale numeric suppression is implemented in step 2c below.
+affected views is pending. Step 2e adds invalid/unavailable/stale text in place of empty primary
+readings. CO warming and active-fault tracking remain later work. Colour is still not an all-clear.
 
 ### Latest measurements and freshness implemented in step 2c
 
@@ -141,7 +142,55 @@ rendering stops. It prevents waiting for the producer, not waiting for the whole
 With the current `configOpen` pause, readings now blank during extended settings/calibration pauses;
 they are not live readings during that pause. Hardware checks must exercise pause/resume and stalled
 producer behavior. The later single-UI-owner change removes the remaining shared-mutex dependency.
-There is no separate stale reason field or settings-generation filter yet.
+Step 2e adds stale channel state; there is no settings-generation filter yet.
+
+### Channel states and temporary UI adapter implemented in step 2e
+
+The existing fixed-size snapshot carries four `ChannelState` fields: O2, CO, He, and temperature.
+No new queue or mutable cross-task sensor reference is introduced.
+
+| State | Meaning |
+| --- | --- |
+| Unavailable | No sample yet, ADC offline, conversion timeout, or skipped after sibling ADC timeout |
+| Disabled | Channel disabled in the configuration actually used by the acquisition cycle |
+| Valid | Conversion and derived-value validation succeeded; zero remains a valid value |
+| Invalid | Conversion completed but input, calibration, or a required dependency is unusable |
+| Stale | UI-clock freshness expired; numeric values and raw diagnostics are suppressed |
+
+Every cycle initializes states from applied enable flags, then sets each read outcome independently.
+A later temperature timeout does not invalidate an already completed He measurement in the same
+cycle. The stale display copy keeps Disabled distinct and marks other states Stale without changing
+the producer snapshot. No Warming state is emitted until the CO startup interval is implemented.
+
+`src/display/ReadingStatus.h` is a small handwritten adapter over the existing generated labels.
+It displays `O2: Invalid`, `CO: Unavailable`, or `He: Stale` as appropriate, and also handles the
+large O2 label. When He percentage is valid but temperature is not, it retains the percentage and
+shows a `T:` status. Primary invalid labels prioritize the state over diagnostic millivolts; raw
+values remain in the snapshot. Existing EEZ panel hiding for disabled channels is retained, not
+overridden; their label text is `Off` if visible, and enable switches remain the configuration UI.
+
+The presentation task copies the displayed snapshot under `gui_mutex`; the LVGL task applies the
+adapter under the same mutex, immediately after `DisplayManager::tick()`. That existing method
+runs rendering first, then the generated tick; the adapter's override is ready for the next render.
+EEZ label ticks compare their desired text against actual label text, not just global-variable
+changes, so valid text is restored even when the recovered reading equals an earlier value.
+Numeric globals are never replaced by status strings, preserving arithmetic and CO colouring logic.
+
+The adapter uses the existing Geneva 16 font for state text and restores each cached normal font
+on return to Valid (including 48-pixel O2 on the large view). It assumes the current generated
+screens live for the application's lifetime. A future UI with recreated objects must rebind/reset
+this cache; do not carry it blindly into the Editor migration.
+
+Tradeoff: generated ticks and the override both update non-valid label text while faults persist.
+This temporary integration can cause repeated label allocations/invalidation; no heap stability or
+rendering-performance claim is made without a sustained device check. It avoids a new screen or
+changes to generated assets. The replacement UI should bind state text directly, eliminating the
+competing updates rather than building a general binding framework now.
+
+LVGL MCP was consulted for label/font handling. The installed 9.1 headers confirm
+`lv_label_set_text`, `lv_label_get_text`, `lv_obj_get_style_text_font`, and
+`lv_obj_set_style_text_font`. The advice is not based on newer observer/subject APIs. Target builds
+validate symbol compatibility; on-device fit, navigation, and restoration remain unverified.
 
 ## Planned ownership
 
@@ -252,7 +301,7 @@ overflow, integer boundaries, and MOD. The former He/NaN fallback test now requi
 result. Temperature rounding and valid gas formulas remain characterized.
 Tolerance is 0.0001 in each function's output units for floating arithmetic, not sensor accuracy.
 
-Thirty-one sensor/cycle tests check one conversion per normal read, channel selection, response to the
+Thirty-seven sensor/cycle/adapter tests check one conversion per normal read, channel selection, response to the
 next input, raw diagnostics, default snapshots, invalid-to-valid recovery, all-disabled and He-only
 configurations, temperature gating, and unchanged calibration counts/pauses.
 They also exercise latest-only queue consumption, timestamped disabled/invalid cycles, stopped
@@ -260,6 +309,10 @@ producer blanking, exact freshness boundaries, clock wrap, empty boot state, and
 ADC cases cover conversion deadlines, late results, initialization failure isolation, one-second
 retry across clock wrap, disabled-device gating, timeout skipping of sibling channels, invalid
 data without reinitialization, calibration retries, and partial-calibration failure retention.
+State tests cover mixed outcomes, stale/disabled handling, zero CO, and independent temperature
+failure. A host label/font stand-in exercises the actual status adapter's text and font restoration.
+`lib_ignore = ui` applies only to native tests to prevent PlatformIO from compiling the generated UI
+when it encounters the adapter's includes. Real firmware builds still use generated screens and LVGL.
 Small public-API stand-ins for Adafruit, a copying queue, logging, and calibration averaging live under `test/fakes`.
 The averaging stand-in only supports filling a fixed batch, not library ring-buffer behavior.
 Both `-I` and `-iquote` paths are native-only; the latter selects the logging stand-in before the

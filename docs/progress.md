@@ -9,7 +9,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | Step | Status |
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
-| 2. Measurement handling and averaging removal | In progress: averaging removal, validity guards, latest publication, freshness, ADC deadlines and independent retry verified locally; explicit channel statuses and hardware checks pending |
+| 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
 | 3. Sleep/wake, five-minute default | Not started |
 | 4. Ownership and live settings | Not started |
 | 5. Stability-gated calibration | Not started |
@@ -235,8 +235,44 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   calls can exceed the deadline before returning. Calibration callbacks can still race acquisition
   under the old ownership model. These are not fixed by the helper or retry records.
 
+## 2026-09-15: Step 2e, channel state and reading-status presentation
+
+- Started from `c49455a`. Added four fixed-size state fields to the existing measurement snapshot.
+  Disabled channels remain distinct from ADC unavailability and invalid derived inputs. Stale copies
+  preserve Disabled while marking other channel states Stale and suppressing their numbers.
+- Added a small handwritten adapter to the existing main/large reading labels, applied after EEZ
+  ticks under the existing GUI mutex. No generated files or design assets changed. Invalid numeric
+  globals remain NaN, not strings; the adapter only changes label text and temporary status fonts.
+- Kept disabled panels hidden according to existing EEZ bindings. Enabled channels show Invalid,
+  Unavailable, or Stale. A temperature-only failure preserves valid He percentage with a T status.
+- State text uses existing Geneva 16; valid values regain their normal font. The adapter assumes
+  the current lifetime-stable generated screens and will be replaced when the new UI is integrated.
+
+### Verification and review
+
+- All 49 native tests pass: 12 conversion and 37 sensor/cycle/adapter tests. Added mixed channel
+  state, stale/disabled, zero-CO validity, temperature-only timeout, text mapping, generated overwrite,
+  and font-restoration coverage. Label/font stand-ins do not prove actual layout or rendering.
+- Native library discovery initially pulled in generated UI; resolved with native-only
+  `lib_ignore = ui`. Embedded targets continue to compile the actual UI and LVGL.
+- Both S3 profiles pass: debug RAM 159116 bytes, flash 1528349 bytes; release RAM 159116 bytes,
+  flash 1511329 bytes. Against step 2d: static RAM +64 bytes, debug flash +10280 bytes,
+  release flash +10248 bytes. Runtime label allocation and screen fit are not measured.
+- Consulted LVGL MCP and verified the used label/font APIs in installed LVGL 9.1 headers.
+- Claude read-only review claimed unsynchronized snapshot copying and missing valid-text restore.
+  Rejected both against source: `displayedReadings` is copied inside `gui_mutex`, and generated
+  `tick_screen_main/large` compare evaluated text against `lv_label_get_text` every tick. Tests
+  model that generated update before restoring font/normal presentation.
+- Accepted the cache-lifetime/temporary-binding caveat. EEZ and the adapter repeatedly update text
+  while a channel is non-valid; sustained device testing must check heap, responsiveness, flicker,
+  and layout. Do not claim the adapter is allocation-free or a permanent UI architecture.
+- Pending hardware acceptance: startup, main/large navigation, disabled channels, invalid O2/He,
+  ADC disconnect/recovery (subject to hidden-I2C-error limitations), stale pause/resume, font recovery,
+  and long-running invalid-state display. No assistant upload, flash, OTA, or push performed.
+
 ### Next increment
 
-Finish step 2 with explicit per-channel state and presentation of disabled/invalid/unavailable
-readings. Then implement step 3 sleep with the minimum single-owner stop/resume coordination it
-requires. Keep command/settings generation work small and do not recreate the discarded framework.
+Step 3 is configurable sleep with five-minute default and GPIO14 wake. First implement only the
+single-owner stop/resume and sensor-power coordination needed for safe sleep; the current
+`configOpen` flag still does not wait for an in-flight read. Keep the larger settings/command
+refactor deferred unless it is necessary for that coordination. Step-2 hardware checks remain open.

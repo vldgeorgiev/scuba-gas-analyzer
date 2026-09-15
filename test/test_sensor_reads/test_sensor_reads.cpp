@@ -6,6 +6,7 @@
 #include "sensors/TempSensor.h"
 
 #include "sensors/sensors.h"
+#include "display/ReadingStatus.h"
 
 void setUp() {
   delayCalls = 0;
@@ -534,6 +535,151 @@ void test_invalid_single_ended_channel_does_not_issue_conversion() {
   TEST_ASSERT_EQUAL_UINT(0, adc.singleEndedReads);
 }
 
+void test_channel_states_distinguish_disabled_invalid_and_unavailable() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager manager(handle);
+  manager.init();
+  manager.setSensorsConfig(true, false, true, 10, NAN, 621.2f);
+  Adafruit_ADS1115::devices[0]->counts = 6400;
+  Adafruit_ADS1115::devices[1]->counts = 1600;
+  manager.readSensors();
+  sensorsData snapshot;
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Invalid, snapshot.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, snapshot.coState);
+  TEST_ASSERT_EQUAL(ChannelState::Invalid, snapshot.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.temperatureState);
+
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  Adafruit_ADS1115::devices[1]->conversionCompletes = false;
+  manager.readSensors();
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Unavailable, snapshot.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Unavailable, snapshot.temperatureState);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, snapshot.coState);
+
+  Adafruit_ADS1115::devices[1]->conversionCompletes = true;
+  nowMs += 1000;
+  manager.readSensors();
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.temperatureState);
+}
+
+void test_stale_copy_keeps_disabled_distinct_and_leaves_producer_states_unchanged() {
+  sensorsData snapshot;
+  snapshot.timestampMs = UINT32_MAX - 500;
+  snapshot.o2State = ChannelState::Valid;
+  snapshot.coState = ChannelState::Disabled;
+  snapshot.heState = ChannelState::Invalid;
+  snapshot.temperatureState = ChannelState::Unavailable;
+  const sensorsData fresh = snapshot.forDisplay(1298);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, fresh.o2State);
+  const sensorsData stale = snapshot.forDisplay(1299);
+  TEST_ASSERT_EQUAL(ChannelState::Stale, stale.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, stale.coState);
+  TEST_ASSERT_EQUAL(ChannelState::Stale, stale.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Stale, stale.temperatureState);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Unavailable, sensorsData{}.o2State);
+}
+
+void test_channel_state_labels_are_distinct() {
+  TEST_ASSERT_EQUAL_STRING("Off", channelStateText(ChannelState::Disabled));
+  TEST_ASSERT_EQUAL_STRING("Invalid", channelStateText(ChannelState::Invalid));
+  TEST_ASSERT_EQUAL_STRING("Unavailable", channelStateText(ChannelState::Unavailable));
+  TEST_ASSERT_EQUAL_STRING("Stale", channelStateText(ChannelState::Stale));
+  TEST_ASSERT_EQUAL_STRING("", channelStateText(ChannelState::Valid));
+}
+
+void test_status_adapter_overrides_generated_text_and_restores_fonts() {
+  const lv_font_t smallFont{16};
+  const lv_font_t largeFont{48};
+  lv_obj_t oxygen{"O2 %", &smallFont};
+  lv_obj_t carbonMonoxide{"CO ppm", &smallFont};
+  lv_obj_t helium{"He %", &smallFont};
+  lv_obj_t largeOxygen{"O2 %", &largeFont};
+  objects = {&oxygen, &carbonMonoxide, &helium, &largeOxygen};
+  sensorsData data;
+  data.o2State = ChannelState::Stale;
+  data.coState = ChannelState::Unavailable;
+  data.heState = ChannelState::Invalid;
+  applyReadingStatus(data);
+  TEST_ASSERT_EQUAL_STRING("O2: Stale", oxygen.text.c_str());
+  TEST_ASSERT_EQUAL_STRING("CO: Unavailable", carbonMonoxide.text.c_str());
+  TEST_ASSERT_EQUAL_STRING("He: Invalid", helium.text.c_str());
+  TEST_ASSERT_EQUAL_STRING("O2: Stale", largeOxygen.text.c_str());
+  TEST_ASSERT_EQUAL_PTR(&ui_font_geneva16, largeOxygen.font);
+
+  largeOxygen.text = "O2 %";
+  applyReadingStatus(data);
+  TEST_ASSERT_EQUAL_STRING("O2: Stale", largeOxygen.text.c_str());
+  data.o2State = data.coState = data.heState = data.temperatureState = ChannelState::Valid;
+  oxygen.text = "O2 20.9%";
+  carbonMonoxide.text = "CO 0 ppm";
+  helium.text = "He 14.4%";
+  largeOxygen.text = "O2 20.9%";
+  applyReadingStatus(data);
+  TEST_ASSERT_EQUAL_STRING("O2 20.9%", oxygen.text.c_str());
+  TEST_ASSERT_EQUAL_STRING("CO 0 ppm", carbonMonoxide.text.c_str());
+  TEST_ASSERT_EQUAL_STRING("He 14.4%", helium.text.c_str());
+  TEST_ASSERT_EQUAL_STRING("O2 20.9%", largeOxygen.text.c_str());
+  TEST_ASSERT_EQUAL_PTR(&largeFont, largeOxygen.font);
+  TEST_ASSERT_EQUAL_PTR(&smallFont, oxygen.font);
+
+  data.HeLevel.percentage = 14.4f;
+  data.temperatureState = ChannelState::Unavailable;
+  applyReadingStatus(data);
+  TEST_ASSERT_EQUAL_STRING("He 14.4%, T: Unavailable", helium.text.c_str());
+  data.coState = ChannelState::Disabled;
+  applyReadingStatus(data);
+  TEST_ASSERT_EQUAL_STRING("CO: Off", carbonMonoxide.text.c_str());
+  objects = {};
+  applyReadingStatus(data);
+}
+
+void test_disabled_states_survive_stale_presentation_and_zero_co_is_valid() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager manager(handle);
+  manager.init();
+  manager.readSensors();
+  sensorsData snapshot;
+  xQueueReceive(handle, &snapshot, 0);
+  const sensorsData disabled = snapshot.forDisplay(5000);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, disabled.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, disabled.coState);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, disabled.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, disabled.temperatureState);
+  manager.setSensorsConfig(false, true, false, 10, NAN, 621.2f);
+  Adafruit_ADS1115::devices[1]->counts = 6400;
+  manager.readSensors();
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.coState);
+  TEST_ASSERT_EQUAL_FLOAT(0, snapshot.CoLevel.ppm);
+}
+
+void test_temperature_timeout_keeps_completed_he_read_valid() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager manager(handle);
+  manager.init();
+  manager.setSensorsConfig(true, false, true, 10, NAN, 621.2f);
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  Adafruit_ADS1115::devices[1]->counts = 1600;
+  Adafruit_ADS1115::devices[1]->successfulConversions = 1;
+  manager.readSensors();
+  sensorsData snapshot;
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Unavailable, snapshot.temperatureState);
+  TEST_ASSERT_TRUE(std::isfinite(snapshot.HeLevel.percentage));
+  TEST_ASSERT_TRUE(std::isnan(snapshot.HeTemperature));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_co_reads_one_conversion_and_follows_the_next_input);
@@ -567,5 +713,11 @@ int main(int, char**) {
   RUN_TEST(test_partial_calibration_timeout_keeps_pure_o2_and_he_coefficients);
   RUN_TEST(test_timeout_error_takes_precedence_over_invalid_and_offline_channels);
   RUN_TEST(test_invalid_single_ended_channel_does_not_issue_conversion);
+  RUN_TEST(test_channel_states_distinguish_disabled_invalid_and_unavailable);
+  RUN_TEST(test_stale_copy_keeps_disabled_distinct_and_leaves_producer_states_unchanged);
+  RUN_TEST(test_channel_state_labels_are_distinct);
+  RUN_TEST(test_status_adapter_overrides_generated_text_and_restores_fonts);
+  RUN_TEST(test_disabled_states_survive_stale_presentation_and_zero_co_is_valid);
+  RUN_TEST(test_temperature_timeout_keeps_completed_he_read_valid);
   return UNITY_END();
 }

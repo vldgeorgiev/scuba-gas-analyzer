@@ -18,6 +18,25 @@ enum class SensorError : uint8_t {
   ADC_Timeout = 6
 };
 
+enum class ChannelState : uint8_t {
+  Unavailable,
+  Disabled,
+  Valid,
+  Invalid,
+  Stale
+};
+
+inline const char* channelStateText(ChannelState state) {
+  switch (state) {
+    case ChannelState::Disabled: return "Off";
+    case ChannelState::Valid: return "";
+    case ChannelState::Invalid: return "Invalid";
+    case ChannelState::Stale: return "Stale";
+    case ChannelState::Unavailable: return "Unavailable";
+  }
+  return "Unavailable";
+}
+
 struct sensorsData {
   static constexpr uint32_t FRESHNESS_MS = 1800;
 
@@ -27,6 +46,10 @@ struct sensorsData {
   float HeTemperature = NAN;
   SensorError lastError = SensorError::None;
   uint32_t timestampMs = 0;
+  ChannelState o2State = ChannelState::Unavailable;
+  ChannelState coState = ChannelState::Unavailable;
+  ChannelState heState = ChannelState::Unavailable;
+  ChannelState temperatureState = ChannelState::Unavailable;
 
   bool isFresh(uint32_t nowMs) const {
     return static_cast<uint32_t>(nowMs - timestampMs) < FRESHNESS_MS;
@@ -37,6 +60,10 @@ struct sensorsData {
     sensorsData unavailable;
     unavailable.timestampMs = timestampMs;
     unavailable.lastError = lastError;
+    unavailable.o2State = o2State == ChannelState::Disabled ? ChannelState::Disabled : ChannelState::Stale;
+    unavailable.coState = coState == ChannelState::Disabled ? ChannelState::Disabled : ChannelState::Stale;
+    unavailable.heState = heState == ChannelState::Disabled ? ChannelState::Disabled : ChannelState::Stale;
+    unavailable.temperatureState = temperatureState == ChannelState::Disabled ? ChannelState::Disabled : ChannelState::Stale;
     return unavailable;
   }
 };
@@ -64,7 +91,7 @@ private:
     static constexpr uint32_t ADC_RETRY_MS = 1000;
     bool initializeDevice(Adafruit_ADS1115& adc, DeviceState& state, uint8_t address, adsGain_t gain);
     void recoverDevice(Adafruit_ADS1115& adc, DeviceState& state, uint8_t address, adsGain_t gain);
-    void recordRead(DeviceState& state, bool timedOut, bool valid);
+    ChannelState recordRead(DeviceState& state, bool timedOut, bool valid);
 
     #define ADC2_ADDRESS 0x48 // Addr GND
     #define ADC1_ADDRESS 0x49 // Addr +3.3V
