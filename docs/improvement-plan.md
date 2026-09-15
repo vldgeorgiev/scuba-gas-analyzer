@@ -168,9 +168,13 @@ An in-session retry rewrites the complete candidate before reporting success aft
 Step 4a implements field-specific invalid-load recovery, preserving unrelated valid values and
 repairing dependent pO2/O2 pairs. It retains the visible warning and startup-calibration suppression
 when non-timeout fields need repair. No load-time writes, versioning, or migration machinery added.
-Finish per-channel calibration-required handling, draft/rejection UX, and device checks for
-apply/reset/clear across reboot. Repaired loads still conservatively require both calibrations on
-confirmed wake, even when the repaired field is unrelated; refine that in the next increment.
+Step 4b validates stored O2-air and He calibration independently on cold boot and wake. Unrelated
+repairs preserve accepted calibration; missing/invalid channels suppress affected derived readings.
+Ordinary saves cannot accept RAM fallback coefficients. Existing float keys retain NaN for unaccepted
+calibration, and explicit successful calibration/reset accepts only its own channel. Results name
+required channels; raw O2/He diagnostics remain available. Finish draft/rejection UX and device checks
+for apply/reset/clear across reboot. Reading labels still use the existing Invalid state when
+calibration is required; finer presentation can be handled with the remaining UI work.
 Check that calibration outcomes cannot overwrite in-progress editable settings drafts, and that
 old-generation readings never accompany new coefficients. Keep tests focused on product behavior.
 

@@ -33,12 +33,6 @@ public:
     if (timedOut) *timedOut = false;
     O2Reading reading;
 
-    // Validate calibration before reading
-    if (!std::isfinite(_calibration21) || _calibration21 < MIN_VALID_O2_MV_21) {
-      log_e("Invalid O2 calibration: %.2f mV", _calibration21);
-      return reading;
-    }
-
     int16_t adcValue;
     if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_2_3, adcValue)) {
       if (timedOut) *timedOut = true;

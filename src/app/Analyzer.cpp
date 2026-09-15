@@ -30,13 +30,8 @@ Result Analyzer::begin(bool applicationWake) {
     _effective = AnalyzerSettings{};
     result.failure = Failure::LoadedDefaults;
   }
-  if (applicationWake) {
-    _oxygenRequired = result.failure == Failure::LoadedDefaults || !_settingsStore.hasOxygenCalibration();
-    _heliumRequired = result.failure == Failure::LoadedDefaults || !_settingsStore.hasHeliumCalibration();
-    if ((_effective.o2Enabled && _oxygenRequired) || (_effective.heEnabled && (_oxygenRequired || _heliumRequired))) {
-      result.failure = Failure::CalibrationRequired;
-    }
-  }
+  _oxygenRequired = !_settingsStore.hasOxygenCalibration();
+  _heliumRequired = !_settingsStore.hasHeliumCalibration();
   const SensorError initialization = _sensors.init();
   apply();
   if (!applicationWake && result.failure == Failure::None && _effective.calibrateOnStart) {
@@ -49,6 +44,9 @@ Result Analyzer::begin(bool applicationWake) {
   result.type = CommandType::Startup;
   result.effective = _effective;
   result.generation = _generation;
+  result.oxygenCalibrationRequired = _oxygenRequired;
+  result.heliumCalibrationRequired = _heliumRequired;
+  if (result.failure == Failure::None && result.calibrationRequiredMessage()) result.failure = Failure::CalibrationRequired;
   _pending = result;
   _hasPending = true;
   return result;
@@ -72,6 +70,8 @@ Result Analyzer::execute(const Command& command) {
   result.id = command.id;
   result.effective = _effective;
   result.generation = _generation;
+  result.oxygenCalibrationRequired = _oxygenRequired;
+  result.heliumCalibrationRequired = _heliumRequired;
   if (command.type == CommandType::PrepareSleep || command.type == CommandType::Resume) {
     if (command.id == 0) result.failure = Failure::Invalid;
     else if (command.type == CommandType::PrepareSleep) {
@@ -109,6 +109,10 @@ Result Analyzer::execute(const Command& command) {
       candidate.o2Air = result.calibration;
       break;
     case CommandType::CalibratePure:
+      if (_oxygenRequired) {
+        result.failure = Failure::CalibrationRequired;
+        break;
+      }
       result.calibration = _sensors.calibrateO2_100();
       candidate.o2Pure = result.calibration;
       break;
@@ -126,17 +130,17 @@ Result Analyzer::execute(const Command& command) {
   }
   const bool calibration = command.type == CommandType::CalibrateAir ||
       command.type == CommandType::CalibratePure || command.type == CommandType::CalibrateHe;
-  if (calibration && !std::isfinite(result.calibration)) result.failure = Failure::Sampling;
+  if (calibration && result.failure == Failure::None && !std::isfinite(result.calibration)) result.failure = Failure::Sampling;
   if (result.failure == Failure::None && !candidate.valid()) result.failure = Failure::Invalid;
-  AnalyzerSettings previousStored = _effective;
-  if (command.type == CommandType::CalibrateAir && _oxygenRequired) previousStored.o2Air = NAN;
-  if (command.type == CommandType::CalibrateHe && _heliumRequired) previousStored.heCalibration = NAN;
-  if (result.failure == Failure::None && !_settingsStore.save(candidate, previousStored)) result.failure = Failure::Storage;
+  const bool acceptOxygen = command.type == CommandType::CalibrateAir || command.type == CommandType::ResetAir;
+  const bool acceptHelium = command.type == CommandType::CalibrateHe || command.type == CommandType::ResetHe;
+  if (result.failure == Failure::None && !_settingsStore.save(candidate, _effective, acceptOxygen, acceptHelium)) {
+    result.failure = Failure::Storage;
+  }
   if (result.failure == Failure::None) {
-    const bool calibrationRestored = (command.type == CommandType::CalibrateAir && _oxygenRequired) ||
-                                    (command.type == CommandType::CalibrateHe && _heliumRequired);
-    if (command.type == CommandType::CalibrateAir) _oxygenRequired = false;
-    if (command.type == CommandType::CalibrateHe) _heliumRequired = false;
+    const bool calibrationRestored = (acceptOxygen && _oxygenRequired) || (acceptHelium && _heliumRequired);
+    if (acceptOxygen) _oxygenRequired = false;
+    if (acceptHelium) _heliumRequired = false;
     if (calibrationRestored || !candidate.sameMeasurementSettings(_effective)) {
       advanceGeneration();
     }
@@ -145,6 +149,8 @@ Result Analyzer::execute(const Command& command) {
   apply();
   result.effective = _effective;
   result.generation = _generation;
+  result.oxygenCalibrationRequired = _oxygenRequired;
+  result.heliumCalibrationRequired = _heliumRequired;
   return result;
 }
 

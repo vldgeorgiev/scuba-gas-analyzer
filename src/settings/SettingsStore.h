@@ -16,8 +16,8 @@ public:
 
   bool ready() const { return _ready; }
   bool loadedDefaults() const { return _loadedDefaults; }
-  bool hasOxygenCalibration() { return _ready && _preferences.isKey("o2_calib_21"); }
-  bool hasHeliumCalibration() { return _ready && _preferences.isKey("he_calib_100"); }
+  bool hasOxygenCalibration() const { return _ready && _oxygenAccepted; }
+  bool hasHeliumCalibration() const { return _ready && _heliumAccepted; }
 
   AnalyzerSettings load() {
     AnalyzerSettings value;
@@ -34,19 +34,31 @@ public:
     }
     value.po2Bottom = _preferences.getFloat("po2_max_bottom", value.po2Bottom);
     value.po2Deco = _preferences.getFloat("po2_max_deco", value.po2Deco);
-    value.o2Air = _preferences.getFloat("o2_calib_21", value.o2Air);
+    const float storedAir = _preferences.getFloat("o2_calib_21", NAN);
+    _oxygenAccepted = AnalyzerSettings::validO2Air(storedAir);
+    value.o2Air = std::isnan(storedAir) ? value.o2Air : storedAir;
     value.o2Pure = _preferences.getFloat("o2_calib_100", value.o2Pure);
-    value.heCalibration = _preferences.getFloat("he_calib_100", value.heCalibration);
+    const float storedHelium = _preferences.getFloat("he_calib_100", NAN);
+    _heliumAccepted = AnalyzerSettings::validHeCalibration(storedHelium);
+    value.heCalibration = std::isnan(storedHelium) ? value.heCalibration : storedHelium;
+    if (!_oxygenAccepted) value.o2Pure = NAN;
     _loadedDefaults = value.repairInvalidFields();
     _rewrite = invalidSleep || _loadedDefaults;
     return value;
   }
 
-  bool save(const AnalyzerSettings& value, const AnalyzerSettings& previous) {
+  bool save(const AnalyzerSettings& value, const AnalyzerSettings& previous,
+            bool acceptOxygen = false, bool acceptHelium = false) {
     if (!_ready || !value.valid()) return false;
     const bool force = _rewrite;
-    const bool samePure = value.o2Pure == previous.o2Pure ||
-                         (std::isnan(value.o2Pure) && std::isnan(previous.o2Pure));
+    const bool oxygenAccepted = _oxygenAccepted || acceptOxygen;
+    const bool heliumAccepted = _heliumAccepted || acceptHelium;
+    const float air = oxygenAccepted ? value.o2Air : NAN;
+    const float previousAir = _oxygenAccepted ? previous.o2Air : NAN;
+    const float pure = oxygenAccepted ? value.o2Pure : NAN;
+    const float previousPure = _oxygenAccepted ? previous.o2Pure : NAN;
+    const float helium = heliumAccepted ? value.heCalibration : NAN;
+    const float previousHelium = _heliumAccepted ? previous.heCalibration : NAN;
     const bool saved =
       ((!force && value.o2Enabled == previous.o2Enabled) || _preferences.putBool("o2_enabled", value.o2Enabled) == 1) &&
       ((!force && value.coEnabled == previous.coEnabled) || _preferences.putBool("co_enabled", value.coEnabled) == 1) &&
@@ -56,18 +68,27 @@ public:
       ((!force && value.sleepMinutes == previous.sleepMinutes) || _preferences.putUChar("sleep_minutes", value.sleepMinutes) == 1) &&
       ((!force && value.po2Bottom == previous.po2Bottom) || _preferences.putFloat("po2_max_bottom", value.po2Bottom) == sizeof(float)) &&
       ((!force && value.po2Deco == previous.po2Deco) || _preferences.putFloat("po2_max_deco", value.po2Deco) == sizeof(float)) &&
-      ((!force && value.o2Air == previous.o2Air) || _preferences.putFloat("o2_calib_21", value.o2Air) == sizeof(float)) &&
-      ((!force && samePure) || _preferences.putFloat("o2_calib_100", value.o2Pure) == sizeof(float)) &&
-      ((!force && value.heCalibration == previous.heCalibration) || _preferences.putFloat("he_calib_100", value.heCalibration) == sizeof(float));
+      ((!force && sameFloat(air, previousAir)) || _preferences.putFloat("o2_calib_21", air) == sizeof(float)) &&
+      ((!force && !(!_oxygenAccepted && acceptOxygen) && sameFloat(pure, previousPure)) || _preferences.putFloat("o2_calib_100", pure) == sizeof(float)) &&
+      ((!force && sameFloat(helium, previousHelium)) || _preferences.putFloat("he_calib_100", helium) == sizeof(float));
     _rewrite = !saved;
+    if (saved) {
+      _oxygenAccepted = oxygenAccepted;
+      _heliumAccepted = heliumAccepted;
+    }
     return saved;
   }
 
 private:
+  static bool sameFloat(float value, float previous) {
+    return value == previous || (std::isnan(value) && std::isnan(previous));
+  }
   Preferences _preferences;
   bool _ready = false;
   bool _rewrite = false;
   bool _loadedDefaults = false;
+  bool _oxygenAccepted = false;
+  bool _heliumAccepted = false;
 };
 
 #endif

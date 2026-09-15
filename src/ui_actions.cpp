@@ -89,6 +89,11 @@ void showAnalyzerResult(const app::Result& result) {
     logUi(SensorManager::getErrorString(result.sensorError), UiLogLevel::Warning);
   }
   const char* title = nullptr;
+  const char* required = result.calibrationRequiredMessage();
+  if (required && result.failure != app::Failure::CalibrationRequired &&
+      result.type != app::CommandType::PrepareSleep && result.type != app::CommandType::Resume) {
+    logUi(required, UiLogLevel::Warning);
+  }
   if (result.failure != app::Failure::None) {
     switch (result.failure) {
       case app::Failure::Invalid: title = "Invalid settings or calibration"; break;
@@ -96,7 +101,10 @@ void showAnalyzerResult(const app::Result& result) {
       case app::Failure::Sampling: title = "Calibration read failed"; break;
       case app::Failure::LoadedDefaults: title = "Invalid saved settings - defaults loaded"; break;
       case app::Failure::Busy: title = "Analyzer is preparing for sleep"; break;
-      case app::Failure::CalibrationRequired: title = "Calibration required"; break;
+      case app::Failure::CalibrationRequired:
+        title = result.calibrationRequiredMessage();
+        if (!title) title = "O2 calibration required";
+        break;
       default: title = "Operation failed"; break;
     }
     logUi(title, UiLogLevel::Error);
@@ -108,6 +116,7 @@ void showAnalyzerResult(const app::Result& result) {
       default: break;
     }
   }
+  if (!title && required && result.type == app::CommandType::ApplySettings) title = required;
   if (title) messageBox(title, result.calibration);
 }
 

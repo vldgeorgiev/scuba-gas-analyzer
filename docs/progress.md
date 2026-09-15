@@ -599,8 +599,45 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Native tests use fake Preferences and do not prove corrupt-key behavior on real NVS. No assistant
   upload or push performed. Device apply/reset/clear/restart checks remain open.
 
+## 2026-09-15: Step 4b, independent calibration acceptance
+
+- Started from `5174618`. Changed the existing repaired-wake test to expect accepted calibration
+  after brightness-only repair. It failed with CalibrationRequired instead of LoadedDefaults,
+  confirming the prior all-calibrations-required rule was the controlling defect.
+- SettingsStore caches O2-air/He validity from raw saved coefficients, not key presence or repaired
+  RAM defaults. Both cold boot and wake now suppress unaccepted derived values independently; O2
+  remains a dependency for He. Valid calibration survives unrelated repairs. Results report both
+  required flags and the existing UI dialog/log identifies O2, He, or both as applicable.
+- Ordinary saves cannot promote fallback coefficients. Unaccepted calibration uses NaN under the
+  existing float keys. Missing/NaN values load RAM defaults without a repair warning or forced rewrite;
+  malformed numeric coefficients still trigger recovery. No new keys, schema, migration or version.
+- Calibration and explicit reset pass acceptance for only their channel; store cache, live flags,
+  and generation change only after full save success. Explicit reset intentionally accepts the
+  documented numerical default, not a measured value. Same-default acceptance still writes NVS.
+- Pure-O2 calibration is refused without accepted air. An orphan optional pure point is discarded,
+  then explicitly cleared on first air acceptance, including when RAM already contains NaN.
+- Removed O2's calibration-before-read early exit: raw millivolts remain available, while guarded
+  conversion returns NaN for the percentage. Updated the old skip-read test to require one raw
+  conversion and unavailable percentage. No ADC gain/rate, conversion formula, or library changes.
+- All 101 native tests pass: 36 analyzer, 16 sleep, 37 sensor/cycle, 12 conversion. New coverage
+  includes independent invalid/missing calibration on both boot paths, dirty-save/reboot behavior,
+  per-channel reset acceptance, failed/partial writes and retry, orphan pure points, enabled-channel
+  messages, raw readings, and startup sampling with persisted NaN markers.
+- Both final S3 profiles build: static RAM 159096 bytes; debug flash 1540449 bytes, release flash
+  1526085 bytes. Editor diagnostics and whitespace checks pass. Hardware acceptance is not implied.
+- Claude review exposed a NaN-marker reload loop that would suppress startup calibration and force
+  writes each boot; fixed and added explicit regression checks. Also ordered required warnings before
+  primary operation errors so the legacy log does not downgrade their indicator. Existing generic
+  Invalid reading labels remain; result messages identify required calibration. No LVGL API changes.
+- Power loss during multi-key writes remains non-atomic, including a valid calibration prefix before
+  a reported failure is retried. Old valid-looking default values cannot retroactively be distinguished
+  from calibration. No stronger persistence/provenance guarantee is claimed.
+- Device checks pending: missing/invalid O2 vs He, unrelated field repair with valid calibrations,
+  settings save/reboot while unaccepted, accepted calibration/reset and pure clear across reboot,
+  cold-start preference, visible messages, and raw diagnostics. No assistant upload or push performed.
+
 ### Next increment
 
-Continue step 4 with per-channel calibration validity and settings draft/rejection UX without more
-task restructuring. Complete device settings checks and remaining step-3 hardware acceptance.
-Step 5 remains incremental stability-gated calibration and its graph.
+Finish step 4 with settings draft/rejection UX and device apply/reset/clear/restart checks, without
+more task restructuring. Remaining step-3 hardware acceptance stays open. Step 5 remains incremental
+stability-gated calibration and its graph.

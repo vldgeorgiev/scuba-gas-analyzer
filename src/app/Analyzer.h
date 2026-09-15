@@ -28,6 +28,17 @@ struct Result {
   uint32_t generation = 1;
   float calibration = NAN;
   SensorError sensorError = SensorError::None;
+  bool oxygenCalibrationRequired = false;
+  bool heliumCalibrationRequired = false;
+
+  const char* calibrationRequiredMessage() const {
+    const bool oxygen = oxygenCalibrationRequired && (effective.o2Enabled || effective.heEnabled);
+    const bool helium = heliumCalibrationRequired && effective.heEnabled;
+    if (oxygen && helium) return "O2 and He calibration required";
+    if (oxygen) return "O2 calibration required";
+    if (helium) return "He calibration required";
+    return nullptr;
+  }
 };
 
 static_assert(std::is_trivially_copyable<Command>::value, "Commands must be queue-copyable");

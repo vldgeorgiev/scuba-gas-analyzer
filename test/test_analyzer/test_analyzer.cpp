@@ -5,6 +5,8 @@
 void setUp() {
   Preferences::values.clear();
   Preferences::values["calib_start"] = 0;
+  Preferences::values["o2_calib_21"] = 10;
+  Preferences::values["he_calib_100"] = 620;
   Preferences::available = true;
   Preferences::failWrite = false;
   Preferences::writes = 0;
@@ -80,6 +82,7 @@ void test_calibration_failure_restores_live_coefficients() {
 }
 
 void test_clear_optional_calibration_and_unchanged_commands() {
+  Preferences::values["o2_calib_21"] = 10;
   Preferences::values["o2_calib_100"] = 50;
   Rig rig;
   app::Command command;
@@ -313,7 +316,7 @@ void test_repaired_load_defers_writes_and_retries_full_save() {
   TEST_ASSERT_EQUAL_FLOAT(loaded.po2Bottom, reloaded.po2Bottom);
 }
 
-void test_repaired_wake_preserves_values_but_keeps_calibration_required() {
+void test_repaired_wake_preserves_valid_calibration() {
   Preferences::values["brightness"] = 0;
   Preferences::values["calib_start"] = 1;
   Preferences::values["o2_calib_21"] = 12;
@@ -324,7 +327,7 @@ void test_repaired_wake_preserves_values_but_keeps_calibration_required() {
   SettingsStore store;
   app::Analyzer analyzer(store, sensors);
   const auto result = analyzer.begin(true);
-  TEST_ASSERT_EQUAL(app::Failure::CalibrationRequired, result.failure);
+  TEST_ASSERT_EQUAL(app::Failure::LoadedDefaults, result.failure);
   TEST_ASSERT_EQUAL_FLOAT(12, result.effective.o2Air);
   TEST_ASSERT_EQUAL_FLOAT(700, result.effective.heCalibration);
   TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
@@ -332,8 +335,8 @@ void test_repaired_wake_preserves_values_but_keeps_calibration_required() {
   analyzer.measure();
   sensorsData sample;
   TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(handle, &sample, 0));
-  TEST_ASSERT_TRUE(std::isnan(sample.O2Level.percentage));
-  TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
+  TEST_ASSERT_TRUE(std::isfinite(sample.O2Level.percentage));
+  TEST_ASSERT_TRUE(std::isfinite(sample.HeLevel.percentage));
 }
 
 void test_invalid_timeout_alone_does_not_flag_general_settings_recovery() {
@@ -668,6 +671,203 @@ void test_resume_retry_delay_survives_clock_wrap() {
   TEST_ASSERT_TRUE(ui.busy());
 }
 
+void test_missing_cold_boot_calibration_suppresses_derived_values_not_raw_samples() {
+  Preferences::values.erase("o2_calib_21");
+  Preferences::values.erase("he_calib_100");
+  Rig rig;
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  Adafruit_ADS1115::devices[1]->counts = 1600;
+  app::Command command;
+  command.settings = rig.analyzer.effective();
+  const auto result = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+  TEST_ASSERT_TRUE(result.oxygenCalibrationRequired);
+  TEST_ASSERT_TRUE(result.heliumCalibrationRequired);
+  TEST_ASSERT_EQUAL_STRING("O2 and He calibration required", result.calibrationRequiredMessage());
+  rig.analyzer.measure();
+  sensorsData sample;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &sample, 0));
+  TEST_ASSERT_TRUE(std::isnan(sample.O2Level.percentage));
+  TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
+  TEST_ASSERT_TRUE(std::isfinite(sample.O2Level.millivolts));
+  TEST_ASSERT_TRUE(std::isfinite(sample.HeLevel.millivolts));
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_invalid_calibration_is_independent_on_cold_boot_and_wake() {
+  for (bool wake : {false, true}) {
+    for (bool invalidOxygen : {false, true}) {
+      for (float invalid : {0.0f, NAN, INFINITY, -INFINITY}) {
+        Preferences::values["o2_calib_21"] = invalidOxygen ? invalid : 12;
+        Preferences::values["he_calib_100"] = invalidOxygen ? 700 : invalid;
+        FakeQueue queue(sizeof(sensorsData));
+        QueueHandle_t handle = &queue;
+        SensorManager sensors(handle);
+        SettingsStore store;
+        app::Analyzer analyzer(store, sensors);
+        const auto result = analyzer.begin(wake);
+        TEST_ASSERT_EQUAL(invalidOxygen, result.oxygenCalibrationRequired);
+        TEST_ASSERT_EQUAL(!invalidOxygen, result.heliumCalibrationRequired);
+        TEST_ASSERT_EQUAL_STRING(invalidOxygen ? "O2 calibration required" : "He calibration required",
+                                 result.calibrationRequiredMessage());
+        Adafruit_ADS1115::devices[0]->counts = 320;
+        Adafruit_ADS1115::devices[1]->counts = 1600;
+        analyzer.measure();
+        sensorsData sample;
+        TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(handle, &sample, 0));
+        TEST_ASSERT_EQUAL(invalidOxygen, std::isnan(sample.O2Level.percentage));
+        TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
+        TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+      }
+    }
+  }
+}
+
+void test_dirty_settings_save_does_not_accept_fallback_calibration_on_reboot() {
+  Preferences::values["o2_calib_21"] = 0;
+  Preferences::values.erase("he_calib_100");
+  Preferences::values["brightness"] = 0;
+  {
+    Rig rig;
+    app::Command save;
+    save.settings = rig.analyzer.effective();
+    save.settings.brightness = 64;
+    const auto result = rig.analyzer.execute(save);
+    TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+    TEST_ASSERT_TRUE(result.oxygenCalibrationRequired);
+    TEST_ASSERT_TRUE(result.heliumCalibrationRequired);
+    TEST_ASSERT_TRUE(std::isnan(Preferences::values["o2_calib_21"]));
+    TEST_ASSERT_TRUE(std::isnan(Preferences::values["he_calib_100"]));
+    TEST_ASSERT_FALSE(rig.settingsStore.hasOxygenCalibration());
+    TEST_ASSERT_FALSE(rig.settingsStore.hasHeliumCalibration());
+  }
+  Rig restarted;
+  TEST_ASSERT_FALSE(restarted.settingsStore.loadedDefaults());
+  const auto writes = Preferences::writes;
+  app::Command save;
+  save.settings = restarted.analyzer.effective();
+  const auto result = restarted.analyzer.execute(save);
+  TEST_ASSERT_EQUAL_UINT8(64, result.effective.brightness);
+  TEST_ASSERT_TRUE(result.oxygenCalibrationRequired);
+  TEST_ASSERT_TRUE(result.heliumCalibrationRequired);
+  TEST_ASSERT_EQUAL_UINT(writes, Preferences::writes);
+}
+
+void test_same_default_reset_accepts_only_its_channel_after_successful_save() {
+  Preferences::values.erase("o2_calib_21");
+  Preferences::values.erase("he_calib_100");
+  Rig rig;
+  app::Command reset;
+  reset.type = app::CommandType::ResetAir;
+  Preferences::failWrite = true;
+  const auto failed = rig.analyzer.execute(reset);
+  TEST_ASSERT_EQUAL(app::Failure::Storage, failed.failure);
+  TEST_ASSERT_TRUE(failed.oxygenCalibrationRequired);
+  TEST_ASSERT_FALSE(rig.settingsStore.hasOxygenCalibration());
+  Preferences::failWrite = false;
+  const auto oxygen = rig.analyzer.execute(reset);
+  TEST_ASSERT_EQUAL(app::Failure::None, oxygen.failure);
+  TEST_ASSERT_FALSE(oxygen.oxygenCalibrationRequired);
+  TEST_ASSERT_TRUE(oxygen.heliumCalibrationRequired);
+  TEST_ASSERT_EQUAL_UINT32(failed.generation + 1, oxygen.generation);
+  TEST_ASSERT_EQUAL_FLOAT(10, Preferences::values["o2_calib_21"]);
+  reset.type = app::CommandType::ResetHe;
+  const auto helium = rig.analyzer.execute(reset);
+  TEST_ASSERT_EQUAL(app::Failure::None, helium.failure);
+  TEST_ASSERT_FALSE(helium.oxygenCalibrationRequired);
+  TEST_ASSERT_FALSE(helium.heliumCalibrationRequired);
+  TEST_ASSERT_EQUAL_UINT32(oxygen.generation + 1, helium.generation);
+  TEST_ASSERT_EQUAL_FLOAT(620, Preferences::values["he_calib_100"]);
+  SettingsStore restarted;
+  restarted.begin();
+  restarted.load();
+  TEST_ASSERT_TRUE(restarted.hasOxygenCalibration());
+  TEST_ASSERT_TRUE(restarted.hasHeliumCalibration());
+}
+
+void test_air_acceptance_clears_orphan_pure_point_across_reboot() {
+  Preferences::values.erase("o2_calib_21");
+  Preferences::values["o2_calib_100"] = 55;
+  Rig rig;
+  TEST_ASSERT_TRUE(std::isnan(rig.analyzer.effective().o2Pure));
+  app::Command command;
+  command.type = app::CommandType::CalibratePure;
+  const auto refused = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::CalibrationRequired, refused.failure);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  command.type = app::CommandType::CalibrateAir;
+  const auto accepted = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, accepted.failure);
+  TEST_ASSERT_FALSE(accepted.oxygenCalibrationRequired);
+  TEST_ASSERT_EQUAL_UINT32(refused.generation + 1, accepted.generation);
+  TEST_ASSERT_TRUE(std::isnan(Preferences::values["o2_calib_100"]));
+  SettingsStore restarted;
+  restarted.begin();
+  const auto reloaded = restarted.load();
+  TEST_ASSERT_TRUE(restarted.hasOxygenCalibration());
+  TEST_ASSERT_TRUE(std::isnan(reloaded.o2Pure));
+}
+
+void test_partial_acceptance_failure_is_unaccepted_and_reconciled_on_retry() {
+  Preferences::values.erase("o2_calib_21");
+  Rig rig;
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  Preferences::failAfter = 1;
+  app::Command command;
+  command.type = app::CommandType::CalibrateAir;
+  const auto failed = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::Storage, failed.failure);
+  TEST_ASSERT_TRUE(failed.oxygenCalibrationRequired);
+  TEST_ASSERT_FALSE(rig.settingsStore.hasOxygenCalibration());
+  TEST_ASSERT_EQUAL_FLOAT(10, Preferences::values["o2_calib_21"]);
+  Preferences::failAfter = -1;
+  command.type = app::CommandType::ApplySettings;
+  command.settings = rig.analyzer.effective();
+  const auto reconciled = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, reconciled.failure);
+  TEST_ASSERT_TRUE(reconciled.oxygenCalibrationRequired);
+  TEST_ASSERT_TRUE(std::isnan(Preferences::values["o2_calib_21"]));
+  SettingsStore restarted;
+  restarted.begin();
+  restarted.load();
+  TEST_ASSERT_FALSE(restarted.hasOxygenCalibration());
+}
+
+void test_calibration_required_message_respects_enabled_channels_and_helium_dependency() {
+  app::Result result;
+  result.oxygenCalibrationRequired = true;
+  result.heliumCalibrationRequired = true;
+  result.effective.o2Enabled = false;
+  result.effective.heEnabled = false;
+  TEST_ASSERT_NULL(result.calibrationRequiredMessage());
+  result.effective.heEnabled = true;
+  TEST_ASSERT_EQUAL_STRING("O2 and He calibration required", result.calibrationRequiredMessage());
+  result.heliumCalibrationRequired = false;
+  TEST_ASSERT_EQUAL_STRING("O2 calibration required", result.calibrationRequiredMessage());
+  result.oxygenCalibrationRequired = false;
+  TEST_ASSERT_NULL(result.calibrationRequiredMessage());
+}
+
+void test_unaccepted_sentinels_do_not_block_enabled_startup_calibration() {
+  Preferences::values["calib_start"] = 1;
+  Preferences::values["o2_calib_21"] = NAN;
+  Preferences::values["he_calib_100"] = NAN;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  const auto result = analyzer.begin();
+  TEST_ASSERT_FALSE(store.loadedDefaults());
+  TEST_ASSERT_EQUAL_UINT(100, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, result.failure);
+  TEST_ASSERT_TRUE(result.oxygenCalibrationRequired);
+  TEST_ASSERT_TRUE(result.heliumCalibrationRequired);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_apply_settings_acknowledges_live_state_and_generation);
@@ -684,7 +884,7 @@ int main(int, char**) {
   RUN_TEST(test_po2_repair_preserves_valid_limits_and_calibration);
   RUN_TEST(test_calibration_repair_is_limited_to_invalid_fields_and_dependencies);
   RUN_TEST(test_repaired_load_defers_writes_and_retries_full_save);
-  RUN_TEST(test_repaired_wake_preserves_values_but_keeps_calibration_required);
+  RUN_TEST(test_repaired_wake_preserves_valid_calibration);
   RUN_TEST(test_invalid_timeout_alone_does_not_flag_general_settings_recovery);
   RUN_TEST(test_startup_reports_adc_failure_without_blocking_other_device);
   RUN_TEST(test_full_result_path_retains_outcome_without_blocking_measurements);
@@ -698,5 +898,13 @@ int main(int, char**) {
   RUN_TEST(test_sleep_handshake_preserves_disabled_sensor_power_and_settings);
   RUN_TEST(test_resume_when_already_awake_is_harmless_and_does_not_restart_co);
   RUN_TEST(test_resume_retry_delay_survives_clock_wrap);
+  RUN_TEST(test_missing_cold_boot_calibration_suppresses_derived_values_not_raw_samples);
+  RUN_TEST(test_invalid_calibration_is_independent_on_cold_boot_and_wake);
+  RUN_TEST(test_dirty_settings_save_does_not_accept_fallback_calibration_on_reboot);
+  RUN_TEST(test_same_default_reset_accepts_only_its_channel_after_successful_save);
+  RUN_TEST(test_air_acceptance_clears_orphan_pure_point_across_reboot);
+  RUN_TEST(test_partial_acceptance_failure_is_unaccepted_and_reconciled_on_retry);
+  RUN_TEST(test_calibration_required_message_respects_enabled_channels_and_helium_dependency);
+  RUN_TEST(test_unaccepted_sentinels_do_not_block_enabled_startup_calibration);
   return UNITY_END();
 }

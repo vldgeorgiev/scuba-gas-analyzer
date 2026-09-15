@@ -201,15 +201,21 @@ The wake pin leaves RTC mode before normal input polling. The board rail is not 
 powered off speculatively; retained levels/current still need measurement on the actual board.
 
 On confirmed application wake, the analyzer skips automatic calibration and reloads settings.
-Stored calibration-key presence and loaded-value validation are checked. Missing O2 calibration
-suppresses O2 and dependent He; missing He calibration suppresses He. Defaults remain available as
-settings values but are not used for these readings until a successful calibration restores the
-required channel. That accepted calibration is persisted even if it equals the numerical default.
-An unavailable store reports Storage rather than only CalibrationRequired. Existing explicit reset
-commands still store defaults by design; there is no calibration provenance/version record.
+On both cold boot and wake, O2-air and He acceptance are independently determined from the raw stored
+coefficient before RAM fallback repair. Missing, NaN, or numerically invalid coefficients are not
+accepted. An unrelated repaired setting does not invalidate valid calibration. Missing O2 suppresses
+O2 and dependent He percentages; missing He suppresses only He. Raw millivolts remain available.
+Defaults remain RAM settings values but are not used for affected derived readings until successful
+calibration or explicit reset accepts that channel. Reset deliberately accepts the documented default,
+not a measured calibration; no extra provenance key is added. Acceptance is persisted even when the
+value equals the fallback. An unavailable store reports Storage rather than only CalibrationRequired.
+Results carry independent required flags and name enabled channels needing calibration, including
+O2 needed for He correction. Pure-O2 calibration requires accepted O2 air. Disabled channels retain
+their required flags so enabling one cannot silently accept a fallback.
 
-This is implemented but not device-validated. See the acceptance checklist in progress for held
-buttons, abort restoration, retained pins/settings, cold boot vs wake, and repeated cycles.
+Basic first sleep, button wake, restored touch and another sleep passed on the device. Step-4b
+calibration persistence changes are native-tested/build-verified, not yet device-validated. See the
+acceptance checklist in progress for held buttons, aborts, retained settings/pins, and repeated cycles.
 
 ## UI and drafts
 
@@ -250,10 +256,13 @@ invalid air calibration also clears its dependent pure-O2 point. An invalid bott
 of its default and a valid deco limit. For an in-range but conflicting pair, bottom is preserved and
 deco is raised only to match it. Other invalid deco values use the default. No repair writes NVS
 during load; the existing dirty-save path reconciles values on the next accepted save.
-General repaired loads still conservatively require both calibrations on wake, even for an unrelated
-field repair. Per-channel calibration acceptance and its presentation remain the next step-4 increment.
+Calibration validity is cached independently before repairs. Missing or NaN coefficient values use
+RAM defaults without marking the load corrupt; NaN is the persisted unaccepted marker. Other invalid
+numeric coefficients still trigger visible repair. An optional pure-O2 point without accepted air is
+discarded in RAM and explicitly cleared in storage when air is first accepted, preventing resurrection.
 Normal cold boot still respects a valid calibrate-on-start preference. Confirmed application wake
-skips it and applies the calibration-presence checks described above.
+skips it. A general repaired-load warning still suppresses automatic calibration for that boot;
+intentional NaN markers alone do not suppress it. Failed sampling/persistence keeps the prior acceptance.
 
 Apply-settings commands validate brightness, pO2 ranges/relationship, and calibration relationships.
 Draft calibration fields are replaced by current coefficients before validation, so an old settings
@@ -268,6 +277,14 @@ After a reported failure (or invalid load), one dirty flag forces the complete c
 written on the next accepted save, preventing an unchanged retry from claiming an unreconciled
 store is current. A power interruption before that retry may still leave mixed valid stored values.
 No persistent rollback or power-loss transaction guarantee is made.
+
+Save receives explicit O2/He acceptance only from calibration or reset commands. Ordinary saves and
+forced retries serialize NaN for unaccepted channels rather than their valid-looking RAM fallbacks.
+The cached acceptance flags and live generation change only after all writes report success. On a
+failed partial calibration write, an ordinary save retry reconciles the old unaccepted state. A power
+loss before that retry can still leave a valid coefficient prefix accepted at the next boot; existing
+per-key storage cannot provide a stronger guarantee. Older firmware's already-stored valid-looking
+defaults cannot be distinguished from accepted values retroactively. No calibration lineage is claimed.
 
 Reset and optional-clear use the same acknowledged path and now apply immediately. Clearing stores
 NaN under the existing optional pure-O2 key. Resetting air also clears a pure-O2 point that no longer

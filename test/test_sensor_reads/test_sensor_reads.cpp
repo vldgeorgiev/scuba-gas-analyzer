@@ -51,12 +51,13 @@ void test_o2_reads_one_conversion_and_preserves_polarity_handling() {
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 41.8f, next.percentage);
 }
 
-void test_invalid_o2_calibration_still_skips_the_read() {
+void test_invalid_o2_calibration_preserves_raw_reading_only() {
   Adafruit_ADS1115 adc;
+  adc.counts = 160;
   O2Sensor sensor(adc);
   const O2Reading reading = sensor.readLevel();
-  TEST_ASSERT_EQUAL_UINT(0, adc.differential23Reads);
-  TEST_ASSERT_TRUE(std::isnan(reading.millivolts));
+  TEST_ASSERT_EQUAL_UINT(1, adc.differential23Reads);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, reading.millivolts);
   TEST_ASSERT_TRUE(std::isnan(reading.percentage));
 }
 
@@ -685,7 +686,7 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_co_reads_one_conversion_and_follows_the_next_input);
   RUN_TEST(test_o2_reads_one_conversion_and_preserves_polarity_handling);
-  RUN_TEST(test_invalid_o2_calibration_still_skips_the_read);
+  RUN_TEST(test_invalid_o2_calibration_preserves_raw_reading_only);
   RUN_TEST(test_he_reads_one_conversion_and_keeps_the_existing_correction);
   RUN_TEST(test_temperature_still_uses_one_conversion);
   RUN_TEST(test_o2_calibration_keeps_its_original_sample_count_and_pauses);
