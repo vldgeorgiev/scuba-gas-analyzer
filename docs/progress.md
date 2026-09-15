@@ -9,7 +9,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | Step | Status |
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
-| 2. Measurement handling and averaging removal | In progress: averaging removal, validity guards, latest publication and freshness verified locally; timeout/readiness and explicit statuses pending |
+| 2. Measurement handling and averaging removal | In progress: averaging removal, validity guards, latest publication, freshness, ADC deadlines and independent retry verified locally; explicit channel statuses and hardware checks pending |
 | 3. Sleep/wake, five-minute default | Not started |
 | 4. Ownership and live settings | Not started |
 | 5. Stability-gated calibration | Not started |
@@ -193,8 +193,50 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   is not a replacement for the next timeout/recovery increment.
 - No generated UI files or LVGL APIs changed. No push, flash, or OTA was performed.
 
+## 2026-09-15: Step 2d, ADC deadlines and independent recovery
+
+- Started from `0aa2986`. Added one shared inline `readCounts` helper using the unmodified Adafruit
+  public API. All normal and calibration reads now use start/poll/result rather than blocking
+  `readADC_*` helpers; no custom registers, scaling, driver fork, or transport classes were added.
+- Polling uses a 25 ms elapsed deadline and `delay(1)`; Wire1 timeout is 10 ms. Configuration remains
+  the original gains at 128 SPS. Result fetching that reaches the deadline is rejected too; this is
+  a conservative acceptance rule, not a hard bound on synchronous library call duration.
+- Added two small readiness/timestamp records to SensorManager. Both ADCs initialize independently;
+  only needed devices retry, with one second between failed attempts. A timeout marks only the
+  affected device unready, and its remaining channels are skipped until recovery. Removed the
+  task's global reinitialize-both error loop. No sensor power changes.
+- Calibration uses the same bounded sample helper and rate-limited retry on explicit requests.
+  A partial run that times out returns NaN without replacing live coefficients. Existing callbacks
+  reject that result before persistence. Full calibration transactions remain later work.
+
+### Verification and review
+
+- All 43 native tests pass: 12 conversion tests and 31 sensor/cycle tests. Added timeout, exact
+  deadline, late-result rejection, wrap, independent initialization, retry timing, channel skipping,
+  disabled retry gating, partial calibration rollback, calibration retry, and error precedence tests.
+- Both real-library builds pass: debug RAM 159052 bytes, flash 1518069 bytes; release RAM
+  159052 bytes, flash 1501081 bytes. Against step 2c: static RAM +16 bytes, debug flash +52 bytes,
+  release flash +360 bytes. No runtime heap/stack or latency measurements were made.
+- Real target build caught a host-stand-in API mismatch: Adafruit's `MUX_BY_CHANNEL` is global,
+  not a class member. Corrected both production calls and the stand-in, then rebuilt successfully.
+- Claude review: fixed calibration requests having no retry opportunity while settings pauses
+  acquisition, clarified the unavailable error text, and added boundary/error-precedence tests.
+  Kept deadline rejection intentionally, including late results; the 25 ms budget is tied to 128 SPS.
+- Rejected the reported new NaN persistence bug after inspecting `action_calibrate_he`: it already
+  checks `!isnan(value)` before calling the setter. This does not claim the full settings/calibration
+  path is transactional or otherwise validated.
+- The host ADC stand-in no longer exposes `readADC_*`; accidentally restoring a blocking helper now
+  fails host compilation. Source search confirms no raw register driver or blocking helpers remain.
+- Pending hardware checks: normal readings/noise, slow or disconnected ADC behavior, retry latency,
+  calibration timeout feedback, and UI responsiveness. The user has an earlier successful upload
+  in the terminal context; that is not runtime evidence for this new increment. No upload, flash,
+  OTA, or push was performed by the assistant.
+- Accepted limitations: hidden I2C transfer failures may still produce plausible values; synchronous
+  calls can exceed the deadline before returning. Calibration callbacks can still race acquisition
+  under the old ownership model. These are not fixed by the helper or retry records.
+
 ### Next increment
 
-Continue step 2 with bounded stock-Adafruit reads, independent ADC readiness/recovery, and explicit
-channel status. Preserve the simple sensor structure and commit tested slices locally. Command
-queues and settings-generation acknowledgement remain part of the later ownership work.
+Finish step 2 with explicit per-channel state and presentation of disabled/invalid/unavailable
+readings. Then implement step 3 sleep with the minimum single-owner stop/resume coordination it
+requires. Keep command/settings generation work small and do not recreate the discarded framework.

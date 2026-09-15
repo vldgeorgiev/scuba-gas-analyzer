@@ -5,6 +5,7 @@
 #include <RunningAverage.h>
 #include "ui-log.h"
 #include "conversions.h"
+#include "adc_read.h"
 
 struct HEReading {
   float millivolts = NAN;
@@ -19,9 +20,14 @@ public:
     _calibration100 = calibration100;
   }
 
-  HEReading readLevel(float o2Percentage) {
-    const int16_t adcValue = _adc.readADC_Differential_0_1();
+  HEReading readLevel(float o2Percentage, bool* timedOut = nullptr) {
+    if (timedOut) *timedOut = false;
     HEReading reading;
+    int16_t adcValue;
+    if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_0_1, adcValue)) {
+      if (timedOut) *timedOut = true;
+      return reading;
+    }
     reading.millivolts = abs(_adc.computeVolts(adcValue) * 1000);
 
     // In case of high oxygen percentage, the He sensor also reads higher voltage. E.g. for 100, the He voltage is 4-5mv higher
@@ -67,7 +73,8 @@ public:
     {
       for (int j = 0; j < CALIBRATION_SAMPLES_PER_BATCH; j++)
       {
-        int16_t adcValue = _adc.readADC_Differential_0_1();
+        int16_t adcValue;
+        if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_0_1, adcValue)) return NAN;
         calibrateAvg.addValue(adcValue);
       }
       delay(CALIBRATION_DELAY);

@@ -14,7 +14,8 @@ enum class SensorError : uint8_t {
   I2C_Communication_Failed = 2,
   Sensor_Not_Enabled = 3,
   Calibration_Failed = 4,
-  Invalid_Reading = 5
+  Invalid_Reading = 5,
+  ADC_Timeout = 6
 };
 
 struct sensorsData {
@@ -56,6 +57,15 @@ public:
     const char* getErrorString(SensorError error) const;
 
 private:
+    struct DeviceState {
+      bool ready = false;
+      uint32_t lastAttemptMs = 0;
+    };
+    static constexpr uint32_t ADC_RETRY_MS = 1000;
+    bool initializeDevice(Adafruit_ADS1115& adc, DeviceState& state, uint8_t address, adsGain_t gain);
+    void recoverDevice(Adafruit_ADS1115& adc, DeviceState& state, uint8_t address, adsGain_t gain);
+    void recordRead(DeviceState& state, bool timedOut, bool valid);
+
     #define ADC2_ADDRESS 0x48 // Addr GND
     #define ADC1_ADDRESS 0x49 // Addr +3.3V
     #define ADC2_CHANNEL_CO 3 // The ADS1115 channel for CO sensor
@@ -64,6 +74,8 @@ private:
     #define ADC2_GAIN GAIN_TWO // 2x gain   +/- 2.048V  1 bit = 0.0625mV. For CO (400-2000mv), He (50-600mv) and Temp (10-100mv)
     Adafruit_ADS1115 _adc1;
     Adafruit_ADS1115 _adc2;
+    DeviceState _adc1State;
+    DeviceState _adc2State;
     QueueHandle_t& _dataQueue;
     O2Sensor _o2Sensor;
     COSensor _coSensor;

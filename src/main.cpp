@@ -113,7 +113,6 @@ void Task_Sensors(void *pvParameters) {
   sensors.setSensorsConfig(config.getO2Enabled(), config.getCOEnabled(), config.getHeEnabled(), config.getO2Calibration21(), config.getO2Calibration100(), config.getHeCalibration100());
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
-  uint32_t errorCount = 0;
   SensorError previousError = SensorError::None;
 
   while (true)
@@ -121,20 +120,11 @@ void Task_Sensors(void *pvParameters) {
     if (!configOpen) {
       SensorError error = sensors.readSensors();
       if (error != SensorError::None) {
-        errorCount = error == SensorError::Invalid_Reading ? 0 : errorCount + 1;
         if (error != previousError) {
-          log_w("Sensor error: %s (count: %lu)", sensors.getErrorString(error), errorCount);
+          log_w("Sensor error: %s", sensors.getErrorString(error));
           logUi(sensors.getErrorString(error), UiLogLevel::Warning);
         }
 
-        // If too many consecutive errors, try to reinitialize
-        if (errorCount > 10) {
-          log_e("Too many sensor errors, attempting reinit");
-          sensors.init();
-          errorCount = 0;
-        }
-      } else {
-        errorCount = 0; // Reset error count on successful read
       }
       previousError = error;
     }

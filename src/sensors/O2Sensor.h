@@ -6,6 +6,7 @@
 #include <cmath>
 #include "ui-log.h"
 #include "conversions.h"
+#include "adc_read.h"
 
 struct O2Reading {
   float millivolts = NAN;
@@ -30,7 +31,8 @@ public:
     _calibration100 = calibration100;
   }
 
-  O2Reading readLevel() {
+  O2Reading readLevel(bool* timedOut = nullptr) {
+    if (timedOut) *timedOut = false;
     O2Reading reading;
 
     // Validate calibration before reading
@@ -39,7 +41,11 @@ public:
       return reading;
     }
 
-    const int16_t adcValue = _adc.readADC_Differential_2_3();
+    int16_t adcValue;
+    if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_2_3, adcValue)) {
+      if (timedOut) *timedOut = true;
+      return reading;
+    }
     reading.millivolts = abs(_adc.computeVolts(adcValue) * 1000);
 
     // Validate raw reading
@@ -60,7 +66,8 @@ public:
     {
       for (int j = 0; j < CALIBRATION_SAMPLES_PER_BATCH; j++)
       {
-        int16_t adcValue = _adc.readADC_Differential_2_3();
+        int16_t adcValue;
+        if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_2_3, adcValue)) return NAN;
         calibrateAvg.addValue(adcValue);
       }
       delay(CALIBRATION_DELAY);

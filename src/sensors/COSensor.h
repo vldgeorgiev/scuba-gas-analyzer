@@ -3,6 +3,7 @@
 
 #include <Adafruit_ADS1X15.h>
 #include "conversions.h"
+#include "adc_read.h"
 
 struct COReading {
   float millivolts = NAN;
@@ -16,9 +17,15 @@ class COSensor {
 public:
   COSensor(uint8_t analogChannel, Adafruit_ADS1115& adc) : _analogChannel(analogChannel), _adc(adc) {}
 
-  COReading readLevel() {
-    const int16_t adcValue = _adc.readADC_SingleEnded(_analogChannel);
+  COReading readLevel(bool* timedOut = nullptr) {
+    if (timedOut) *timedOut = false;
     COReading reading;
+    if (_analogChannel > 3) return reading;
+    int16_t adcValue;
+    if (!acquisition::readCounts(_adc, MUX_BY_CHANNEL[_analogChannel], adcValue)) {
+      if (timedOut) *timedOut = true;
+      return reading;
+    }
     reading.millivolts = _adc.computeVolts(adcValue) * 1000;
 
     reading.ppm = conversions::coPpm(reading.millivolts);

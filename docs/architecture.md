@@ -12,6 +12,7 @@ Step 1 pins dependencies, adds build/test support, and extracts conversion arith
 Step 2a removes normal-reading batch averaging; calibration still uses its original sampling.
 Step 2b initializes readings, guards conversions and integer presentation, and resets cycle errors.
 Step 2c adds latest-only publication and UI-clock freshness checks without changing task ownership.
+Step 2d uses deadline-polled Adafruit conversions and independent per-device initialization/retry.
 
 | Responsibility | Current implementation |
 | --- | --- |
@@ -21,13 +22,13 @@ Step 2c adds latest-only publication and UI-clock freshness checks without chang
 | Acquisition | `Task_Sensors`, core 1, configured 3 KB stack; nominal 500 ms schedule |
 | Measurement transport | One-entry overwrite `sensorsData` queue; UI polls without blocking and caches the latest sample |
 | Settings/calibration | UI callbacks can access persistence and calibration; `configOpen` is not exclusive ownership |
-| ADC access | Unmodified Adafruit ADS1X15, blocking conversion helpers, one conversion per normal gas reading |
+| ADC access | Unmodified Adafruit start/poll/result API, 25 ms elapsed deadline, one conversion per normal gas reading |
 | Pure arithmetic | `src/sensors/conversions.h` and `.cpp`; used by sensors and native tests |
 
 The framework `loop()` is empty. A diagnostic task exists behind `DEBUG`, which is not enabled by
 the baseline profiles. Stack sizes above are allocations, not measured high-water marks.
 There is no command/result protocol, automatic sleep, CO startup deadline, or stability detector yet.
-Shared hardware access and blocking ADC/UI operations remain known limitations, not reusable APIs
+Shared hardware access, synchronous library transfers, and blocking UI callbacks remain known limitations, not reusable APIs
 that later changes must preserve. Queue or GUI-mutex allocation failure halts application startup
 before tasks start and is reported through serial logging; no on-screen fault is available then.
 
@@ -39,6 +40,50 @@ latency are not included. The 500 ms acquisition schedule and UI refresh logic r
 Actual displayed response and increased noise require hardware comparison. O2/He calibration still
 collects five batches of 20 samples and pauses 100 ms after each; `RunningAverage` remains only
 for these local calibration buffers until step 5 replaces them.
+
+### ADC deadlines and recovery implemented in step 2d
+
+`src/sensors/adc_read.h` contains one inline `readCounts` function shared by normal readings and
+calibration. It calls unmodified Adafruit `startADCReading`, `conversionComplete`, and
+`getLastConversionResults`. The library still owns register configuration, channel constants,
+gain, data rate, and volts scaling. No custom ADC class, register driver, or transport hierarchy.
+
+The deadline is 25 ms elapsed from before conversion start at the explicitly configured 128 SPS.
+Polls yield with Arduino `delay(1)`. Unsigned subtraction handles clock wrap. A read is accepted
+only if completion and result fetching finish before the deadline; completion exactly at 25 ms or
+a late result is conservatively rejected. Output counts are untouched on failure. A timeout
+returns NaN from the sensor, not a partial or previous reading. This deadline must be reconsidered
+if the ADC data rate is changed; slower rates are not supported by this policy as configured.
+
+Wire1 uses a 10 ms bus timeout. The elapsed deadline cannot interrupt an Adafruit/Wire call already
+in progress: the whole read or initialization can take longer than 25 ms. The stock driver hides
+individual transfer errors, so a disconnected ADC can still return a plausible result and need not
+trigger timeout/recovery. Neither host tests nor range validation remove that accepted limitation.
+
+`SensorManager` keeps just readiness and a last-attempt timestamp per ADC. Startup initializes both
+independently. Failure leaves the device unready; normal cycles retry it at most once per second,
+only when an enabled channel needs it. Each attempt reapplies the original gain and 128 SPS rate.
+No exponential retry state or power cycling is added. Retrying never changes sensor-enable GPIOs.
+
+An observed conversion timeout marks only that ADC unready, starts its retry interval, and skips
+its remaining channels for the cycle. The other ADC continues. Invalid numerical data does not
+request initialization. The old global error-count/reinitialize-both loop is removed. The existing
+summary error prioritizes an observed timeout over an unavailable device over invalid data;
+individual channel reason codes remain pending. `ADC_Init_Failed` is presented as "ADC unavailable"
+because it also represents waiting for retry after a runtime timeout.
+
+Calibration requests may perform the same rate-limited device retry even while `configOpen` pauses
+ordinary acquisition. They fail immediately if still unready. Every calibration sample uses the
+deadline helper; any timeout abandons the batch and returns NaN. The manager keeps previous live
+coefficients on non-finite calibration results. Existing UI callbacks reject NaN before writing
+Preferences. Successful sampling still follows the existing non-transactional application path;
+whole-candidate validation, cancellation, persistence failure handling, and stability gating remain
+planned. A failed cold-boot calibration is not automatically restarted after later ADC recovery.
+
+The existing shared-access race between calibration callbacks and in-flight acquisition is not
+solved by polling deadlines. Readiness is not a replacement for single-owner coordination. That
+coordination is required before sleep and the later ownership milestone; no thread-safety claim is
+made here. Adafruit `begin()` may allocate internally during retry, as in the original library.
 
 ### Reading validity implemented in step 2b
 
@@ -117,7 +162,7 @@ Arduino loop task. No separate logger, battery, or permanent monitoring task is 
 Choose stack sizes and scheduling from measured behavior; no core-affinity change is required.
 
 The analyzer will own state changes between bounded units of work. Normal readings already use one
-fresh conversion per channel. Replace the current blocking helpers with stock Adafruit start/poll/result calls with an elapsed
+fresh conversion per channel through stock Adafruit start/poll/result calls with an elapsed
 deadline and the ESP32 Wire timeout. Keep gains and 128 SPS initially. The library's hidden I2C
 failures remain an accepted limitation: a returned number is not proof that its transfer succeeded.
 Do not introduce custom register access or another ADC library to hide this tradeoff.
@@ -207,16 +252,20 @@ overflow, integer boundaries, and MOD. The former He/NaN fallback test now requi
 result. Temperature rounding and valid gas formulas remain characterized.
 Tolerance is 0.0001 in each function's output units for floating arithmetic, not sensor accuracy.
 
-Nineteen sensor/cycle tests check one conversion per normal read, channel selection, response to the
+Thirty-one sensor/cycle tests check one conversion per normal read, channel selection, response to the
 next input, raw diagnostics, default snapshots, invalid-to-valid recovery, all-disabled and He-only
 configurations, temperature gating, and unchanged calibration counts/pauses.
 They also exercise latest-only queue consumption, timestamped disabled/invalid cycles, stopped
 producer blanking, exact freshness boundaries, clock wrap, empty boot state, and restored values.
+ADC cases cover conversion deadlines, late results, initialization failure isolation, one-second
+retry across clock wrap, disabled-device gating, timeout skipping of sibling channels, invalid
+data without reinitialization, calibration retries, and partial-calibration failure retention.
 Small public-API stand-ins for Adafruit, a copying queue, logging, and calibration averaging live under `test/fakes`.
 The averaging stand-in only supports filling a fixed batch, not library ring-buffer behavior.
 Both `-I` and `-iquote` paths are native-only; the latter selects the logging stand-in before the
 real ESP32 header. Target builds use the real libraries. Host tests do not simulate conversion
-timing, prove bus reliability, or measure sensor noise. The queue stand-in models one copied slot;
+real bus timing, prove bus reliability, or measure sensor noise. The fake clock advances during
+polling and can model delayed completion/result fetching. The queue stand-in models one copied slot;
 target builds verify the real FreeRTOS calls. Tests do not execute the actual UI task or establish
 display/mutex scheduling latency.
 
