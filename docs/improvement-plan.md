@@ -172,8 +172,11 @@ Step 4b validates stored O2-air and He calibration independently on cold boot an
 repairs preserve accepted calibration; missing/invalid channels suppress affected derived readings.
 Ordinary saves cannot accept RAM fallback coefficients. Existing float keys retain NaN for unaccepted
 calibration, and explicit successful calibration/reset accepts only its own channel. Results name
-required channels; raw O2/He diagnostics remain available. Finish draft/rejection UX and device checks
-for apply/reset/clear across reboot. Reading labels still use the existing Invalid state when
+required channels; raw O2/He diagnostics remain available. Step 4c retains rejected drafts for reopening,
+adds explicit discard, protects newer edits from earlier results, and restores effective brightness
+outside editing. Retained drafts inhibit sleep until saved/discarded; no draft persistence is added.
+Device checks for draft workflows and apply/reset/clear across reboot remain open.
+Reading labels still use the existing Invalid state when
 calibration is required; finer presentation can be handled with the remaining UI work.
 Check that calibration outcomes cannot overwrite in-progress editable settings drafts, and that
 old-generation readings never accompany new coefficients. Keep tests focused on product behavior.

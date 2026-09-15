@@ -636,8 +636,43 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   settings save/reboot while unaccepted, accepted calibration/reset and pure clear across reboot,
   cold-start preference, visible messages, and raw diagnostics. No assistant upload or push performed.
 
+## 2026-09-15: Step 4c, retained settings drafts and rejection UX
+
+- Started from `4db91c9`. Confirmed the generated callbacks use SCREEN_LOADED/SCREEN_UNLOADED;
+  closing happens after navigation and cannot assume a synchronous result. Added a regression for
+  rejected edits surviving reopening, then implemented the small UiState-owned draft lifecycle.
+- One retained RAM settings value, editing/retained flags, settings request ID and reopened flag
+  preserve edits across busy/queue/storage/validation rejection. Results still update effective
+  settings independently. Success clears only the acknowledged non-reopened draft; newer editing
+  sessions survive earlier results. Coefficient rebasing prevents stale drafts undoing calibration.
+- Existing callbacks capture controls on close, restore effective globals and brightness, and reopen
+  with the retained draft. Async results do not touch editing controls except the existing startup
+  synchronization. Duplicate unload calls outside an editing session are ignored deliberately.
+- Rejection modal adds Edits retained and Discard edits. Closing the modal retains edits; correction
+  and resubmission happen on reopening settings. Discard restores effective controls and restarts
+  inactivity. It cannot cancel a queued write and updates the same modal when a write is pending.
+- Open or retained drafts inhibit sleep until saved or explicitly discarded, including after a
+  rejection modal is dismissed. Preparation/prepared checks now request Resume for settings activity
+  as well as physical input. RAM drafts do not survive power loss/reset. No auto-retry or timeout.
+- All 110 native tests pass: 45 analyzer, 16 sleep, 37 sensor/cycle, 12 conversion. Nine draft tests
+  cover rejection/reopening, queue-full/discard, calibration rebasing, earlier success vs newer edits,
+  pending-write discard refusal, mismatched results/duplicate events, startup seeding, preparation
+  interruption/resume, and fresh editing after discard in an open screen.
+- Both final S3 profiles build: static RAM 159128 bytes; debug flash 1541437 bytes, release flash
+  1527085 bytes. Relative to 4b: RAM +32 bytes, debug flash +988, release flash +1000.
+- Consulted LVGL MCP for lifecycle/modal behavior, verified footer and async-close APIs against
+  installed 9.1 headers, and inspected generated callback bindings. No generated UI edits.
+- Claude review prompted explicit settings checks during preparation and avoiding pending-dialog
+  stacking. Retained-draft sleep inhibition is intentional, not permanent: saving or discarding
+  resolves it. Kept the editor active after discard to allow fresh edits; unchanged closes may
+  intentionally reconcile a dirty store. Did not add a timeout that forgets an in-flight write.
+- Device checks pending: edit/close/reopen while another operation is busy, invalid pO2 rejection,
+  correction/resubmission, discard and brightness restoration, result delivery while editing, dialog
+  fit on 320x170, and inactivity behavior with retained/discarded drafts. Native tests do not execute
+  real EEZ/LVGL events. No assistant upload or push performed.
+
 ### Next increment
 
-Finish step 4 with settings draft/rejection UX and device apply/reset/clear/restart checks, without
-more task restructuring. Remaining step-3 hardware acceptance stays open. Step 5 remains incremental
-stability-gated calibration and its graph.
+Step-4 implementation is in place; device settings/draft/apply/reset/clear/restart acceptance remains
+open, alongside earlier sleep/current and sensor checks. Step 5 is incremental stability-gated
+calibration with cancellation, bounded progress/history, and the required live graph.

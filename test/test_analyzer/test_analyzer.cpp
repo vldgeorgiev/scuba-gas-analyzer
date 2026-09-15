@@ -868,6 +868,238 @@ void test_unaccepted_sentinels_do_not_block_enabled_startup_calibration() {
   TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
 }
 
+void test_rejected_settings_draft_survives_reopening_without_changing_effective_values() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  ui.openSettings();
+  auto draft = ui.settingsDraft;
+  draft.brightness = 64;
+  draft.po2Bottom = 1.6f;
+  draft.po2Deco = 1.2f;
+  TEST_ASSERT_TRUE(ui.closeSettings(draft, &commands));
+  TEST_ASSERT_FALSE(ui.settingsEditing);
+  TEST_ASSERT_TRUE(ui.settingsDraftRetained);
+  TEST_ASSERT_EQUAL_UINT8(128, ui.effective.brightness);
+  app::Command sent;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &sent, 0));
+  app::Result rejected;
+  rejected.type = app::CommandType::ApplySettings;
+  rejected.id = sent.id;
+  rejected.failure = app::Failure::Invalid;
+  TEST_ASSERT_TRUE(ui.accept(rejected));
+  ui.openSettings();
+  TEST_ASSERT_EQUAL_UINT8(64, ui.settingsDraft.brightness);
+  TEST_ASSERT_EQUAL_FLOAT(1.6f, ui.settingsDraft.po2Bottom);
+  TEST_ASSERT_EQUAL_FLOAT(1.2f, ui.settingsDraft.po2Deco);
+  TEST_ASSERT_EQUAL_UINT8(128, ui.effective.brightness);
+}
+
+void test_full_queue_retains_draft_and_discard_restores_effective_settings() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  commands.occupied = true;
+  ui.openSettings();
+  auto draft = ui.settingsDraft;
+  draft.brightness = 64;
+  draft.sleepMinutes = 0;
+  TEST_ASSERT_FALSE(ui.closeSettings(draft, &commands));
+  TEST_ASSERT_FALSE(ui.busy());
+  TEST_ASSERT_TRUE(ui.settingsInhibitSleep());
+  TEST_ASSERT_EQUAL_UINT32(0, ui.settingsRequestId);
+  TEST_ASSERT_EQUAL_UINT8(64, ui.settingsDraft.brightness);
+  TEST_ASSERT_TRUE(ui.discardSettings());
+  TEST_ASSERT_FALSE(ui.settingsInhibitSleep());
+  ui.openSettings();
+  TEST_ASSERT_EQUAL_UINT8(128, ui.settingsDraft.brightness);
+  TEST_ASSERT_EQUAL_UINT8(app::DEFAULT_SLEEP_MINUTES, ui.settingsDraft.sleepMinutes);
+}
+
+void test_calibration_result_does_not_overwrite_editable_draft() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  app::Command calibrate;
+  calibrate.type = app::CommandType::CalibrateAir;
+  TEST_ASSERT_TRUE(ui.submit(calibrate, &commands));
+  xQueueReset(&commands);
+  const auto calibrationId = ui.pendingId;
+  ui.openSettings();
+  auto draft = ui.settingsDraft;
+  draft.brightness = 48;
+  draft.coEnabled = false;
+  draft.po2Bottom = 1.2f;
+  TEST_ASSERT_FALSE(ui.closeSettings(draft, &commands));
+  app::Result calibrated;
+  calibrated.type = app::CommandType::CalibrateAir;
+  calibrated.id = calibrationId;
+  calibrated.effective.o2Air = 12;
+  calibrated.generation = 2;
+  TEST_ASSERT_TRUE(ui.accept(calibrated));
+  ui.openSettings();
+  TEST_ASSERT_EQUAL_UINT8(48, ui.settingsDraft.brightness);
+  TEST_ASSERT_FALSE(ui.settingsDraft.coEnabled);
+  TEST_ASSERT_EQUAL_FLOAT(1.2f, ui.settingsDraft.po2Bottom);
+  TEST_ASSERT_EQUAL_FLOAT(12, ui.settingsDraft.o2Air);
+  draft.o2Air = 40;
+  TEST_ASSERT_TRUE(ui.closeSettings(draft, &commands));
+  app::Command submitted;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &submitted, 0));
+  TEST_ASSERT_EQUAL_FLOAT(12, submitted.settings.o2Air);
+  TEST_ASSERT_EQUAL_UINT8(48, submitted.settings.brightness);
+}
+
+void test_older_save_result_keeps_newer_reopened_draft() {
+  for (bool closeBeforeResult : {false, true}) {
+    app::UiState ui;
+    ui.accept(app::Result{});
+    FakeQueue commands(sizeof(app::Command));
+    ui.openSettings();
+    auto first = ui.settingsDraft;
+    first.brightness = 64;
+    TEST_ASSERT_TRUE(ui.closeSettings(first, &commands));
+    app::Command submitted;
+    TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &submitted, 0));
+    ui.openSettings();
+    auto newer = ui.settingsDraft;
+    newer.brightness = 32;
+    if (closeBeforeResult) TEST_ASSERT_FALSE(ui.closeSettings(newer, &commands));
+    app::Result accepted;
+    accepted.type = app::CommandType::ApplySettings;
+    accepted.id = submitted.id;
+    accepted.effective = submitted.settings;
+    TEST_ASSERT_TRUE(ui.accept(accepted));
+    TEST_ASSERT_TRUE(ui.settingsDraftRetained);
+    TEST_ASSERT_TRUE(ui.settingsInhibitSleep());
+    TEST_ASSERT_EQUAL_UINT8(64, ui.effective.brightness);
+    if (closeBeforeResult) {
+      ui.openSettings();
+      TEST_ASSERT_EQUAL_UINT8(32, ui.settingsDraft.brightness);
+    }
+    TEST_ASSERT_TRUE(ui.closeSettings(newer, &commands));
+    TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &submitted, 0));
+    accepted.id = submitted.id;
+    accepted.effective = submitted.settings;
+    TEST_ASSERT_TRUE(ui.accept(accepted));
+    TEST_ASSERT_FALSE(ui.settingsDraftRetained);
+    TEST_ASSERT_FALSE(ui.settingsInhibitSleep());
+    TEST_ASSERT_EQUAL_UINT8(32, ui.effective.brightness);
+  }
+}
+
+void test_discard_cannot_cancel_queued_settings_but_can_clear_rejected_draft() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  ui.openSettings();
+  auto draft = ui.settingsDraft;
+  draft.brightness = 64;
+  TEST_ASSERT_TRUE(ui.closeSettings(draft, &commands));
+  TEST_ASSERT_FALSE(ui.discardSettings());
+  TEST_ASSERT_TRUE(ui.busy());
+  TEST_ASSERT_TRUE(ui.settingsDraftRetained);
+  app::Result failure;
+  failure.type = app::CommandType::ApplySettings;
+  failure.id = ui.pendingId;
+  failure.failure = app::Failure::Storage;
+  TEST_ASSERT_TRUE(ui.accept(failure));
+  TEST_ASSERT_TRUE(ui.settingsDraftRetained);
+  TEST_ASSERT_TRUE(ui.discardSettings());
+  TEST_ASSERT_FALSE(ui.settingsInhibitSleep());
+  TEST_ASSERT_EQUAL_UINT8(128, ui.settingsDraft.brightness);
+}
+
+void test_unmatched_results_and_duplicate_close_do_not_clear_draft() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  ui.openSettings();
+  auto draft = ui.settingsDraft;
+  draft.brightness = 64;
+  TEST_ASSERT_TRUE(ui.closeSettings(draft, &commands));
+  draft.brightness = 32;
+  TEST_ASSERT_FALSE(ui.closeSettings(draft, &commands));
+  TEST_ASSERT_EQUAL_UINT8(64, ui.settingsDraft.brightness);
+  app::Result result;
+  result.type = app::CommandType::ApplySettings;
+  result.id = ui.pendingId + 1;
+  TEST_ASSERT_FALSE(ui.accept(result));
+  TEST_ASSERT_TRUE(ui.settingsDraftRetained);
+  TEST_ASSERT_EQUAL_UINT(1, commands.sends);
+}
+
+void test_startup_seeds_open_editor_and_duplicate_open_keeps_draft() {
+  app::UiState ui;
+  ui.openSettings();
+  app::Result startup;
+  startup.effective.brightness = 64;
+  startup.effective.o2Air = 12;
+  TEST_ASSERT_TRUE(ui.accept(startup));
+  TEST_ASSERT_EQUAL_UINT8(64, ui.settingsDraft.brightness);
+  TEST_ASSERT_EQUAL_FLOAT(12, ui.settingsDraft.o2Air);
+  ui.settingsDraft.brightness = 48;
+  ui.openSettings();
+  TEST_ASSERT_EQUAL_UINT8(48, ui.settingsDraft.brightness);
+  TEST_ASSERT_TRUE(ui.settingsInhibitSleep());
+}
+
+void test_settings_draft_during_sleep_preparation_survives_resume() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  app::Command prepare;
+  prepare.type = app::CommandType::PrepareSleep;
+  TEST_ASSERT_TRUE(ui.submit(prepare, &commands));
+  const auto sleepId = ui.pendingId;
+  xQueueReset(&commands);
+  ui.openSettings();
+  auto draft = ui.settingsDraft;
+  draft.brightness = 64;
+  TEST_ASSERT_FALSE(ui.closeSettings(draft, &commands));
+  TEST_ASSERT_TRUE(ui.settingsInhibitSleep());
+  TEST_ASSERT_TRUE(ui.requestResume(&commands));
+  app::Result prepared;
+  prepared.type = app::CommandType::PrepareSleep;
+  prepared.id = sleepId;
+  TEST_ASSERT_FALSE(ui.accept(prepared));
+  app::Result resumed;
+  resumed.type = app::CommandType::Resume;
+  resumed.id = sleepId;
+  TEST_ASSERT_TRUE(ui.accept(resumed));
+  TEST_ASSERT_EQUAL(app::SleepPhase::Awake, ui.sleepPhase);
+  TEST_ASSERT_TRUE(ui.settingsInhibitSleep());
+  ui.openSettings();
+  TEST_ASSERT_EQUAL_UINT8(64, ui.settingsDraft.brightness);
+}
+
+void test_discard_in_open_editor_allows_fresh_edits() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  ui.openSettings();
+  auto draft = ui.settingsDraft;
+  draft.brightness = 64;
+  TEST_ASSERT_TRUE(ui.closeSettings(draft, &commands));
+  xQueueReset(&commands);
+  ui.openSettings();
+  app::Result failure;
+  failure.type = app::CommandType::ApplySettings;
+  failure.id = ui.pendingId;
+  failure.failure = app::Failure::Storage;
+  TEST_ASSERT_TRUE(ui.accept(failure));
+  TEST_ASSERT_TRUE(ui.discardSettings());
+  TEST_ASSERT_TRUE(ui.settingsEditing);
+  TEST_ASSERT_TRUE(ui.settingsInhibitSleep());
+  TEST_ASSERT_EQUAL_UINT8(128, ui.settingsDraft.brightness);
+  draft = ui.settingsDraft;
+  draft.brightness = 48;
+  TEST_ASSERT_TRUE(ui.closeSettings(draft, &commands));
+  app::Command sent;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &sent, 0));
+  TEST_ASSERT_EQUAL_UINT8(48, sent.settings.brightness);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_apply_settings_acknowledges_live_state_and_generation);
@@ -906,5 +1138,14 @@ int main(int, char**) {
   RUN_TEST(test_partial_acceptance_failure_is_unaccepted_and_reconciled_on_retry);
   RUN_TEST(test_calibration_required_message_respects_enabled_channels_and_helium_dependency);
   RUN_TEST(test_unaccepted_sentinels_do_not_block_enabled_startup_calibration);
+  RUN_TEST(test_rejected_settings_draft_survives_reopening_without_changing_effective_values);
+  RUN_TEST(test_full_queue_retains_draft_and_discard_restores_effective_settings);
+  RUN_TEST(test_calibration_result_does_not_overwrite_editable_draft);
+  RUN_TEST(test_older_save_result_keeps_newer_reopened_draft);
+  RUN_TEST(test_discard_cannot_cancel_queued_settings_but_can_clear_rejected_draft);
+  RUN_TEST(test_unmatched_results_and_duplicate_close_do_not_clear_draft);
+  RUN_TEST(test_startup_seeds_open_editor_and_duplicate_open_keeps_draft);
+  RUN_TEST(test_settings_draft_during_sleep_preparation_survives_resume);
+  RUN_TEST(test_discard_in_open_editor_allows_fresh_edits);
   return UNITY_END();
 }

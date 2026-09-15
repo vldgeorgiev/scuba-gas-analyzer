@@ -220,11 +220,31 @@ acceptance checklist in progress for held buttons, aborts, retained settings/pin
 ## UI and drafts
 
 Settings are loaded on the analyzer and copied into `UiState::effective` through results.
-UI refreshes never read Preferences. Opening settings seeds the existing EEZ controls from that
-copy; closing builds a candidate and submits it. Until acknowledgement, controls revert to effective
-values rather than claim the draft was applied. Brightness remains a UI-only preview while editing,
-and is restored/applied from the outcome. Drafts open during another operation are not overwritten
-when that operation finishes; startup synchronization is the exception.
+UI refreshes never read Preferences. UiState retains one draft separately from effective settings.
+Opening seeds existing EEZ controls from that draft, or from effective settings if none is retained.
+Closing captures all editable controls and submits a candidate, then restores effective globals and
+brightness outside the editor. A rejected/queue-refused draft remains available on reopening; no
+unsaved value is presented as applied. While editing, brightness remains a preview and unrelated
+results do not overwrite controls. Startup synchronization remains the exception.
+
+The settings request ID and a reopened flag distinguish an acknowledged draft from a newer editing
+session. Success clears only its own non-reopened draft; failure keeps the draft. Calibration results
+refresh only its three coefficient fields, and submission rebases those fields from current effective
+values. The analyzer also continues stripping calibration fields from ApplySettings commands.
+Duplicate close notifications outside an editing session do not enqueue or overwrite anything.
+
+Settings rejection uses the existing modal with an Edits retained state and Discard edits action.
+Closing the modal keeps edits; reopening settings allows correction/resubmission. Discard restores
+effective controls/brightness and resets inactivity. Discard cannot cancel a queued settings write;
+the existing dialog shows Settings update pending instead of stacking another modal. If discarded
+while the editor is open, it remains an editor and accepts fresh edits normally. Closing an unchanged
+editor still submits through the analyzer, allowing a dirty store to reconcile after partial failure.
+
+Both open and retained drafts inhibit sleep until successfully saved or explicitly discarded. The
+preparing/prepared checks also request Resume if settings become active, including programmatic
+navigation. This deliberately trades automatic sleep for retaining unsaved edits; dismissing a
+rejection dialog alone does not re-enable sleep. Drafts are RAM-only and do not survive reset/power
+loss. There is no automatic retry, draft timeout, new queue, or persistent draft format.
 
 Callbacks no longer calibrate, write NVS, or drive sensor power. They enqueue and return, or show
 busy through the existing message box. Calibration success/failure is displayed when its result is
