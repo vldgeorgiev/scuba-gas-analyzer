@@ -150,7 +150,8 @@ bool DisplayManager::prepareSleep() {
   if (touchActive() || digitalRead(PIN_BUTTON_2) == LOW || digitalRead(PIN_BUTTON_1) == LOW) return false;
   _touchSleepAttempted = true;
   touchInputEnabled = false;
-  return touch.enableSleep();
+  const bool touchSleepFailed = touch.enableSleep();
+  return !touchSleepFailed;
 #else
   return false;
 #endif

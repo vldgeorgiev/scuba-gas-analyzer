@@ -165,7 +165,10 @@ No additional worker task or generic power-management framework is used.
   for the internal RTC pull-up; the pulldown is disabled. Failure to configure wake aborts entry.
 4. DisplayManager checks input, sends panel display-off/sleep-in, writes backlight duty zero,
   detaches PWM, and drives backlight low. After the 120 ms panel interval it checks input again,
-  stops touch polling, and checks TouchLib's `enableSleep()` result.
+  stops touch polling, and checks TouchLib's `enableSleep()` result. In the pinned CST-self driver,
+  this boolean is inverted: `writeRegister()` returns 0 on success and -1 on failure, and
+  `enableSleep()` returns that integer as bool. The adapter treats false as success and true as
+  failure. Recheck this contract if TouchLib changes; do not assume conventional boolean semantics.
 5. Wi-Fi is stopped if active. The already-low sensor outputs and backlight, plus the board's
   existing power-on output level, are held using checked GPIO hold calls and deep-sleep hold.
   Buttons are checked again, the application marker is written, and `esp_deep_sleep_start()` runs.

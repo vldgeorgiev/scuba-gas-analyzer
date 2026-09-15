@@ -499,6 +499,21 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - [ ] Measure sleep current, wake reliability and CO/He/backlight/board-power levels; verify hold behavior on S3.
 - [ ] Check task stack/heap and status/dropdown layout during long runs. Step-2 hardware checks remain open.
 
+## 2026-09-15: Fix immediate sleep abort after device trial
+
+- User reported the one-minute timeout began shutdown but immediately displayed sleep-aborted.
+- Found the application interpreted pinned TouchLib's `enableSleep()` boolean backwards.
+  `TouchLibCommon::writeRegister(uint8_t, uint8_t)` returns 0 for successful I2C transmission and
+  -1 for failure; `TouchLibCSTSelf::enableSleep()` directly converts that to bool. Successful touch
+  sleep therefore returned false and was always treated as an abort by our implementation.
+- Corrected the application check to regard false as success, true as failure. No vendor modification,
+  GPIO-policy change, or bypass of actual write failures. The existing abort restoration remains.
+- Both S3 profiles build: static RAM 159096 bytes; debug flash 1538989 bytes, release 1525125 bytes.
+  This checks real-library compilation, not successful physical sleep. Existing native tests do not
+  execute TouchLib's hardware path and did not cover this return-value contract. Device retry pending.
+- No assistant upload or push performed. Repeat the one-minute timeout and GPIO14 wake check before
+  marking the corresponding acceptance items complete.
+
 ### Next increment
 
 Review device sleep results before claiming step-3 hardware completion. Continue step 4 with
