@@ -1,13 +1,13 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef SETTINGS_STORE_H
+#define SETTINGS_STORE_H
 
 #include <Preferences.h>
 #include <Arduino.h>
-#include "settings/Settings.h"
+#include "Settings.h"
 
-class Config {
+class SettingsStore {
 public:
-  ~Config() { _preferences.end(); }
+  ~SettingsStore() { _preferences.end(); }
 
   void begin() {
     _ready = _preferences.begin("config", false);

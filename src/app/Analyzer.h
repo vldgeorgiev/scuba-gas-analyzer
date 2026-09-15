@@ -1,7 +1,7 @@
 #ifndef APP_ANALYZER_H
 #define APP_ANALYZER_H
 
-#include "config.h"
+#include "settings/SettingsStore.h"
 #include "sensors/sensors.h"
 #include <type_traits>
 
@@ -63,7 +63,7 @@ struct UiState {
 
 class Analyzer {
 public:
-  Analyzer(Config& config, SensorManager& sensors) : _config(config), _sensors(sensors) {}
+  Analyzer(SettingsStore& settingsStore, SensorManager& sensors) : _settingsStore(settingsStore), _sensors(sensors) {}
   Result begin();
   Result execute(const Command& command);
   bool service(QueueHandle_t commands, QueueHandle_t results);
@@ -72,7 +72,7 @@ public:
 
 private:
   void apply();
-  Config& _config;
+  SettingsStore& _settingsStore;
   SensorManager& _sensors;
   AnalyzerSettings _effective;
   uint32_t _generation = 1;

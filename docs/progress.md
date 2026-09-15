@@ -352,6 +352,16 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   No push, upload, flash, or OTA performed. The user must verify startup, rapid navigation while busy,
   calibration with live UI, settings/reset persistence, status recovery, and stack/heap behavior.
 
+## 2026-09-15: Settings naming cleanup
+
+- Renamed `Config` to `SettingsStore` and moved `src/config.h` to `src/settings/SettingsStore.h`.
+  Updated the analyzer, task-local instance, tests, and current architecture reference.
+- `AnalyzerSettings` remains the data/defaults/validation value in `src/settings/Settings.h`.
+  `Preferences` remains the ESP32 library (and its native test stand-in), not another app abstraction.
+- Naming only: the NVS namespace `config`, individual keys, defaults, and persistence behavior are
+  unchanged. Historical entries above keep the names used at those milestones.
+- Verification: all 13 analyzer tests pass and both S3 firmware profiles build. No push or upload.
+
 ### Next increment
 
 Use the real analyzer owner for sleep Prepare/Resume and sensor power timing, then add the five-minute

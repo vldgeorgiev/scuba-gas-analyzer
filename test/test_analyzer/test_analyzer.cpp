@@ -19,8 +19,8 @@ struct Rig {
   FakeQueue queue{sizeof(sensorsData)};
   QueueHandle_t handle = &queue;
   SensorManager sensors{handle};
-  Config config;
-  app::Analyzer analyzer{config, sensors};
+  SettingsStore settingsStore;
+  app::Analyzer analyzer{settingsStore, sensors};
   Rig() { analyzer.begin(); }
 };
 
@@ -180,8 +180,8 @@ void test_invalid_load_is_visible_and_startup_does_not_calibrate_defaults() {
   FakeQueue queue(sizeof(sensorsData));
   QueueHandle_t handle = &queue;
   SensorManager sensors(handle);
-  Config config;
-  app::Analyzer analyzer(config, sensors);
+  SettingsStore settingsStore;
+  app::Analyzer analyzer(settingsStore, sensors);
   const auto result = analyzer.begin();
   TEST_ASSERT_EQUAL(app::CommandType::Startup, result.type);
   TEST_ASSERT_EQUAL(app::Failure::LoadedDefaults, result.failure);
@@ -195,8 +195,8 @@ void test_startup_reports_adc_failure_without_blocking_other_device() {
   FakeQueue queue(sizeof(sensorsData));
   QueueHandle_t handle = &queue;
   SensorManager sensors(handle);
-  Config config;
-  app::Analyzer analyzer(config, sensors);
+  SettingsStore settingsStore;
+  app::Analyzer analyzer(settingsStore, sensors);
   const auto result = analyzer.begin();
   TEST_ASSERT_EQUAL(app::Failure::Sampling, result.failure);
   TEST_ASSERT_EQUAL(SensorError::ADC_Init_Failed, result.sensorError);

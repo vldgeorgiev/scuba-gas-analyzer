@@ -15,7 +15,7 @@ draft settings, effective copy        effective settings, Preferences
                <------ latest measurement queue
 ```
 
-`setup()` creates the three queues and the tasks. The analyzer task creates its own `Config`,
+`setup()` creates the three queues and the tasks. The analyzer task creates its own `SettingsStore`,
 `SensorManager`, and concrete `app::Analyzer` locally; UI callbacks cannot access those instances.
 The UI task owns `DisplayManager`, EEZ globals, widget pointers, and its copy of effective settings.
 The Arduino loop blocks indefinitely. There is no extra manager/logger/battery/monitor task.
@@ -91,8 +91,12 @@ sensor code only writes serial diagnostics. The old bounded-log/active-fault red
 ## Settings and application
 
 `AnalyzerSettings` is one small RAM value with validation and measurement-semantic comparison.
-The name avoids EEZ's own `Settings` type. `Config` now has only load/save/ready operations;
+The name avoids EEZ's own `Settings` type. `SettingsStore` has only initialization/load/save/readiness operations;
 legacy UI-callable field setters were removed. The analyzer is its only runtime user.
+
+Both headers live under `src/settings`: `Settings.h` contains the RAM data/defaults/validation;
+`SettingsStore.h` persists those values using the SDK's `Preferences`. The NVS namespace remains
+`config` for existing stored data; this naming cleanup does not change its keys or format.
 
 Startup loads the existing individual Preferences keys once. Missing keys use defaults. A loaded
 set that fails validation is visibly replaced with defaults as a whole and startup calibration is
@@ -160,7 +164,7 @@ CO-positive colour condition is not proof of a safe measurement.
 
 ## Verification boundary
 
-The native suite uses real conversions, sensors, Config, Analyzer, and UiState with small library/queue
+The native suite uses real conversions, sensors, SettingsStore, Analyzer, and UiState with small library/queue
 stand-ins. It checks sampling/validity/freshness, independent recovery, candidate application and
 failure retention, changed-key writes, startup admission, matching IDs, queue-full refusal, result
 backpressure with continued measurements, and generation filtering. It does not execute actual UI

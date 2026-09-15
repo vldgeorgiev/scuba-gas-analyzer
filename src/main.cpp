@@ -116,9 +116,9 @@ static void Task_UI(void*) {
 }
 
 static void Task_Analyzer(void*) {
-  Config config;
+  SettingsStore settingsStore;
   SensorManager sensors(measurementQueue);
-  app::Analyzer analyzer(config, sensors);
+  app::Analyzer analyzer(settingsStore, sensors);
   analyzer.begin();
   uint32_t lastMeasurement = ::millis() - 500;
 

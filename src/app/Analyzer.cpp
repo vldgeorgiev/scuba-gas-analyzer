@@ -16,8 +16,8 @@ Result Analyzer::begin() {
   pinMode(PIN_CO_ENABLE, OUTPUT);
   digitalWrite(PIN_HE_ENABLE, LOW);
   digitalWrite(PIN_CO_ENABLE, LOW);
-  _config.begin();
-  _effective = _config.load();
+  _settingsStore.begin();
+  _effective = _settingsStore.load();
   Result result;
   if (!_effective.valid()) {
     _effective = AnalyzerSettings{};
@@ -30,7 +30,7 @@ Result Analyzer::begin() {
     startup.type = CommandType::CalibrateAir;
     result = execute(startup);
   }
-  if (!_config.ready() && result.failure == Failure::None) result.failure = Failure::Storage;
+  if (!_settingsStore.ready() && result.failure == Failure::None) result.failure = Failure::Storage;
   result.sensorError = initialization;
   result.type = CommandType::Startup;
   result.effective = _effective;
@@ -88,7 +88,7 @@ Result Analyzer::execute(const Command& command) {
       command.type == CommandType::CalibratePure || command.type == CommandType::CalibrateHe;
   if (calibration && !std::isfinite(result.calibration)) result.failure = Failure::Sampling;
   if (result.failure == Failure::None && !candidate.valid()) result.failure = Failure::Invalid;
-  if (result.failure == Failure::None && !_config.save(candidate, _effective)) result.failure = Failure::Storage;
+  if (result.failure == Failure::None && !_settingsStore.save(candidate, _effective)) result.failure = Failure::Storage;
   if (result.failure == Failure::None) {
     if (!candidate.sameMeasurementSettings(_effective)) {
       if (++_generation == 0) _generation = 1;
