@@ -65,6 +65,13 @@ static void Task_UI(void*) {
   SensorError previousError = SensorError::None;
 
   for (;;) {
+    if (uiState.preparationExpired(::millis())) {
+      uiState.requestResume(commandQueue);
+      logUi("Sleep preparation timed out; resuming", UiLogLevel::Error);
+    }
+    if (uiState.sleepPhase == app::SleepPhase::Resuming && !uiState.resumeQueued) {
+      uiState.requestResume(commandQueue);
+    }
     app::Result result;
     if (xQueueReceive(resultQueue, &result, 0) == pdPASS && uiState.accept(result)) {
       if (!settingsEditing || result.type == app::CommandType::Startup) syncUiSettings();

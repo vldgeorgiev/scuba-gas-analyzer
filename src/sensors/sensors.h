@@ -23,6 +23,7 @@ enum class ChannelState : uint8_t {
   Disabled,
   Valid,
   Invalid,
+  Warming,
   Stale
 };
 
@@ -32,6 +33,7 @@ inline const char* channelStateText(ChannelState state) {
     case ChannelState::Valid: return "";
     case ChannelState::Invalid: return "Invalid";
     case ChannelState::Stale: return "Stale";
+    case ChannelState::Warming: return "Warming";
     case ChannelState::Unavailable: return "Unavailable";
   }
   return "Unavailable";
@@ -81,7 +83,8 @@ public:
 
     SensorError init();
     void setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100);
-    SensorError readSensors();
+    SensorError readSensors(bool coWarming = false);
+    void discardMeasurements() { xQueueReset(_dataQueue); }
     void setGeneration(uint32_t generation) { _generation = generation; }
     float calibrateO2_21();
     float calibrateO2_100();

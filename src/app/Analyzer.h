@@ -8,9 +8,11 @@
 namespace app {
 
 enum class CommandType : uint8_t {
-  Startup, ApplySettings, CalibrateAir, CalibratePure, CalibrateHe, ResetAir, ClearPure, ResetHe
+  Startup, ApplySettings, CalibrateAir, CalibratePure, CalibrateHe, ResetAir, ClearPure, ResetHe,
+  PrepareSleep, Resume
 };
-enum class Failure : uint8_t { None, Invalid, Storage, Sampling, LoadedDefaults };
+enum class Failure : uint8_t { None, Invalid, Storage, Sampling, LoadedDefaults, Busy };
+enum class SleepPhase : uint8_t { Awake, Preparing, Prepared, Resuming };
 
 struct Command {
   CommandType type = CommandType::ApplySettings;
@@ -32,19 +34,49 @@ static_assert(std::is_trivially_copyable<Command>::value, "Commands must be queu
 static_assert(std::is_trivially_copyable<Result>::value, "Results must be queue-copyable");
 
 struct UiState {
+  static constexpr uint32_t PREPARE_TIMEOUT_MS = 2000;
+  static constexpr uint32_t RESUME_RETRY_MS = 1000;
   AnalyzerSettings effective;
   uint32_t generation = 1;
   uint32_t pendingId = 0;
   bool ready = false;
   uint32_t nextId = 1;
+  SleepPhase sleepPhase = SleepPhase::Awake;
+  uint32_t prepareStarted = 0;
+  bool resumeQueued = false;
+  bool resumeRetry = false;
+  uint32_t resumeFailedAt = 0;
 
   bool busy() const { return !ready || pendingId != 0; }
   bool submit(Command command, QueueHandle_t queue) {
-    if (busy()) return false;
+    if (busy() || command.type == CommandType::Startup || command.type == CommandType::Resume) return false;
     command.id = nextId;
     if (xQueueSend(queue, &command, 0) != pdPASS) return false;
     pendingId = command.id;
+    if (command.type == CommandType::PrepareSleep) {
+      sleepPhase = SleepPhase::Preparing;
+      prepareStarted = ::millis();
+      resumeQueued = false;
+      resumeRetry = false;
+    }
     if (++nextId == 0) nextId = 1;
+    return true;
+  }
+  bool preparationExpired(uint32_t now) const {
+    return sleepPhase == SleepPhase::Preparing &&
+           static_cast<uint32_t>(now - prepareStarted) >= PREPARE_TIMEOUT_MS;
+  }
+  bool requestResume(QueueHandle_t queue) {
+    if (sleepPhase == SleepPhase::Awake) return false;
+    sleepPhase = SleepPhase::Resuming;
+    if (resumeQueued) return true;
+    if (resumeRetry && static_cast<uint32_t>(::millis() - resumeFailedAt) < RESUME_RETRY_MS) return false;
+    Command resume;
+    resume.type = CommandType::Resume;
+    resume.id = pendingId;
+    if (xQueueSend(queue, &resume, 0) != pdPASS) return false;
+    resumeQueued = true;
+    resumeRetry = false;
     return true;
   }
   bool accept(const Result& result) {
@@ -53,7 +85,29 @@ struct UiState {
       ready = true;
     } else {
       if (!ready || pendingId == 0 || result.id != pendingId) return false;
-      pendingId = 0;
+      if (sleepPhase != SleepPhase::Awake) {
+        if (result.type == CommandType::PrepareSleep && sleepPhase == SleepPhase::Preparing) {
+          if (result.failure == Failure::None) sleepPhase = SleepPhase::Prepared;
+          else {
+            sleepPhase = SleepPhase::Awake;
+            pendingId = 0;
+          }
+        } else if (result.type == CommandType::Resume && sleepPhase == SleepPhase::Resuming && resumeQueued) {
+          if (result.failure == Failure::None) {
+            sleepPhase = SleepPhase::Awake;
+            pendingId = 0;
+            resumeQueued = false;
+            resumeRetry = false;
+          } else {
+            resumeQueued = false;
+            resumeRetry = true;
+            resumeFailedAt = ::millis();
+          }
+        } else return false;
+      } else {
+        if (result.type == CommandType::PrepareSleep || result.type == CommandType::Resume) return false;
+        pendingId = 0;
+      }
     }
     effective = result.effective;
     generation = result.generation;
@@ -63,21 +117,30 @@ struct UiState {
 
 class Analyzer {
 public:
+  static constexpr uint32_t CO_STARTUP_MS = 3000;
   Analyzer(SettingsStore& settingsStore, SensorManager& sensors) : _settingsStore(settingsStore), _sensors(sensors) {}
   Result begin();
   Result execute(const Command& command);
   bool service(QueueHandle_t commands, QueueHandle_t results);
-  SensorError measure() { return _sensors.readSensors(); }
+  SensorError measure() { return preparedForSleep() ? SensorError::None : _sensors.readSensors(coWarming()); }
+  bool preparedForSleep() const { return _sleepId != 0; }
+  bool coWarming() const {
+    return _coPowered && static_cast<uint32_t>(::millis() - _coPoweredAt) < CO_STARTUP_MS;
+  }
   const AnalyzerSettings& effective() const { return _effective; }
 
 private:
   void apply();
+  void advanceGeneration() { if (++_generation == 0) _generation = 1; }
   SettingsStore& _settingsStore;
   SensorManager& _sensors;
   AnalyzerSettings _effective;
   uint32_t _generation = 1;
   Result _pending;
   bool _hasPending = false;
+  bool _coPowered = false;
+  uint32_t _coPoweredAt = 0;
+  uint32_t _sleepId = 0;
 };
 
 }

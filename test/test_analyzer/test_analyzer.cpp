@@ -257,6 +257,253 @@ void test_successful_calibration_then_reset_changes_live_and_stored_values() {
   TEST_ASSERT_EQUAL_UINT32(calibrated.generation + 1, reset.generation);
 }
 
+void test_co_warmup_skips_conversions_until_three_seconds() {
+  Rig rig;
+  auto* oxygen = Adafruit_ADS1115::devices[0];
+  auto* secondary = Adafruit_ADS1115::devices[1];
+  oxygen->counts = 320;
+  secondary->counts = 6400;
+  TEST_ASSERT_TRUE(rig.analyzer.coWarming());
+  nowMs = 2999;
+  rig.analyzer.measure();
+  sensorsData sample;
+  xQueueReceive(rig.handle, &sample, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Warming, sample.coState);
+  TEST_ASSERT_TRUE(std::isnan(sample.CoLevel.ppm));
+  TEST_ASSERT_TRUE(std::isnan(sample.CoLevel.millivolts));
+  TEST_ASSERT_EQUAL(ChannelState::Valid, sample.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, sample.heState);
+  TEST_ASSERT_EQUAL_UINT(1, secondary->singleEndedReads);
+  nowMs = 3000;
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  rig.analyzer.measure();
+  xQueueReceive(rig.handle, &sample, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, sample.coState);
+  TEST_ASSERT_EQUAL_FLOAT(0, sample.CoLevel.ppm);
+  TEST_ASSERT_EQUAL_UINT(3, secondary->singleEndedReads);
+}
+
+void test_co_reenable_restarts_warmup_across_clock_wrap() {
+  Rig rig;
+  app::Command command;
+  command.settings = rig.analyzer.effective();
+  command.settings.coEnabled = false;
+  rig.analyzer.execute(command);
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  nowMs = UINT32_MAX - 1000;
+  command.settings.coEnabled = true;
+  rig.analyzer.execute(command);
+  TEST_ASSERT_TRUE(rig.analyzer.coWarming());
+  nowMs += 2999;
+  command.settings.brightness = 64;
+  rig.analyzer.execute(command);
+  TEST_ASSERT_TRUE(rig.analyzer.coWarming());
+  nowMs += 1;
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+}
+
+void test_adc_recovery_does_not_restart_co_warmup() {
+  Rig rig;
+  auto* secondary = Adafruit_ADS1115::devices[1];
+  nowMs = 3000;
+  secondary->conversionCompletes = false;
+  rig.analyzer.measure();
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  secondary->conversionCompletes = true;
+  secondary->counts = 6400;
+  nowMs += 1000;
+  rig.analyzer.measure();
+  sensorsData sample;
+  xQueueReceive(rig.handle, &sample, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, sample.coState);
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  TEST_ASSERT_EQUAL_UINT(2, secondary->beginCalls);
+}
+
+void test_prepare_stops_publication_and_resume_restores_power_with_fresh_generation() {
+  Rig rig;
+  nowMs = 3000;
+  rig.analyzer.measure();
+  TEST_ASSERT_TRUE(rig.queue.occupied);
+  app::Command prepare;
+  prepare.type = app::CommandType::PrepareSleep;
+  prepare.id = 10;
+  const auto prepared = rig.analyzer.execute(prepare);
+  TEST_ASSERT_EQUAL(app::Failure::None, prepared.failure);
+  TEST_ASSERT_TRUE(rig.analyzer.preparedForSleep());
+  TEST_ASSERT_EQUAL_UINT32(10, prepared.id);
+  TEST_ASSERT_FALSE(rig.queue.occupied);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
+  const auto sends = rig.queue.sends;
+  rig.analyzer.measure();
+  TEST_ASSERT_EQUAL_UINT(sends, rig.queue.sends);
+  app::Command ordinary;
+  TEST_ASSERT_EQUAL(app::Failure::Busy, rig.analyzer.execute(ordinary).failure);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  TEST_ASSERT_EQUAL_UINT32(prepared.generation, rig.analyzer.execute(prepare).generation);
+
+  app::Command resume;
+  resume.type = app::CommandType::Resume;
+  resume.id = 11;
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, rig.analyzer.execute(resume).failure);
+  TEST_ASSERT_TRUE(rig.analyzer.preparedForSleep());
+  resume.id = prepare.id;
+  const auto resumed = rig.analyzer.execute(resume);
+  TEST_ASSERT_FALSE(rig.analyzer.preparedForSleep());
+  TEST_ASSERT_EQUAL(app::Failure::None, resumed.failure);
+  TEST_ASSERT_EQUAL_UINT32(prepared.generation + 1, resumed.generation);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_CO_ENABLE]);
+  rig.analyzer.measure();
+  sensorsData sample;
+  xQueueReceive(rig.handle, &sample, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Warming, sample.coState);
+  TEST_ASSERT_EQUAL_UINT32(resumed.generation, sample.generation);
+  TEST_ASSERT_EQUAL_UINT32(resumed.generation, rig.analyzer.execute(resume).generation);
+}
+
+void test_prepare_timeout_resume_ignores_late_ack_and_survives_full_command_queue() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  app::UiState ui;
+  rig.analyzer.service(&commands, &results);
+  app::Result result;
+  xQueueReceive(&results, &result, 0);
+  ui.accept(result);
+  nowMs = UINT32_MAX - 1000;
+  app::Command prepare;
+  prepare.type = app::CommandType::PrepareSleep;
+  TEST_ASSERT_TRUE(ui.submit(prepare, &commands));
+  const uint32_t sleepId = ui.pendingId;
+  nowMs += 1999;
+  TEST_ASSERT_FALSE(ui.preparationExpired(nowMs));
+  nowMs += 1;
+  TEST_ASSERT_TRUE(ui.preparationExpired(nowMs));
+  TEST_ASSERT_FALSE(ui.requestResume(&commands));
+  TEST_ASSERT_EQUAL(app::SleepPhase::Resuming, ui.sleepPhase);
+  TEST_ASSERT_TRUE(ui.busy());
+  TEST_ASSERT_FALSE(ui.submit(app::Command{}, &commands));
+  rig.analyzer.service(&commands, &results);
+  TEST_ASSERT_TRUE(rig.analyzer.preparedForSleep());
+  TEST_ASSERT_TRUE(ui.requestResume(&commands));
+  const auto queued = commands.sends;
+  TEST_ASSERT_TRUE(ui.requestResume(&commands));
+  TEST_ASSERT_EQUAL_UINT(queued, commands.sends);
+  rig.analyzer.service(&commands, &results);
+  xQueueReceive(&results, &result, 0);
+  TEST_ASSERT_EQUAL(app::CommandType::PrepareSleep, result.type);
+  TEST_ASSERT_FALSE(ui.accept(result));
+  TEST_ASSERT_EQUAL_UINT32(sleepId, ui.pendingId);
+  rig.analyzer.service(&commands, &results);
+  xQueueReceive(&results, &result, 0);
+  TEST_ASSERT_EQUAL(app::CommandType::Resume, result.type);
+  TEST_ASSERT_TRUE(ui.accept(result));
+  TEST_ASSERT_EQUAL(app::SleepPhase::Awake, ui.sleepPhase);
+  TEST_ASSERT_FALSE(ui.busy());
+  TEST_ASSERT_FALSE(rig.analyzer.preparedForSleep());
+  rig.analyzer.measure();
+  TEST_ASSERT_TRUE(rig.queue.occupied);
+}
+
+void test_prepared_ui_remains_busy_until_resume_acknowledged() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  app::Command prepare;
+  prepare.type = app::CommandType::PrepareSleep;
+  TEST_ASSERT_TRUE(ui.submit(prepare, &commands));
+  app::Result result;
+  result.type = prepare.type;
+  result.id = ui.pendingId;
+  TEST_ASSERT_TRUE(ui.accept(result));
+  TEST_ASSERT_EQUAL(app::SleepPhase::Prepared, ui.sleepPhase);
+  TEST_ASSERT_TRUE(ui.busy());
+  TEST_ASSERT_FALSE(ui.accept(result));
+  xQueueReset(&commands);
+  TEST_ASSERT_TRUE(ui.requestResume(&commands));
+  app::Command resume;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &resume, 0));
+  result.type = app::CommandType::Resume;
+  result.failure = app::Failure::Invalid;
+  TEST_ASSERT_TRUE(ui.accept(result));
+  TEST_ASSERT_TRUE(ui.busy());
+  TEST_ASSERT_EQUAL(app::SleepPhase::Resuming, ui.sleepPhase);
+  TEST_ASSERT_FALSE(ui.resumeQueued);
+  TEST_ASSERT_FALSE(ui.requestResume(&commands));
+  nowMs += 999;
+  TEST_ASSERT_FALSE(ui.requestResume(&commands));
+  nowMs += 1;
+  TEST_ASSERT_TRUE(ui.requestResume(&commands));
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &resume, 0));
+  TEST_ASSERT_EQUAL_UINT32(result.id, resume.id);
+  TEST_ASSERT_EQUAL(app::CommandType::Resume, resume.type);
+  result.failure = app::Failure::None;
+  TEST_ASSERT_TRUE(ui.accept(result));
+  TEST_ASSERT_FALSE(ui.busy());
+}
+
+void test_sleep_handshake_preserves_disabled_sensor_power_and_settings() {
+  Rig rig;
+  app::Command settings;
+  settings.settings = rig.analyzer.effective();
+  settings.settings.coEnabled = false;
+  settings.settings.heEnabled = false;
+  rig.analyzer.execute(settings);
+  const auto writes = Preferences::writes;
+  app::Command command;
+  command.type = app::CommandType::PrepareSleep;
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, rig.analyzer.execute(command).failure);
+  command.id = 7;
+  rig.analyzer.execute(command);
+  command.type = app::CommandType::Resume;
+  rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  TEST_ASSERT_EQUAL_UINT(writes, Preferences::writes);
+}
+
+void test_resume_when_already_awake_is_harmless_and_does_not_restart_co() {
+  Rig rig;
+  nowMs = 3000;
+  rig.analyzer.measure();
+  app::Command resume;
+  resume.type = app::CommandType::Resume;
+  resume.id = 50;
+  const auto result = rig.analyzer.execute(resume);
+  TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+  TEST_ASSERT_EQUAL_UINT32(1, result.generation);
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  TEST_ASSERT_TRUE(rig.queue.occupied);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_CO_ENABLE]);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_resume_retry_delay_survives_clock_wrap() {
+  app::UiState ui;
+  ui.accept(app::Result{});
+  FakeQueue commands(sizeof(app::Command));
+  app::Command prepare;
+  prepare.type = app::CommandType::PrepareSleep;
+  ui.submit(prepare, &commands);
+  xQueueReset(&commands);
+  ui.requestResume(&commands);
+  xQueueReset(&commands);
+  app::Result failure;
+  failure.type = app::CommandType::Resume;
+  failure.id = ui.pendingId;
+  failure.failure = app::Failure::Invalid;
+  nowMs = UINT32_MAX - 100;
+  TEST_ASSERT_TRUE(ui.accept(failure));
+  nowMs += 999;
+  TEST_ASSERT_FALSE(ui.requestResume(&commands));
+  nowMs += 1;
+  TEST_ASSERT_TRUE(ui.requestResume(&commands));
+  TEST_ASSERT_TRUE(ui.busy());
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_apply_settings_acknowledges_live_state_and_generation);
@@ -272,5 +519,14 @@ int main(int, char**) {
   RUN_TEST(test_startup_reports_adc_failure_without_blocking_other_device);
   RUN_TEST(test_full_result_path_retains_outcome_without_blocking_measurements);
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);
+  RUN_TEST(test_co_warmup_skips_conversions_until_three_seconds);
+  RUN_TEST(test_co_reenable_restarts_warmup_across_clock_wrap);
+  RUN_TEST(test_adc_recovery_does_not_restart_co_warmup);
+  RUN_TEST(test_prepare_stops_publication_and_resume_restores_power_with_fresh_generation);
+  RUN_TEST(test_prepare_timeout_resume_ignores_late_ack_and_survives_full_command_queue);
+  RUN_TEST(test_prepared_ui_remains_busy_until_resume_acknowledged);
+  RUN_TEST(test_sleep_handshake_preserves_disabled_sensor_power_and_settings);
+  RUN_TEST(test_resume_when_already_awake_is_harmless_and_does_not_restart_co);
+  RUN_TEST(test_resume_retry_delay_survives_clock_wrap);
   return UNITY_END();
 }

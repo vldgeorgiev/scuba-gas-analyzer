@@ -88,6 +88,7 @@ void showAnalyzerResult(const app::Result& result) {
       case app::Failure::Storage: title = "Settings could not be saved"; break;
       case app::Failure::Sampling: title = "Calibration read failed"; break;
       case app::Failure::LoadedDefaults: title = "Invalid saved settings - defaults loaded"; break;
+      case app::Failure::Busy: title = "Analyzer is preparing for sleep"; break;
       default: title = "Operation failed"; break;
     }
     logUi(title, UiLogLevel::Error);

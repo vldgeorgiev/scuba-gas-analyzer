@@ -75,12 +75,13 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
   _heSensor.setCalibrations(_heCalibration100);
 }
 
-SensorError SensorManager::readSensors() {
+SensorError SensorManager::readSensors(bool coWarming) {
   sensorsData data;
   data.timestampMs = ::millis();
   data.generation = _generation;
   data.o2State = _isO2Enabled ? ChannelState::Unavailable : ChannelState::Disabled;
-  data.coState = _isCOEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  data.coState = !_isCOEnabled ? ChannelState::Disabled :
+                 coWarming ? ChannelState::Warming : ChannelState::Unavailable;
   data.heState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
   data.temperatureState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
   _lastError = SensorError::None;
@@ -90,10 +91,11 @@ SensorError SensorManager::readSensors() {
     return _lastError;
   }
 
+  const bool coActive = _isCOEnabled && !coWarming;
   if (_isO2Enabled) recoverDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
-  if (_isCOEnabled || _isHeEnabled) recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
+  if (coActive || _isHeEnabled) recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
   if ((_isO2Enabled && !_adc1State.ready) ||
-      ((_isCOEnabled || _isHeEnabled) && !_adc2State.ready)) {
+      ((coActive || _isHeEnabled) && !_adc2State.ready)) {
     _lastError = SensorError::ADC_Init_Failed;
   }
 
@@ -103,7 +105,7 @@ SensorError SensorManager::readSensors() {
     data.o2State = recordRead(_adc1State, timedOut, std::isfinite(data.O2Level.percentage));
   }
 
-  if (_isCOEnabled && _adc2State.ready) {
+  if (coActive && _adc2State.ready) {
     data.CoLevel = _coSensor.readLevel(&timedOut);
     data.coState = recordRead(_adc2State, timedOut, std::isfinite(data.CoLevel.ppm));
   }

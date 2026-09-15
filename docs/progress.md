@@ -10,7 +10,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
 | 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
-| 3. Task ownership and sleep/wake | In progress: 3b two-owner task restructure replaces interim gate; actual sleep/wake and CO startup interval pending |
+| 3. Task ownership and sleep/wake | In progress: two-owner tasks, 3c prepare/resume handshake and CO startup timing implemented; inactivity setting and deep-sleep/wake integration pending |
 | 4. Remaining settings behavior | Ownership/basic validated RAM settings moved into 3b; field-specific fallback, calibration-required state and device acceptance pending |
 | 5. Stability-gated calibration | Not started |
 | 6. Replacement UI | Not started; sample Editor export required |
@@ -362,8 +362,47 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   unchanged. Historical entries above keep the names used at those milestones.
 - Verification: all 13 analyzer tests pass and both S3 firmware profiles build. No push or upload.
 
+## 2026-09-15: Step 3c, sleep handshake and CO power timing
+
+- Started from `536ce39`. The worktree had no intervening changes. Added PrepareSleep and Resume
+  to the existing fixed-size protocol; no extra queues, tasks, access gates, or persistence format.
+- Preparation with a nonzero ID stops measurements, deasserts sensor power, advances generation,
+  and clears the queued reading before acknowledgement. Ordinary commands are rejected while
+  prepared. A matching resume restores effective power enables and a fresh generation; disabled
+  sensors remain off. Already-awake resume is idempotent and does not discard a fresh reading.
+- UI keeps its operation ID/busy state through Preparing/Prepared/Resuming. A two-second prepare
+  timeout requests resume rather than abandoning ownership. Main checks expiry before accepting
+  results. Full command queues are retried, and late prepare results cannot authorize sleeping.
+- Added the fixed 3,000 ms CO interval at actual power assertion. Warming suppresses both CO mV
+  and ppm and skips conversions. Off/on and resume restart it; ADC-only recovery and unrelated
+  settings do not. Warming text uses the existing status adapter; no LVGL API or generated UI changes.
+- No normal UI path requests PrepareSleep yet. Actual inactivity detection, timeout persistence,
+  display/touch shutdown, deep-sleep entry, and GPIO14 wake are deliberately the next increment.
+
+### Verification and review
+
+- All 71 native tests pass: 12 conversions, 37 sensor/cycle/adapter, 22 analyzer/message tests.
+  Nine new analyzer tests cover CO expiry/re-enable/wrap/ADC retry, prepared publication stop and
+  queue clearing, ID matching, disabled power restoration, generation changes, prepare timeout
+  with command backpressure, late results, and resume retry/idempotence. Existing text mapping now
+  also checks Warming.
+- Both real S3 profiles build: debug RAM 158924 bytes, flash 1526137 bytes; release RAM 158924 bytes,
+  flash 1512297 bytes. Relative to the naming-cleanup build: static RAM +16 bytes, debug/release
+  flash +788/+780 bytes. No target timing, GPIO behavior, or current measurements were made.
+- Claude read-only review found a failed-Resume acknowledgement left resumeQueued latched. Fixed it
+  to permit a one-second rate-limited retry while retaining busy, and tested actual re-enqueue
+  rather than injecting an unsolicited later success. Also made Resume while awake safely succeed
+  for the case where an abandoned Prepare never took effect. Mismatched IDs while prepared still fail.
+- Kept Prepared without a watchdog: future power-down must explicitly enter sleep or abort/resume.
+  No inactivity trigger is exposed before that path exists. The handshake is not proof of physical
+  wake or recovery from a stuck task. Sleep/resume issue no Preferences writes.
+- Hardware acceptance pending: three-second CO state after startup/re-enable, first post-warm-up
+  sample, power pins during preparation/resume, resumed publication, and UI status recovery.
+  No assistant push, upload, flash, or OTA performed.
+
 ### Next increment
 
-Use the real analyzer owner for sleep Prepare/Resume and sensor power timing, then add the five-minute
-default setting and GPIO14 wake. Do not reintroduce a shared access gate. Step-2 device checks remain
-open; step 4 is now the remaining settings refinements, not another task restructure.
+Add the persisted five-minute inactivity default and UI setting, then the display/touch shutdown
+and GPIO14 deep-sleep wake path around the implemented handshake. Preserve calibration on confirmed
+application wake and account for settings/calibration/scan/OTA busy periods. Step-2 device checks
+remain open; no shared access gate should be reintroduced.

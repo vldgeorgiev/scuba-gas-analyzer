@@ -591,6 +591,7 @@ void test_channel_state_labels_are_distinct() {
   TEST_ASSERT_EQUAL_STRING("Invalid", channelStateText(ChannelState::Invalid));
   TEST_ASSERT_EQUAL_STRING("Unavailable", channelStateText(ChannelState::Unavailable));
   TEST_ASSERT_EQUAL_STRING("Stale", channelStateText(ChannelState::Stale));
+  TEST_ASSERT_EQUAL_STRING("Warming", channelStateText(ChannelState::Warming));
   TEST_ASSERT_EQUAL_STRING("", channelStateText(ChannelState::Valid));
 }
 

@@ -1,6 +1,6 @@
 # Current firmware architecture
 
-Updated 2026-09-15 after step 3b. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-09-15 after step 3c. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
@@ -50,23 +50,59 @@ Command/result structs are statically checked as trivially copyable for FreeRTOS
 
 UI admission starts busy until the analyzer's Startup result arrives. Only one state-changing user
 operation is outstanding. A submitted command receives a nonzero ID; UI stays busy until the matching
-terminal result is consumed, including failures. Unknown/duplicate results do not clear another
+terminal result is consumed, including failures. Sleep preparation retains that ID until sleep entry
+or an acknowledged resume; it does not free ordinary admission on preparation success.
+Unknown/duplicate results do not clear another
 operation. Startup has its own result type and is accepted once. IDs skip zero on wrap.
 
-Commands: apply editable settings, calibrate O2-air/O2-pure/He, reset air/He, and clear optional
-pure-O2 calibration. Sleep preparation/resume and calibration cancellation/progress are not added yet.
+Commands: apply editable settings, calibrate O2-air/O2-pure/He, reset air/He, clear optional
+pure-O2 calibration, PrepareSleep, and Resume. Calibration cancellation/progress are not added yet.
 Every result carries the request type/ID, failure reason, effective settings, measurement generation,
 and calibration value where relevant. Startup also carries the independent ADC initialization report.
 
 `Analyzer::service()` first retries its pending result; if delivery remains blocked, it does not
 take another command. The task still calls `measure()` when due. Slow UI consumption cannot discard
-an outcome or stop ordinary measurement publication. Normal calibration temporarily occupies the
+an outcome or stop ordinary measurement publication unless sleep preparation deliberately suspends it.
+Normal calibration temporarily occupies the
 analyzer until its fixed sampling finishes; UI rendering continues. No progress/cancel UI is claimed.
 
 A missing startup or terminal result does not cause UI to clear busy on a timer. Doing that could
 admit another operation while a supposedly timed-out command still owns the hardware. Queue/task
 allocation failures are logged; failed analyzer creation leaves commands unavailable. A permanently
 stuck task requires explicit recovery policy later, not silent readmission.
+
+## Sleep preparation and resume
+
+Step 3c adds the handshake on the existing queues, without a shared sensor-access flag or a new
+task. No inactivity trigger or deep-sleep call exists yet, so normal use cannot initiate preparation
+in this increment. The backend and UI timeout/resume pump are ready for that next integration.
+
+On PrepareSleep with a nonzero ID, the analyzer records the active sleep ID, advances measurement
+generation, deasserts He/CO sensor power, clears the measurement queue, and only then produces its
+acknowledgement. `measure()` publishes nothing while prepared. Ordinary settings/calibration/reset
+commands are rejected Busy before touching storage or hardware. The one-outstanding UI policy
+prevents submitting preparation while a calibration or settings operation is outstanding; this
+does not preempt the analyzer's synchronous calibration routine.
+
+Repeated preparation for the active ID is idempotent. Another ID is rejected while prepared.
+Resume must match the active sleep ID before it can restore effective power enables and advance
+generation again. An already-awake analyzer acknowledges any nonzero Resume harmlessly, without
+changing power, generation, settings, or a queued reading. This covers an aborted preparation that
+never took effect as well as repeated resumes. A mismatched ID cannot release another active sleep.
+Sleep/resume never writes Preferences. Disabled sensors stay disabled.
+
+UI uses four phases: Awake, Preparing, Prepared, Resuming. Preparation has a two-second elapsed
+deadline. The UI checks expiry before draining results, so a prepare acknowledgement arriving after
+timeout cannot authorize sleep. Abort switches to Resuming and submits Resume with the retained ID,
+retrying a full command queue without clearing busy. A resume is enqueued once at a time. If its
+result reports failure, it may be retried after one second; the UI remains busy until success.
+Late prepare acknowledgements are consumed but ignored during resume. Timing is wrap-safe.
+
+Prepared deliberately awaits a decision by the future power-down sequence, not another automatic
+deadline: that sequence must enter deep sleep or request resume on abort/new activity. It is not yet
+wired and there is no claim of an end-to-end sleep feature. A permanently stuck analyzer cannot be
+recovered by forgetting the pending ID. Device checks must confirm publication and power restoration,
+not infer physical recovery merely from host state-machine tests.
 
 ## UI and drafts
 
@@ -138,10 +174,17 @@ SensorManager tracks readiness and retry time per ADC. Both initialize independe
 devices retry no more than once per second when needed; explicit calibration may retry too. Timeouts
 skip remaining channels on that ADC, not the other ADC. Invalid numerical data does not cause device
 reinitialization. The analyzer owns all ADC work and power GPIO writes; retries do not cycle power.
-The fixed CO power-start interval is still pending in the sleep milestone.
+CO power-start timing is implemented in the analyzer. It records the time only when the CO output
+changes from off to on, including startup, re-enable, and resume after preparation. For 3,000 ms it
+reports Warming and skips CO conversions entirely; raw mV and ppm remain NaN. Other enabled channels
+continue. The first accepted CO read starts after the deadline and must still pass normal checks.
+Warm-up is evaluated before the cycle, so a cycle starting just before expiry may defer CO until
+the next cycle rather than sample early. ADC-only retry or unrelated settings do not restart the
+timer. If only warming CO needs ADC2, no conversion or recovery attempt is made for it until due.
 
 Every snapshot carries cycle-start timestamp, generation, initialized numeric fields, and channel
-states for O2/CO/He/temperature: Disabled, Valid, Invalid, Unavailable. UI derives Stale at 1,800 ms
+states for O2/CO/He/temperature: Disabled, Valid, Invalid, Unavailable, and Warming (CO).
+UI derives Stale at 1,800 ms
 using unsigned elapsed arithmetic. Disabled remains distinct. NaN represents unusable numeric fields;
 CO stays float until checked integer display. MOD validates inputs and integer bounds. Raw He mV
 is preserved separately from its corrected value; He derivation requires usable O2. Temperature is
@@ -155,7 +198,7 @@ Freshness is recomputed even with no new sample, so a stopped analyzer cannot ke
 while the UI is progressing. A blocked OTA callback can still delay visible updates.
 
 `ReadingStatus.h` remains a thin temporary adapter after generated ticks in the UI task. Invalid,
-Unavailable, and Stale replace existing primary reading labels; disabled panels retain EEZ's hiding
+Unavailable, Warming, and Stale replace existing primary reading labels; disabled panels retain EEZ's hiding
 policy. The large O2 font shrinks for text and restores for valid values. It assumes lifetime-stable
 generated objects. Generated ticks compare actual text, so recovery restores text even at the same
 numeric value. Repeated non-valid overrides can allocate/invalidate labels and need sustained device
@@ -167,7 +210,8 @@ CO-positive colour condition is not proof of a safe measurement.
 The native suite uses real conversions, sensors, SettingsStore, Analyzer, and UiState with small library/queue
 stand-ins. It checks sampling/validity/freshness, independent recovery, candidate application and
 failure retention, changed-key writes, startup admission, matching IDs, queue-full refusal, result
-backpressure with continued measurements, and generation filtering. It does not execute actual UI
+backpressure with continued measurements, generation filtering, sleep-ID matching, late acknowledgements,
+resume retries, queue clearing, power restoration, and CO warm-up boundaries/recovery. It does not execute actual UI
 callbacks or FreeRTOS scheduling. Target debug/release builds use real libraries and generated assets.
 
 Current measured test counts and binary sizes live in progress. Device checks remain required for startup, setting/calibration
@@ -175,8 +219,9 @@ navigation, latency, stack high-water marks, ADC fault behavior, status layout, 
 
 ## Planned next
 
-- Step 3: owner-driven PrepareSleep/Resume, CO power-start deadline, persisted five-minute inactivity
-  default, operation inhibition, GPIO14 wake, and confirmed-wake calibration preservation.
+- Step 3: integrate the implemented PrepareSleep/Resume and CO timing with a persisted five-minute
+  inactivity default, operation inhibition, display/touch shutdown, GPIO14 wake, and confirmed-wake
+  calibration preservation. No automatic sleep is enabled yet.
 - Step 4: finish field-specific invalid-load handling, calibration-required state, settings UX and
   reboot/failure acceptance. Do not repeat the ownership refactor already done here.
 - Step 5: incremental cancellable stability-gated calibration with graph progress and a qualified

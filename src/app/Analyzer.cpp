@@ -4,8 +4,13 @@
 namespace app {
 
 void Analyzer::apply() {
-  digitalWrite(PIN_HE_ENABLE, _effective.heEnabled ? HIGH : LOW);
-  digitalWrite(PIN_CO_ENABLE, _effective.coEnabled ? HIGH : LOW);
+  digitalWrite(PIN_HE_ENABLE, _effective.heEnabled && !preparedForSleep() ? HIGH : LOW);
+  const bool coPower = _effective.coEnabled && !preparedForSleep();
+  if (coPower != _coPowered) {
+    digitalWrite(PIN_CO_ENABLE, coPower ? HIGH : LOW);
+    _coPowered = coPower;
+    if (_coPowered) _coPoweredAt = ::millis();
+  }
   _sensors.setSensorsConfig(_effective.o2Enabled, _effective.coEnabled, _effective.heEnabled,
                            _effective.o2Air, _effective.o2Pure, _effective.heCalibration);
   _sensors.setGeneration(_generation);
@@ -56,6 +61,32 @@ Result Analyzer::execute(const Command& command) {
   Result result;
   result.type = command.type;
   result.id = command.id;
+  result.effective = _effective;
+  result.generation = _generation;
+  if (command.type == CommandType::PrepareSleep || command.type == CommandType::Resume) {
+    if (command.id == 0) result.failure = Failure::Invalid;
+    else if (command.type == CommandType::PrepareSleep) {
+      if (_sleepId != 0 && _sleepId != command.id) result.failure = Failure::Busy;
+      else if (_sleepId == 0) {
+        _sleepId = command.id;
+        advanceGeneration();
+        apply();
+        _sensors.discardMeasurements();
+      }
+    } else if (_sleepId == command.id) {
+      _sleepId = 0;
+      advanceGeneration();
+      apply();
+    } else if (_sleepId != 0) {
+      result.failure = Failure::Invalid;
+    }
+    result.generation = _generation;
+    return result;
+  }
+  if (preparedForSleep()) {
+    result.failure = Failure::Busy;
+    return result;
+  }
   AnalyzerSettings candidate = _effective;
   switch (command.type) {
     case CommandType::ApplySettings:
@@ -91,7 +122,7 @@ Result Analyzer::execute(const Command& command) {
   if (result.failure == Failure::None && !_settingsStore.save(candidate, _effective)) result.failure = Failure::Storage;
   if (result.failure == Failure::None) {
     if (!candidate.sameMeasurementSettings(_effective)) {
-      if (++_generation == 0) _generation = 1;
+      advanceGeneration();
     }
     _effective = candidate;
   }
