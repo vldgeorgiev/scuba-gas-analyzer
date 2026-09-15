@@ -18,6 +18,7 @@ QueueHandle_t sensorDataQueue;
 SemaphoreHandle_t gui_mutex;
 
 SensorManager sensors(sensorDataQueue);
+SensorAccess sensorAccess;
 
 std::atomic<bool> configOpen;
 static sensorsData displayedReadings;
@@ -110,19 +111,22 @@ void Task_Screen_Update(void *pvParameters) {
 }
 
 void Task_Sensors(void *pvParameters) {
+  while (!sensorAccess.tryAcquire()) vTaskDelay(pdMS_TO_TICKS(1));
   if (config.getCalibrateOnStart()) {
     float o2CalibrationAir = sensors.calibrateO2_21();
     config.setO2Calibration21(o2CalibrationAir);
   }
   sensors.setSensorsConfig(config.getO2Enabled(), config.getCOEnabled(), config.getHeEnabled(), config.getO2Calibration21(), config.getO2Calibration100(), config.getHeCalibration100());
+  sensorAccess.release();
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
   SensorError previousError = SensorError::None;
 
   while (true)
   {
-    if (!configOpen) {
+    if (!configOpen && sensorAccess.tryAcquire()) {
       SensorError error = sensors.readSensors();
+      sensorAccess.release();
       if (error != SensorError::None) {
         if (error != previousError) {
           log_w("Sensor error: %s", sensors.getErrorString(error));

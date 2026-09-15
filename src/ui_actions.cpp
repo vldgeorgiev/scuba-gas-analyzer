@@ -22,6 +22,10 @@ void messageBox(const char * title, float value) {
 }
 
 void action_calibrate_o2_21(lv_event_t * e) {
+  if (!sensorAccess.acquire()) {
+    messageBox("Sensors busy - try again", NAN);
+    return;
+  }
   float value = sensors.calibrateO2_21();
   if (!isnan(value) && value > 5.0f && value < 50.0f) {
     config.setO2Calibration21(value);
@@ -32,9 +36,14 @@ void action_calibrate_o2_21(lv_event_t * e) {
     logUi("O2 air calibration failed", UiLogLevel::Error);
     messageBox("O2 Air Cal Failed", value);
   }
+  sensorAccess.release();
 }
 
 void action_calibrate_o2_100(lv_event_t * e) {
+  if (!sensorAccess.acquire()) {
+    messageBox("Sensors busy - try again", NAN);
+    return;
+  }
   float value = sensors.calibrateO2_100();
   float airCal = config.getO2Calibration21();
   if (!isnan(value) && value > airCal && value < 100.0f) {
@@ -46,9 +55,14 @@ void action_calibrate_o2_100(lv_event_t * e) {
     logUi("O2 100% calibration failed", UiLogLevel::Error);
     messageBox("O2 100% Cal Failed", value);
   }
+  sensorAccess.release();
 }
 
 void action_calibrate_he(lv_event_t * e) {
+  if (!sensorAccess.acquire()) {
+    messageBox("Sensors busy - try again", NAN);
+    return;
+  }
   float value = sensors.calibrateHe_100();
   if (!isnan(value) && value > 0.0f) {
     config.setHeCalibration100(value);
@@ -59,21 +73,37 @@ void action_calibrate_he(lv_event_t * e) {
     logUi("He calibration failed", UiLogLevel::Error);
     messageBox("He Cal Failed", value);
   }
+  sensorAccess.release();
 }
 
 void action_reset_o2_21(lv_event_t * e) {
+  if (!sensorAccess.acquire()) {
+    messageBox("Sensors busy - try again", NAN);
+    return;
+  }
   log_i("Resetting O2 21 calibration");
   config.setO2Calibration21(config.O2_CALIBRATION_21_DEFAULT);
+  sensorAccess.release();
 }
 
 void action_reset_o2_100(lv_event_t * e) {
+  if (!sensorAccess.acquire()) {
+    messageBox("Sensors busy - try again", NAN);
+    return;
+  }
   log_i("Resetting O2 100 calibration");
   config.setO2Calibration100(config.O2_CALIBRATION_100_DEFAULT);
+  sensorAccess.release();
 }
 
 void action_reset_he(lv_event_t * e) {
+  if (!sensorAccess.acquire()) {
+    messageBox("Sensors busy - try again", NAN);
+    return;
+  }
   log_i("Resetting He calibration");
   config.setHeCalibration100(config.HE_CALIBRATION_100_DEFAULT);
+  sensorAccess.release();
 }
 
 void action_open_config(lv_event_t * e) {
@@ -82,6 +112,11 @@ void action_open_config(lv_event_t * e) {
 }
 
 void action_close_config(lv_event_t * e) {
+  if (!sensorAccess.acquire()) {
+    configOpen = false;
+    messageBox("Settings not applied - try again", NAN);
+    return;
+  }
   log_i("Closing config");
   config.setO2Enabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED).getBoolean());
   config.setCOEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED).getBoolean());
@@ -96,7 +131,11 @@ void action_close_config(lv_event_t * e) {
   digitalWrite(PIN_HE_ENABLE, config.getHeEnabled());
   digitalWrite(PIN_CO_ENABLE, config.getCOEnabled());
 
+  sensors.setSensorsConfig(config.getO2Enabled(), config.getCOEnabled(), config.getHeEnabled(),
+                           config.getO2Calibration21(), config.getO2Calibration100(), config.getHeCalibration100());
+
   configOpen = false;
+  sensorAccess.release();
 }
 
 const char *get_var_ui_log() {

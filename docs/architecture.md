@@ -14,6 +14,7 @@ Step 2b initializes readings, guards conversions and integer presentation, and r
 Step 2c adds latest-only publication and UI-clock freshness checks without changing task ownership.
 Step 2d uses deadline-polled Adafruit conversions and independent per-device initialization/retry.
 Step 2e carries per-channel state and displays status text in existing reading labels.
+Step 3a serializes existing sensor access as an interim prerequisite for sleep coordination.
 
 | Responsibility | Current implementation |
 | --- | --- |
@@ -22,7 +23,7 @@ Step 2e carries per-channel state and displays status text in existing reading l
 | Reading presentation | `Task_Screen_Update`, core 0, configured 3 KB stack; shared GUI mutex and startup delay |
 | Acquisition | `Task_Sensors`, core 1, configured 3 KB stack; nominal 500 ms schedule |
 | Measurement transport | One-entry overwrite `sensorsData` queue; UI polls without blocking and caches the latest sample |
-| Settings/calibration | UI callbacks can access persistence and calibration; `configOpen` is not exclusive ownership |
+| Settings/calibration | UI callbacks still perform work; `SensorAccess` serializes sensor operations, while `configOpen` is only a scheduling hint |
 | ADC access | Unmodified Adafruit start/poll/result API, 25 ms elapsed deadline, one conversion per normal gas reading |
 | Pure arithmetic | `src/sensors/conversions.h` and `.cpp`; used by sensors and native tests |
 
@@ -81,10 +82,9 @@ Preferences. Successful sampling still follows the existing non-transactional ap
 whole-candidate validation, cancellation, persistence failure handling, and stability gating remain
 planned. A failed cold-boot calibration is not automatically restarted after later ADC recovery.
 
-The existing shared-access race between calibration callbacks and in-flight acquisition is not
-solved by polling deadlines. Readiness is not a replacement for single-owner coordination. That
-coordination is required before sleep and the later ownership milestone; no thread-safety claim is
-made here. Adafruit `begin()` may allocate internally during retry, as in the original library.
+Polling deadlines alone do not solve shared access. Step 3a now serializes the existing calibration,
+acquisition, and configuration-application paths; single-owner command processing remains planned.
+Adafruit `begin()` may allocate internally during retry, as in the original library.
 
 ### Reading validity implemented in step 2b
 
@@ -192,6 +192,52 @@ LVGL MCP was consulted for label/font handling. The installed 9.1 headers confir
 `lv_obj_set_style_text_font`. The advice is not based on newer observer/subject APIs. Target builds
 validate symbol compatibility; on-device fit, navigation, and restoration remain unverified.
 
+## Interim sensor exclusivity implemented in step 3a
+
+`src/sensors/SensorAccess.h` holds one atomic busy flag, acquired with compare/exchange and released
+with release ordering. Only a successful acquirer may release it, exactly once; acquisition is not
+recursive. The class is noncopyable through its atomic member. It does not allocate, queue work,
+identify task owners, or provide priority inheritance. This is a small temporary exclusivity gate,
+not the final single-owner design or a sleep acknowledgement.
+
+Startup initializes hardware before tasks are created. The sensor task holds the gate around its
+startup calibration/configuration and around each acquisition cycle. If the gate is busy, a normal
+cycle is skipped until the next scheduled pass. It releases before reporting task-level logs and
+never takes the GUI mutex while holding access.
+
+The UI calibration/reset callbacks and close-settings callback acquire access before touching the
+protected sensor/configuration operation. Acquisition waits at most 200 ms of elapsed clock time,
+yielding with `delay(1)` between attempts; a busy result is reported with the existing message box.
+This only bounds admission, not the duration of a successful calibration or Preferences write.
+Clock wrap uses unsigned subtraction. Startup waits until it can acquire access; it does not abort
+its one-time initialization merely because an early UI action acquired first.
+
+`configOpen` continues to request skipping new cycles while editing. Opening settings does not
+mean the hardware is idle: each actual sensor operation must acquire the gate independently.
+Closing settings applies accepted Preferences values to sensor power and live sensor configuration
+while exclusive, then clears the pause and releases access. If admission fails, it changes neither
+settings nor power, clears the pause so acquisition can continue after navigation, and reports that
+settings were not applied. A failed attempt must never release another operation's gate.
+
+Reset actions still have their existing semantics and reach live coefficients when settings are
+closed; optional pure-O2 clearing and transactional reset remain step 4 work. The close-settings
+apply now makes enable changes effective without reboot, but no CO warm-up interval is implemented
+yet. Old cached snapshots may briefly precede the first new cycle; generation acknowledgement is
+still planned. No claim of atomic multi-key persistence or global Preferences-reader exclusion.
+
+The current UI holds its GUI mutex while waiting for access and while running calibration. A
+200 ms busy wait can delay rendering, and an accepted calibration can take longer. Sensor task
+progress must not depend on UI rendering or that mutex; the current overwrite queue does not wait
+for the UI. This gate fixes overlap in existing sensor call sites without claiming a responsive
+asynchronous operation framework. Later owner commands should replace this temporary handoff.
+
+Five native gate tests exercise exclusion, rejected attempts retaining ownership, zero-timeout
+behavior, 200 ms expiry across clock wrap, and concurrent updates from two host threads. They do
+not execute FreeRTOS task scheduling or generated callbacks. Callback placement and timeout resume
+are source-reviewed and target-built; device validation of rapid navigation and busy actions remains
+pending. All successful callback paths currently release manually, so new early returns must retain
+the release discipline.
+
 ## Planned ownership
 
 Use two application contexts, not a general application-manager framework:
@@ -273,7 +319,8 @@ deadline. Sensor-specific calibration/stability thresholds require recorded trac
 
 Sleep is step 3, before the full ownership refactor and new UI. Implement just the coordinated
 stop/resume and sensor-power ownership needed to avoid racing in-flight reads; a shared pause flag
-alone is insufficient. Reuse that integration in step 4, rather than creating a temporary framework.
+alone is insufficient. Step 3a adds exclusive access for existing callers, but not sleep preparation
+or owner-driven power-down. Reuse that integration in step 4, rather than creating a temporary framework.
 Expose the timeout through a small handwritten binding to the existing UI until the new export exists.
 
 Default: five minutes; options Off, 1, 2, 5, 10, 30. Missing/invalid timeout uses five minutes.

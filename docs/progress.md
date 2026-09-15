@@ -10,7 +10,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
 | 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
-| 3. Sleep/wake, five-minute default | Not started |
+| 3. Sleep/wake, five-minute default | In progress: 3a interim exclusive sensor access implemented; actual sleep/wake and CO startup interval not yet implemented |
 | 4. Ownership and live settings | Not started |
 | 5. Stability-gated calibration | Not started |
 | 6. Replacement UI | Not started; sample Editor export required |
@@ -270,9 +270,41 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   ADC disconnect/recovery (subject to hidden-I2C-error limitations), stale pause/resume, font recovery,
   and long-running invalid-state display. No assistant upload, flash, OTA, or push performed.
 
+## 2026-09-15: Step 3a, interim exclusive sensor access
+
+- Started from `09b5054`. Added a small atomic gate for existing sensor access, without a new task,
+  transport hierarchy, or general command framework. This is an interim prerequisite, not sleep.
+- Startup calibration/configuration and each acquisition cycle acquire the same gate used by UI
+  calibration/reset and close-settings operations. A failed UI attempt waits at most 200 ms before
+  reporting busy; it does not release another operation's access. Acquisition skips busy cycles.
+- `configOpen` remains a scheduling hint, not evidence of idle hardware. Settings close now applies
+  accepted configuration to live sensors as well as GPIO power before resuming acquisition.
+- Fixed the review-discovered failure path: if close-settings admission times out, clear the pause
+  without applying the draft so navigation does not strand acquisition. Show settings-not-applied.
+- No deep sleep, timeout preference, wake marker, wake GPIO configuration, or three-second CO interval
+  added yet. Calibration still runs synchronously in UI callbacks. Full owner commands and persistence
+  transactions remain later work; the temporary gate must not be mistaken for those guarantees.
+
+### Verification and review
+
+- All 54 native tests pass, including five access tests: exclusion, rejection retaining ownership,
+  zero-timeout, 200 ms expiration across wrap, and two concurrent host threads updating protected data.
+- Both S3 profiles build: debug RAM 159116 bytes, flash 1529265 bytes; release RAM 159116 bytes,
+  flash 1512337 bytes. Against step 2e: unchanged static RAM, debug flash +916 bytes, release +1008.
+- Claude read-only review found the close-settings pause leak on timeout; repaired it. Retained its
+  cautions about UI mutex blocking and resets reaching live state only on close. The gate is not
+  copyable (`std::atomic` deletes copying); no owner-handle framework was added for that false alarm.
+- Moved the host millis/delay implementation to `test/fakes/Arduino.h` so sensor and gate tests use
+  the same clock stand-in. Native-only `-pthread` enables the concurrency test, not firmware threads.
+- Source review confirms setup hardware initialization happens before task creation, sensor task
+  releases before its UI-log reporting, and protected operations do not require GUI-mutex acquisition
+  from the sensor task. The actual callback/FreeRTOS interleavings are not simulated by host tests.
+- Pending hardware: rapid settings open/close during reads, calibration during startup, busy-action
+  recovery, live enable changes, and GUI responsiveness. No push, upload, flash, or OTA performed.
+
 ### Next increment
 
-Step 3 is configurable sleep with five-minute default and GPIO14 wake. First implement only the
-single-owner stop/resume and sensor-power coordination needed for safe sleep; the current
-`configOpen` flag still does not wait for an in-flight read. Keep the larger settings/command
-refactor deferred unless it is necessary for that coordination. Step-2 hardware checks remain open.
+Continue step 3 with owner-driven prepare/resume and sensor power timing, then the persisted
+five-minute inactivity default and GPIO14 wake. Do not enter deep sleep using `configOpen` alone
+or infer an acknowledgement from a failed access attempt. Keep the broader ownership/settings
+refactor scoped to what this feature needs; step-2 device acceptance remains open.

@@ -113,6 +113,9 @@ failure can be detected with the stock library.
 
 ## 3. Add sleep and wake
 
+Progress: step 3a adds interim exclusive access between existing acquisition and UI sensor operations.
+Actual sleep preparation/resume, CO startup timing, inactivity settings, and wake remain pending.
+
 Default timeout: 5 minutes. Options: Off, 1, 2, 5, 10, and 30 minutes; wake on GPIO14/button 2.
 Persist the selected timeout; use 5 minutes when the stored value is missing or invalid.
 Measure touch/button inactivity, not redraws. Inhibit sleep during calibration, pending settings,

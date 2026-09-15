@@ -4,19 +4,10 @@
 #include <cmath>
 #include <cstdint>
 #include "FreeRTOS.h"
+#include "Arduino.h"
 
 using std::abs;
 using std::isnan;
-
-inline unsigned delayCalls = 0;
-inline unsigned delayedMs = 0;
-inline uint32_t nowMs = 0;
-inline uint32_t millis() { return nowMs; }
-inline void delay(unsigned milliseconds) {
-  ++delayCalls;
-  delayedMs += milliseconds;
-  nowMs += milliseconds;
-}
 
 constexpr uint16_t ADS1X15_REG_CONFIG_MUX_DIFF_0_1 = 0x0000;
 constexpr uint16_t ADS1X15_REG_CONFIG_MUX_DIFF_2_3 = 0x3000;
