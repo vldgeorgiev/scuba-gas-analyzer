@@ -74,8 +74,9 @@ distinction between local builds, hosted CI execution, and device validation.
 
 ## 2. Make readings and failures predictable
 
-Progress: normal-reading batch averaging is removed (step 2a). The remaining correctness,
-timeout/recovery, and presentation work below is still pending; see [verification details](progress.md).
+Progress: normal-reading batch averaging is removed (step 2a); initialized readings, conversion
+guards, checked integer presentation, and cycle error reset are implemented (step 2b).
+Timeout/readiness, explicit status, and freshness remain pending; see [verification details](progress.md).
 
 Initialize every measurement field. Distinguish disabled, warming, valid, invalid, and unavailable;
 compute staleness in the UI even when acquisition stops. Never replace unknown values with zero

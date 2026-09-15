@@ -20,6 +20,11 @@ SensorManager sensors(sensorDataQueue);
 
 std::atomic<bool> configOpen;
 
+static eez::Value integerOrUnavailable(float value) {
+  int integer;
+  return conversions::toInt(value, integer) ? IntegerValue(integer) : FloatValue(NAN);
+}
+
 void Task_LVGL(void *pvParameters) {
   displayManager.init();
   displayManager.setBrightness(config.getBrightness());
@@ -50,13 +55,13 @@ void Task_Screen_Update(void *pvParameters) {
     sensorsData data;
     if (xQueueReceive(sensorDataQueue, &data, portMAX_DELAY) == pdPASS) {
       if (xSemaphoreTake(gui_mutex, portMAX_DELAY) == pdTRUE) {
-        int maxDepthBottomO2 = config.getPO2Bottom() / data.O2Level.percentage * 1000 - 10;
-        int maxDepthDecoO2 = config.getPO2Deco() / data.O2Level.percentage * 1000 - 10;
+        const float maxDepthBottomO2 = conversions::maximumOperatingDepth(config.getPO2Bottom(), data.O2Level.percentage);
+        const float maxDepthDecoO2 = conversions::maximumOperatingDepth(config.getPO2Deco(), data.O2Level.percentage);
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_VALUE, FloatValue(data.O2Level.percentage));
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_MILLIVOLTS, FloatValue(data.O2Level.millivolts));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_BOTTOM, IntegerValue(maxDepthBottomO2));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_DECO, IntegerValue(maxDepthDecoO2));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_VALUE, IntegerValue(data.CoLevel.ppm));
+        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_BOTTOM, integerOrUnavailable(maxDepthBottomO2));
+        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_DECO, integerOrUnavailable(maxDepthDecoO2));
+        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_VALUE, integerOrUnavailable(data.CoLevel.ppm));
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_MILLIVOLTS, FloatValue(data.CoLevel.millivolts));
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_VALUE, FloatValue(data.HeLevel.percentage));
         flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_MILLIVOLTS, FloatValue(data.HeLevel.millivolts));
@@ -96,16 +101,18 @@ void Task_Sensors(void *pvParameters) {
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
   uint32_t errorCount = 0;
+  SensorError previousError = SensorError::None;
 
   while (true)
   {
     if (!configOpen) {
       SensorError error = sensors.readSensors();
       if (error != SensorError::None) {
-        errorCount++;
-        // Log error but don't stop - ESP32 should be resilient
-        log_w("Sensor error: %s (count: %lu)", sensors.getErrorString(error), errorCount);
-        logUi(sensors.getErrorString(error), UiLogLevel::Warning);
+        errorCount = error == SensorError::Invalid_Reading ? 0 : errorCount + 1;
+        if (error != previousError) {
+          log_w("Sensor error: %s (count: %lu)", sensors.getErrorString(error), errorCount);
+          logUi(sensors.getErrorString(error), UiLogLevel::Warning);
+        }
 
         // If too many consecutive errors, try to reinitialize
         if (errorCount > 10) {
@@ -116,6 +123,7 @@ void Task_Sensors(void *pvParameters) {
       } else {
         errorCount = 0; // Reset error count on successful read
       }
+      previousError = error;
     }
 
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(500));

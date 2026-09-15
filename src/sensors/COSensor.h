@@ -5,8 +5,8 @@
 #include "conversions.h"
 
 struct COReading {
-  float millivolts;
-  int ppm;
+  float millivolts = NAN;
+  float ppm = NAN;
 };
 
 // Readings are based on the usage of the ZE07-CO sensor, which outputs a voltage between 0.4V and 2V, corresponding to 0 and 500 ppm

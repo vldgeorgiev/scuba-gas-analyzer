@@ -21,7 +21,7 @@ struct sensorsData {
   O2Reading O2Level;
   COReading CoLevel;
   HEReading HeLevel;
-  float HeTemperature;
+  float HeTemperature = NAN;
   SensorError lastError = SensorError::None;
 };
 
@@ -55,9 +55,9 @@ private:
     HESensor _heSensor;
     TempSensor _tempSensor;
 
-    bool _isO2Enabled;
-    bool _isCOEnabled;
-    bool _isHeEnabled;
+    bool _isO2Enabled = false;
+    bool _isCOEnabled = false;
+    bool _isHeEnabled = false;
     float _o2Calibration21 = NAN;
     float _o2Calibration100 = NAN;
     float _heCalibration100 = NAN;

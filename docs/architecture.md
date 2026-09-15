@@ -10,6 +10,7 @@ This document replaces the historical architecture as the active technical refer
 The application still uses the original EEZ UI, sensor classes, and Preferences-backed `Config`.
 Step 1 pins dependencies, adds build/test support, and extracts conversion arithmetic.
 Step 2a removes normal-reading batch averaging; calibration still uses its original sampling.
+Step 2b initializes readings, guards conversions and integer presentation, and resets cycle errors.
 
 | Responsibility | Current implementation |
 | --- | --- |
@@ -29,13 +30,43 @@ The current queue and shared hardware access are known limitations to address, n
 that later changes must preserve.
 
 Normal O2, He, and CO readings no longer allocate average buffers or take 20-conversion batches.
-Temperature remains one conversion. Existing O2 calibration validation can skip a reading entirely.
+Temperature is one conversion only while He is enabled. Existing O2 calibration validation can skip a reading entirely.
 With all channels enabled, a cycle now requests four conversions rather than 61; the theoretical
 conversion time at 128 SPS falls from about 477 ms to 31 ms. Bus overhead, task waits, and UI
 latency are not included. The 500 ms acquisition schedule and UI refresh logic remain unchanged.
 Actual displayed response and increased noise require hardware comparison. O2/He calibration still
 collects five batches of 20 samples and pauses 100 ms after each; `RunningAverage` remains only
 for these local calibration buffers until step 5 replaces them.
+
+### Reading validity implemented in step 2b
+
+Every reading field, including CO ppm and temperature, defaults to `NaN`. Enable flags default to
+false. CO ppm stays a float in the snapshot; only presentation converts a finite in-range result
+to an integer. MOD validates positive finite inputs and the final integer range before conversion.
+The integer range check uses double comparisons to avoid rounding `INT_MAX` up to an unsafe float.
+The existing EEZ globals accept `FloatValue(NAN)` without an implicit cast; their float-to-text
+formatter emits empty text. Generated UI files are untouched.
+
+O2 rejects non-finite inputs, raw values outside its existing 0..100 mV range, air calibration below
+the existing 5 mV minimum, and a present pure-O2 calibration that is non-finite or not above air.
+NaN pure-O2 calibration still means absent. Finite O2 outputs retain their existing 0..100 clamp.
+He requires finite O2 in 0..100, nonnegative corrected input, a positive finite coefficient, and a
+finite representable result. Raw He millivolts are now retained separately from the correction used
+to calculate percentage. This intentionally changes the diagnostic millivolt display at high O2.
+CO rejects negative/non-finite millivolts but retains its existing finite out-of-range formula
+outputs; no new gas-model limits are introduced. Temperature rounding remains unchanged, with
+non-finite/overflow protection.
+
+He enabled without usable O2 reports an invalid derived value while retaining raw He and temperature.
+It no longer silently uses an uncorrected branch. The cycle checks derived validity, starts each
+pass with no error, and treats all-disabled as normal. Invalid readings do not trigger the old
+global ADC reinitialization counter; duplicate task-level UI warnings are suppressed until the
+error changes. Per-sensor debug logs and the historical log indicator are not redesigned here.
+
+The EEZ `co_value > 0` condition controls CO-positive colouring and is false for NaN. An empty
+reading is not a zero-CO result; colour is not an all-clear signal. On-device verification of all
+affected views is pending. Explicit disabled/fault/warming presentation, active-fault tracking,
+and freshness are still planned; a stopped producer can still leave an old numeric reading visible.
 
 ## Planned ownership
 
@@ -140,14 +171,16 @@ Board power-down, GPIO hold/pulls, wake reliability, and actual current require 
 
 ## Verification and boundaries
 
-Native tests compile production conversion arithmetic and the actual sensor headers. Seven characterization tests
-preserve existing outputs, including the current He/NaN fallback and temperature rounding. They do
-not certify those behaviors as correct; step 2 will add explicit tests for intentional fixes.
+Native tests compile production conversion arithmetic, actual sensor headers, and `sensors.cpp`.
+Twelve conversion tests cover valid-output characterization plus NaN/infinity, invalid denominators,
+overflow, integer boundaries, and MOD. The former He/NaN fallback test now requires an unavailable
+result. Temperature rounding and valid gas formulas remain characterized.
 Tolerance is 0.0001 in each function's output units for floating arithmetic, not sensor accuracy.
 
-Seven sensor-read tests check one conversion per normal read, channel selection, response to the
-next input, existing polarity/correction behavior, and unchanged calibration counts/pauses.
-Small public-API stand-ins for Adafruit, logging, and calibration averaging live under `test/fakes`.
+Fourteen sensor/cycle tests check one conversion per normal read, channel selection, response to the
+next input, raw diagnostics, default snapshots, invalid-to-valid recovery, all-disabled and He-only
+configurations, temperature gating, and unchanged calibration counts/pauses.
+Small public-API stand-ins for Adafruit, a copying queue, logging, and calibration averaging live under `test/fakes`.
 The averaging stand-in only supports filling a fixed batch, not library ring-buffer behavior.
 Both `-I` and `-iquote` paths are native-only; the latter selects the logging stand-in before the
 real ESP32 header. Target builds use the real libraries. Host tests do not simulate conversion

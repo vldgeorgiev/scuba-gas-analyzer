@@ -8,6 +8,8 @@ float heCorrectedMillivolts(float millivolts, float o2Percentage);
 float hePercentage(float millivolts, float calibration100);
 float coPpm(float millivolts);
 float temperatureCelsius(float millivolts);
+float maximumOperatingDepth(float po2, float o2Percentage);
+bool toInt(float value, int& result);
 
 }
 

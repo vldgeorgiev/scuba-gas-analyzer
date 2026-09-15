@@ -1,5 +1,6 @@
 #include <unity.h>
 #include <cmath>
+#include <limits>
 
 #include "sensors/conversions.h"
 
@@ -17,7 +18,7 @@ void test_o2_two_point_and_clamp() {
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 20.9f, conversions::o2Percentage(10, 10, 50));
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 60.45f, conversions::o2Percentage(30, 10, 50));
   TEST_ASSERT_EQUAL_FLOAT(100, conversions::o2Percentage(60, 10, 50));
-  TEST_ASSERT_EQUAL_FLOAT(0, conversions::o2Percentage(-10, 10, NAN));
+  TEST_ASSERT_EQUAL_FLOAT(0, conversions::o2Percentage(0, 10, NAN));
 }
 
 void test_he_correction_boundaries() {
@@ -34,8 +35,12 @@ void test_he_correction_boundaries() {
   }
 }
 
-void test_he_current_missing_o2_behavior() {
-  TEST_ASSERT_EQUAL_FLOAT(100, conversions::heCorrectedMillivolts(100, NAN));
+void test_he_requires_usable_o2() {
+  TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, NAN)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, INFINITY)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, -1)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, 101)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(10, 100)));
 }
 
 void test_he_polynomial_and_calibration_scale() {
@@ -59,14 +64,89 @@ void test_temperature_current_rounding() {
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, -1.01f, conversions::temperatureCelsius(-10.06f));
 }
 
+void test_o2_rejects_invalid_readings_and_calibrations() {
+  TEST_ASSERT_FLOAT_WITHIN(kTolerance, 20.9f, conversions::o2Percentage(5, 5, NAN));
+  TEST_ASSERT_EQUAL_FLOAT(100, conversions::o2Percentage(100, 10, NAN));
+  const float invalidInputs[] = {NAN, INFINITY, -INFINITY, -1, 101};
+  for (float value : invalidInputs) {
+    TEST_ASSERT_TRUE(std::isnan(conversions::o2Percentage(value, 10, NAN)));
+  }
+  const float invalidAir[] = {NAN, INFINITY, -INFINITY, -1, 0, 4.9f};
+  for (float value : invalidAir) {
+    TEST_ASSERT_TRUE(std::isnan(conversions::o2Percentage(10, value, NAN)));
+  }
+  const float invalidPure[] = {INFINITY, -INFINITY, -1, 0, 10};
+  for (float value : invalidPure) {
+    TEST_ASSERT_TRUE(std::isnan(conversions::o2Percentage(10, 10, value)));
+  }
+}
+
+void test_he_rejects_invalid_denominators_and_overflow() {
+  const float invalid[] = {NAN, INFINITY, -INFINITY, -1, 0};
+  for (float value : invalid) {
+    TEST_ASSERT_TRUE(std::isnan(conversions::hePercentage(100, value)));
+  }
+  TEST_ASSERT_TRUE(std::isnan(conversions::hePercentage(INFINITY, 621.2f)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::hePercentage(-1, 621.2f)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::hePercentage(
+      std::numeric_limits<float>::max(), std::numeric_limits<float>::min())));
+}
+
+void test_co_and_temperature_reject_non_finite_inputs() {
+  const float invalid[] = {NAN, INFINITY, -INFINITY};
+  for (float value : invalid) {
+    TEST_ASSERT_TRUE(std::isnan(conversions::coPpm(value)));
+    TEST_ASSERT_TRUE(std::isnan(conversions::temperatureCelsius(value)));
+  }
+  TEST_ASSERT_TRUE(std::isnan(conversions::coPpm(-1)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::temperatureCelsius(std::numeric_limits<float>::max())));
+}
+
+void test_integer_conversion_checks_range_before_casting() {
+  int result = 123;
+  const float invalid[] = {NAN, INFINITY, -INFINITY, std::numeric_limits<float>::max(),
+                          static_cast<float>(std::numeric_limits<int>::max())};
+  for (float value : invalid) {
+    TEST_ASSERT_FALSE(conversions::toInt(value, result));
+    TEST_ASSERT_EQUAL_INT(123, result);
+  }
+  TEST_ASSERT_TRUE(conversions::toInt(25.9f, result));
+  TEST_ASSERT_EQUAL_INT(25, result);
+  TEST_ASSERT_TRUE(conversions::toInt(-25.9f, result));
+  TEST_ASSERT_EQUAL_INT(-25, result);
+  TEST_ASSERT_TRUE(conversions::toInt(static_cast<float>(std::numeric_limits<int>::min()), result));
+  TEST_ASSERT_EQUAL_INT(std::numeric_limits<int>::min(), result);
+  const float largest = std::nextafter(static_cast<float>(std::numeric_limits<int>::max()), 0.0f);
+  TEST_ASSERT_TRUE(conversions::toInt(largest, result));
+  TEST_ASSERT_EQUAL_INT(2147483520, result);
+}
+
+void test_mod_requires_positive_finite_inputs() {
+  TEST_ASSERT_FLOAT_WITHIN(kTolerance, 33.75f, conversions::maximumOperatingDepth(1.4f, 32));
+  const float invalid[] = {NAN, INFINITY, -INFINITY, 0, -1};
+  for (float value : invalid) {
+    TEST_ASSERT_TRUE(std::isnan(conversions::maximumOperatingDepth(1.4f, value)));
+    TEST_ASSERT_TRUE(std::isnan(conversions::maximumOperatingDepth(value, 32)));
+  }
+  TEST_ASSERT_TRUE(std::isnan(conversions::maximumOperatingDepth(1.4f, 101)));
+  int depth;
+  TEST_ASSERT_FALSE(conversions::toInt(
+      conversions::maximumOperatingDepth(1.4f, std::numeric_limits<float>::min()), depth));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_o2_air_only);
   RUN_TEST(test_o2_two_point_and_clamp);
   RUN_TEST(test_he_correction_boundaries);
-  RUN_TEST(test_he_current_missing_o2_behavior);
+  RUN_TEST(test_he_requires_usable_o2);
   RUN_TEST(test_he_polynomial_and_calibration_scale);
   RUN_TEST(test_co_endpoints_and_unclamped_values);
   RUN_TEST(test_temperature_current_rounding);
+  RUN_TEST(test_o2_rejects_invalid_readings_and_calibrations);
+  RUN_TEST(test_he_rejects_invalid_denominators_and_overflow);
+  RUN_TEST(test_co_and_temperature_reject_non_finite_inputs);
+  RUN_TEST(test_integer_conversion_checks_range_before_casting);
+  RUN_TEST(test_mod_requires_positive_finite_inputs);
   return UNITY_END();
 }

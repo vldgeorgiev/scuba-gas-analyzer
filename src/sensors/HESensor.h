@@ -7,8 +7,8 @@
 #include "conversions.h"
 
 struct HEReading {
-  float millivolts;
-  float percentage;
+  float millivolts = NAN;
+  float percentage = NAN;
 };;
 
 class HESensor {
@@ -26,7 +26,7 @@ public:
 
     // In case of high oxygen percentage, the He sensor also reads higher voltage. E.g. for 100, the He voltage is 4-5mv higher
     // Values based on the code here, which comes from the original French presentation https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564/page-4#post-9084208
-    reading.millivolts = conversions::heCorrectedMillivolts(reading.millivolts, o2Percentage);
+    const float correctedMillivolts = conversions::heCorrectedMillivolts(reading.millivolts, o2Percentage);
 
     // ================ Sensor calibration ===================
     // The sensor is not linear, so the reading has to be corrected. The polynomial formula below is derived from multiple readings
@@ -55,7 +55,7 @@ public:
     // 597.5,   99.9,     95.2
     // 624.25,  104.4,    100.5
 
-    reading.percentage = conversions::hePercentage(reading.millivolts, _calibration100);
+    reading.percentage = conversions::hePercentage(correctedMillivolts, _calibration100);
 
     return reading;
   }

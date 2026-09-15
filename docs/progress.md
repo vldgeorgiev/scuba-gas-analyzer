@@ -9,7 +9,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | Step | Status |
 | --- | --- |
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
-| 2. Measurement handling and averaging removal | In progress: normal-reading averaging removed and locally verified; initialization, guards, timeout/recovery, and freshness still pending |
+| 2. Measurement handling and averaging removal | In progress: averaging removal, initialized readings, validity guards and checked integer presentation verified; timeout/readiness, explicit statuses and freshness pending |
 | 3. Sleep/wake, five-minute default | Not started |
 | 4. Ownership and live settings | Not started |
 | 5. Stability-gated calibration | Not started |
@@ -123,8 +123,42 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Native include-order issue resolved by using a quoted-include path for the logging stand-in;
   embedded builds never use these stand-ins.
 
+## 2026-09-15: Step 2b, initialized readings and conversion validity
+
+- Started from local step-2a commit `55bb3bd`. No pushes, uploads, or flashes.
+- Default-initialized all reading fields to NaN and enable flags to false. CO ppm is now float
+  until checked integer presentation; invalid/disabled CO cannot originate an uninitialized integer.
+- Guarded O2/He inputs, denominators and results; added finite/range-checked integer conversion and
+  guarded MOD. Preserved finite valid formulas, existing O2 clamping, finite unclamped CO results,
+  and temperature rounding. NaN remains the existing optional pure-O2 calibration sentinel.
+- Kept raw He millivolts even when derivation fails; high-O2 diagnostics now show raw rather than
+  corrected mV. He requires usable O2 and no longer silently uses an uncorrected result when O2 is off.
+- Reset errors at the start of each cycle, detect invalid derived values, treat all-disabled as
+  normal, and sample temperature only for enabled He. Invalid readings no longer trigger the old
+  global ADC reinitialization loop. Task-level duplicate UI warnings are suppressed.
+- Extended the native source allowlist to include the real SensorManager cycle with minimal queue
+  and ADC stand-ins. Corrected constructor initialization order exposed by host compiler warnings.
+
+### Verification and review
+
+- All 26 native tests pass: 12 conversion and 14 sensor/cycle tests. Added NaN/infinity, invalid
+  calibration, overflow, integer boundaries, raw-data preservation, complete snapshot defaults,
+  invalid-to-valid recovery, all-disabled/He-only, and temperature-gating coverage.
+- Both target builds pass with real libraries: debug RAM 159036 bytes, flash 1517557 bytes;
+  release RAM 159036 bytes, flash 1500197 bytes. Relative to step 2a: unchanged static RAM,
+  debug flash +768 bytes, release flash +880 bytes.
+- Consulted installed Claude in a fresh read-only session. Accepted the missing cycle-test finding,
+  prevented invalid data from causing recovery loops, added numerical-boundary tests and explicit
+  math includes. Kept the agreed He/O2 validity requirement instead of restoring the unsafe fallback.
+- Inspected EEZ source: global assignment retains the Value type; NaN float formatting emits empty
+  text. The CO-positive colour condition is false for NaN, so no colour should be interpreted as
+  proof of safe CO. Generated UI and LVGL APIs were not changed. Hardware view checks remain pending.
+- Runtime correctness is not fully established: stale producer handling, separate disabled/fault
+  statuses, bounded ADC reads, independent device recovery, active-fault tracking, and calibration
+  transactions remain later work. The existing blocking driver and shared hardware access remain.
+
 ### Next increment
 
-Continue step 2 with initialized fields, explicit usable/unusable readings, and guarded derived
-values; then bounded stock-Adafruit acquisition, independent readiness, and latest/stale publication.
-Keep each slice tested and locally committed, and preserve the current simple sensor structure.
+Continue step 2 with bounded stock-Adafruit acquisition, independent readiness/recovery, and
+latest/stale publication with explicit status. Preserve the simple sensor structure and commit
+tested slices locally. Do not start sleep before the measurement prerequisites are in place.

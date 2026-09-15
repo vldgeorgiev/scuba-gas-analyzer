@@ -4,15 +4,16 @@
 #include "HESensor.h"
 #include "TempSensor.h"
 #include "pin_config.h"
+#include <cmath>
 
 SensorManager::SensorManager(QueueHandle_t& dataQueue) :
   _adc1(),
   _adc2(),
+  _dataQueue(dataQueue),
   _o2Sensor(_adc1),
-  _heSensor(_adc2), // He sensor is on the same ADC as CO and Temp, but uses different channels
   _coSensor(ADC2_CHANNEL_CO, _adc2),
-  _tempSensor(ADC2_CHANNEL_TEMP, _adc2),
-  _dataQueue(dataQueue)
+  _heSensor(_adc2), // He sensor is on the same ADC as CO and Temp, but uses different channels
+  _tempSensor(ADC2_CHANNEL_TEMP, _adc2)
 {}
 
 SensorError SensorManager::init() {
@@ -53,16 +54,9 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
 
 SensorError SensorManager::readSensors() {
   sensorsData data;
-  data.O2Level.millivolts = NAN;
-  data.O2Level.percentage = NAN;
-  data.CoLevel.millivolts = NAN;
-  data.HeLevel.millivolts = NAN;
-  data.HeLevel.percentage = NAN;
-  data.lastError = SensorError::None;
+  _lastError = SensorError::None;
 
   if (!_isO2Enabled && !_isCOEnabled && !_isHeEnabled) {
-    _lastError = SensorError::Sensor_Not_Enabled;
-    data.lastError = _lastError;
     xQueueSend(_dataQueue, &data, portMAX_DELAY);
     return _lastError;
   }
@@ -70,7 +64,7 @@ SensorError SensorManager::readSensors() {
   // Read sensors with basic validation
   if (_isO2Enabled) {
     data.O2Level = _o2Sensor.readLevel();
-    if (isnan(data.O2Level.millivolts) || data.O2Level.millivolts < 0) {
+    if (!std::isfinite(data.O2Level.percentage)) {
       log_w("Invalid O2 reading: %.2f mV", data.O2Level.millivolts);
       _lastError = SensorError::Invalid_Reading;
     }
@@ -78,7 +72,7 @@ SensorError SensorManager::readSensors() {
 
   if (_isCOEnabled) {
     data.CoLevel = _coSensor.readLevel();
-    if (isnan(data.CoLevel.millivolts) || data.CoLevel.millivolts < 0) {
+    if (!std::isfinite(data.CoLevel.ppm)) {
       log_w("Invalid CO reading: %.2f mV", data.CoLevel.millivolts);
       _lastError = SensorError::Invalid_Reading;
     }
@@ -86,13 +80,18 @@ SensorError SensorManager::readSensors() {
 
   if (_isHeEnabled) {
     data.HeLevel = _heSensor.readLevel(data.O2Level.percentage);
-    if (isnan(data.HeLevel.millivolts) || data.HeLevel.millivolts < 0) {
+    if (!std::isfinite(data.HeLevel.percentage)) {
       log_w("Invalid He reading: %.2f mV", data.HeLevel.millivolts);
       _lastError = SensorError::Invalid_Reading;
     }
   }
 
-  data.HeTemperature = _tempSensor.readLevel();
+  if (_isHeEnabled) {
+    data.HeTemperature = _tempSensor.readLevel();
+    if (!std::isfinite(data.HeTemperature)) {
+      _lastError = SensorError::Invalid_Reading;
+    }
+  }
   data.lastError = _lastError;
 
   xQueueSend(_dataQueue, &data, portMAX_DELAY);

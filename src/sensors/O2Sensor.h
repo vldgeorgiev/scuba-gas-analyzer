@@ -3,12 +3,13 @@
 
 #include <Adafruit_ADS1X15.h>
 #include <RunningAverage.h>
+#include <cmath>
 #include "ui-log.h"
 #include "conversions.h"
 
 struct O2Reading {
-  float millivolts;
-  float percentage;
+  float millivolts = NAN;
+  float percentage = NAN;
 };;
 
 class O2Sensor {
@@ -17,7 +18,7 @@ public:
 
   void setCalibrations(float calibration21, float calibration100) {
     // The 100% may not be defined, but the 21% must always be valid
-    if (calibration21 <= MIN_VALID_O2_MV_21)
+    if (!std::isfinite(calibration21) || calibration21 < MIN_VALID_O2_MV_21)
       log_e("Invalid O2 air calibration %.2f mv", calibration21);
 
     if (!isnan(calibration100) && (calibration100 <= calibration21)) {
@@ -31,11 +32,9 @@ public:
 
   O2Reading readLevel() {
     O2Reading reading;
-    reading.millivolts = NAN;
-    reading.percentage = NAN;
 
     // Validate calibration before reading
-    if (isnan(_calibration21) || _calibration21 < MIN_VALID_O2_MV_21) {
+    if (!std::isfinite(_calibration21) || _calibration21 < MIN_VALID_O2_MV_21) {
       log_e("Invalid O2 calibration: %.2f mV", _calibration21);
       return reading;
     }
