@@ -1,0 +1,22 @@
+<component>
+	<api>
+		<prop name="label" type="string" default="Reading" />
+		<prop name="subject" type="subject" />
+		<prop name="secondary_subject" type="subject" />
+		<prop name="grow" type="int" default="0" />
+	</api>
+
+	<view
+		extends="column"
+		width="0"
+		height="100%"
+		grow="$grow"
+		gap="#space_sm"
+		horizontal_align="center"
+		vertical_align="center"
+	>
+		<h5 text="$label" />
+		<lv_label width="100%" long_mode="dots" bind_text="$subject" style_text_align="center" />
+		<lv_label width="100%" long_mode="dots" bind_text="$secondary_subject" style_text_align="center" />
+	</view>
+</component>

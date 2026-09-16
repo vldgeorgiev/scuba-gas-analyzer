@@ -1,0 +1,20 @@
+<screen>
+	<view extends="lv_obj" scrollable="false" clickable="true" style_pad_all="0">
+		<screen_load_event screen="mainscr" trigger="clicked" />
+		<column width="100%" height="100%" pad="#space_sm" gap="#space_sm" event_bubble="true">
+			<row name="large_o2_row" width="100%" height="56" gap="#space_md" vertical_align="center" event_bubble="true">
+				<h4 text="O2" width="48" />
+				<h1 name="large_o2_value" text="" bind_text="main_o2_text" width="0" flex_grow="1" long_mode="dots" />
+			</row>
+			<row name="large_he_row" width="100%" height="56" gap="#space_md" vertical_align="center" event_bubble="true">
+				<h4 text="He" width="48" />
+				<h1 name="large_he_value" text="" bind_text="main_he_text" width="0" flex_grow="1" long_mode="dots" />
+			</row>
+			<row name="large_status" width="100%" height="40" gap="#space_md" vertical_align="center" event_bubble="true">
+				<text text="CO" />
+				<lv_label name="large_co_value" bind_text="main_co_text" style_text_font="font_body" />
+				<lv_label name="large_reading_status" bind_text="main_status_text" width="0" flex_grow="1" long_mode="dots" style_text_font="font_body" />
+			</row>
+		</column>
+	</view>
+</screen>

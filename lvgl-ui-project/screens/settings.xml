@@ -1,0 +1,68 @@
+<screen>
+	<view extends="lv_obj" scrollable="false" style_pad_all="0">
+		<row width="100%" height="100%">
+			<button name="settings_back" text="" icon="icon_arrow_left">
+				<screen_load_event screen="mainscr" trigger="clicked" />
+			</button>
+			<column name="settings_list" grow="1" height="100%" pad="#space_md" gap="#space_md" scrollable="true">
+				<row name="o2_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="O2" />
+					<switch name="o2_enabled" subject="settings_o2_enabled" ext_click_area="#space_sm" />
+				</row>
+				<row name="he_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="He" />
+					<switch name="he_enabled" subject="settings_he_enabled" ext_click_area="#space_sm" />
+				</row>
+				<row name="co_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="CO" />
+					<switch name="co_enabled" subject="settings_co_enabled" ext_click_area="#space_sm" />
+				</row>
+				<row name="po2_bottom_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="Bottom pO2" />
+					<dropdown
+						name="po2_bottom"
+						width="104"
+						style_pad_ver="#space_sm"
+						options="1.00&#10;1.10&#10;1.20&#10;1.30&#10;1.40&#10;1.50&#10;1.60"
+						selected="4"
+						subject="settings_po2_bottom_index"
+					/>
+				</row>
+				<row name="po2_deco_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="Deco pO2" />
+					<dropdown
+						name="po2_deco"
+						width="104"
+						style_pad_ver="#space_sm"
+						options="1.00&#10;1.10&#10;1.20&#10;1.30&#10;1.40&#10;1.50&#10;1.60&#10;1.70&#10;1.80&#10;1.90&#10;2.00"
+						selected="6"
+						subject="settings_po2_deco_index"
+					/>
+				</row>
+				<row name="brightness_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="Brightness" />
+					<slider
+						name="brightness"
+						subject="settings_brightness"
+						min="8"
+						max="255"
+						width="112"
+						ext_click_area="#space_lg"
+					/>
+				</row>
+				<row name="sleep_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="Sleep" />
+					<dropdown
+						name="sleep_timeout"
+						width="112"
+						style_pad_ver="#space_sm"
+						options="Never&#10;1 min&#10;2 min&#10;5 min&#10;10 min&#10;30 min"
+						selected="3"
+						subject="settings_sleep_index"
+					/>
+				</row>
+				<button name="open_updates" text="Firmware update" icon="icon_chevron_right" width="100%" />
+			</column>
+		</row>
+	</view>
+</screen>
