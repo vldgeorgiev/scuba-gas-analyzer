@@ -230,22 +230,36 @@ ADC rate or adding another task.
   plain action dialogs. These do not replace the planned graph/cancellation backend work.
 - [x] Test real LVGL initialization/rendering, navigation, settings rejection and lifetime, sensor
   status formatting, and all existing portable behavior. Compile debug and release firmware.
-- [ ] Re-export the renamed logo object in the Editor and verify a clean regeneration/build.
+- [x] Re-export the renamed logo object in the Editor and verify direct-library builds and host tests.
 - [ ] Verify physical touch, layout, warning readability, Settings save/reboot, brightness, dialogs,
   keyboard, OTA access, heap/stack headroom, and sleep/wake on the device.
-- [ ] Finish Editor calibration/update/diagnostic screens and stability-gated calibration (step 5).
+- [x] Prepare component-based `calibration.xml`, `firmware_update.xml`, and `diagnostics.xml`.
+- [ ] Export and verify the new screens, then wire their controls and replace the action dialogs.
+- [ ] Finish calibration graph/progress/cancellation UI and stability-gated calibration (step 5).
 - [x] Delete the retired EEZ project, generated runtime/assets, unused widget test fakes, and
   obsolete PlatformIO exclusions. Git history retains the previous implementation.
 
-Build integration uses `scripts/build_exported_ui.py`, not a second UI source tree under `lib`.
-It stages only C/H sources under `.pio/build/<environment>/exported-ui-source`, removing stale
-staged files and excluding simulator/preview/tests. A narrow compatibility rewrite corrects the
-current export's logo local-variable/asset-name collision in the build copy only. The XML object
-is renamed `logo_image`; after re-export the rewrite is a no-op. No checked-in generated C is edited.
+Build integration uses `lvgl-ui-project/library.json` and a local
+`gas-analyzer-ui=symlink://lvgl-ui-project` dependency. PlatformIO compiles exported sources directly,
+excluding simulator/preview/tests. The Python build hook, staging, and logo workaround are removed
+after a fresh Editor export. No checked-in generated C is manually edited. The library enables
+uninitialized-variable build errors to catch regressions such as the former logo-name collision.
 Firmware callbacks replace generated navigation listeners after initialization, retaining their
 delete-time cleanup callbacks. This handles permanent-screen creation order and avoids capturing
 a NULL destination. Keep styles deferred; only safety status presentation and required layout
 behavior are adjusted during integration.
+
+Prepared action screens use a fixed Back button beside a scrolling column, global spacing tokens,
+and existing components without new styles. Calibration exposes the startup preference, all six
+calibration/reset actions, a result label, and Diagnostics navigation. Firmware Update exposes
+network selection, scan, a masked password field and keyboard, connection status, and Install.
+Its keyboard takes layout space rather than covering the password; other form controls hide while
+editing. Install starts disabled until the future adapter sets `update_can_install`.
+Diagnostics shows the shared main status and a wrapping `diagnostics_log_text` subject.
+These new subjects are preview-only until wired. In particular, `update_back` intentionally has
+no screen-create event: integration must return to the existing Settings draft without recreating it.
+The current firmware still uses action dialogs. XML syntax/reference checks are not a substitute
+for a fresh Editor export, rendering, and keyboard/navigation tests.
 
 Bind the user's actual Editor export through a thin adapter. Preserve normal/large readings, MOD,
 channel settings, calibration/reset, startup calibration preference, brightness, battery, logs,

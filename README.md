@@ -24,6 +24,10 @@ The active UI is in [lvgl-ui-project](lvgl-ui-project/README.md). Export changes
 building; PlatformIO compiles exported C, fonts, and images, not XML. Application bindings live in
 [UiAdapter.cpp](src/display/UiAdapter.cpp), outside generated files. Only the LVGL Editor export is used.
 
+PlatformIO links the export directly via `gas-analyzer-ui=symlink://lvgl-ui-project`.
+[library.json](lvgl-ui-project/library.json) selects the source directories and declares the LVGL
+dependency. No Python build hook, staging copy, or generated-source rewriting is used.
+
 ```sh
 pio run -e t-display-s3
 pio run -e t-display-s3-release

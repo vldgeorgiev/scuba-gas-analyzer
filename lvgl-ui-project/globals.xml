@@ -144,6 +144,13 @@
 		<string name="main_mod_bottom_text" value="B 57 m" help="Bottom pO2 MOD" />
 		<string name="main_mod_deco_text" value="D 67 m" help="Deco pO2 MOD" />
 		<string name="main_battery_text" value="4.10 V" />
+		<int name="calibration_on_start" value="1" min_value="0" max_value="1" />
+		<string name="calibration_result_text" value="Not calibrated" />
+		<int name="update_network_index" value="0" />
+		<int name="update_keyboard_visible" value="0" min_value="0" max_value="1" />
+		<int name="update_can_install" value="0" min_value="0" max_value="1" />
+		<string name="update_status_text" value="Not connected" />
+		<string name="diagnostics_log_text" value="No log entries" />
 	</subjects>
 
 	<images>

@@ -2,6 +2,7 @@
 #include "UiPresentation.h"
 #include "lvgl_ui_project.h"
 #include "main.h"
+#include "ui_actions.h"
 #include "ui-log.h"
 #include "app/SleepPolicy.h"
 #include <cstring>
@@ -9,6 +10,9 @@
 namespace ui {
 namespace {
 lv_obj_t* settingsScreen = nullptr;
+lv_obj_t* calibrationScreen = nullptr;
+lv_obj_t* updateScreen = nullptr;
+lv_obj_t* diagnosticsScreen = nullptr;
 
 void copyText(lv_subject_t* subject, const char* text) {
   if (std::strcmp(lv_subject_get_string(subject), text) != 0) lv_subject_copy_string(subject, text);
@@ -28,7 +32,7 @@ void bindClick(lv_obj_t* object, lv_event_cb_t callback) {
 
 void switchReadings(lv_event_t* event) {
   lv_event_stop_bubbling(event);
-  lv_screen_load(lv_screen_active() == mainscr ? largscr : mainscr);
+  lv_screen_load(lv_screen_active() == mainscr ? largescr : mainscr);
   displayManager.resetInactivity();
 }
 
@@ -46,6 +50,29 @@ void closeSettings(lv_event_t*) {
 
 void previewBrightness(lv_event_t*) {
   displayManager.setBrightness(static_cast<uint8_t>(lv_subject_get_int(&settings_brightness)));
+}
+
+void closeCalibration(lv_event_t*) {
+  calibrationScreen = nullptr;
+  lv_screen_load_anim(mainscr, LV_SCREEN_LOAD_ANIM_NONE, 0, 0, true);
+}
+
+void changeStartupCalibration(lv_event_t*) {
+  app::Command command;
+  command.settings = uiSettings();
+  command.settings.calibrateOnStart = lv_subject_get_int(&calibration_on_start) != 0;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - preference not saved", NAN);
+  lv_subject_set_int(&calibration_on_start, uiSettings().calibrateOnStart);
+}
+
+void closeUpdates(lv_event_t*) {
+  updateScreen = nullptr;
+  lv_screen_load_anim(settingsScreen ? settingsScreen : mainscr, LV_SCREEN_LOAD_ANIM_NONE, 0, 0, true);
+}
+
+void closeDiagnostics(lv_event_t*) {
+  diagnosticsScreen = nullptr;
+  lv_screen_load_anim(calibrationScreen ? calibrationScreen : mainscr, LV_SCREEN_LOAD_ANIM_NONE, 0, 0, true);
 }
 
 void openSettings(lv_event_t*) {
@@ -86,7 +113,7 @@ void init() {
   lvgl_ui_project_set_target(LVGL_UI_PROJECT_TARGET_TARGET1);
   lvgl_ui_project_init("");
   bindClick(mainscr, switchReadings);
-  bindClick(largscr, switchReadings);
+  bindClick(largescr, switchReadings);
   bindClick(lv_obj_find_by_name(mainscr, "open_settings"), openSettings);
   bindClick(lv_obj_find_by_name(mainscr, "open_calibration"), openCalibration);
   presentReadings(sensorsData{}, AnalyzerSettings{});
@@ -104,6 +131,58 @@ void syncSettings(const AnalyzerSettings& settings) {
   lv_subject_set_int(&settings_po2_deco_index, po2Selection(settings.po2Deco));
   lv_subject_set_int(&settings_brightness, settings.brightness);
   lv_subject_set_int(&settings_sleep_index, app::sleepSelectionForMinutes(settings.sleepMinutes));
+}
+
+void syncActionSettings(const AnalyzerSettings& settings) {
+  lv_subject_set_int(&calibration_on_start, settings.calibrateOnStart);
+}
+
+void openCalibration(lv_event_t*) {
+  if (calibrationScreen) return;
+  syncActionSettings(uiSettings());
+  calibrationScreen = calibration_create();
+  if (!calibrationScreen) {
+    messageBox("Could not open calibration", NAN);
+    return;
+  }
+  bindClick(lv_obj_find_by_name(calibrationScreen, "calibration_back"), closeCalibration);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_air"), action_calibrate_o2_21);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_o2"), action_calibrate_o2_100);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_he"), action_calibrate_he);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "clear_o2"), action_reset_o2_100);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "open_diagnostics"), openLogs);
+  lv_obj_t* startup = lv_obj_find_by_name(calibrationScreen, "startup_calibration");
+  if (startup) lv_obj_add_event_cb(startup, changeStartupCalibration, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_screen_load(calibrationScreen);
+}
+
+void openUpdates(lv_event_t*) {
+  if (updateScreen) return;
+  lv_subject_set_int(&update_can_install, 0);
+  lv_subject_set_int(&update_keyboard_visible, 0);
+  copyText(&update_status_text, "Not connected");
+  updateScreen = firmware_update_create();
+  if (!updateScreen) {
+    messageBox("Could not open firmware update", NAN);
+    return;
+  }
+  bindClick(lv_obj_find_by_name(updateScreen, "update_back"), closeUpdates);
+  bindClick(lv_obj_find_by_name(updateScreen, "scan_wifi"), action_list_wifi);
+  bindClick(lv_obj_find_by_name(updateScreen, "install_firmware"), action_update_firmware);
+  lv_screen_load(updateScreen);
+}
+
+void openLogs(lv_event_t*) {
+  if (diagnosticsScreen) return;
+  const char* log = UiLog::getInstance().getLogAsCString();
+  copyText(&diagnostics_log_text, log && *log ? log : "No log entries");
+  diagnosticsScreen = diagnostics_create();
+  if (!diagnosticsScreen) {
+    messageBox("Could not open diagnostics", NAN);
+    return;
+  }
+  bindClick(lv_obj_find_by_name(diagnosticsScreen, "diagnostics_back"), closeDiagnostics);
+  lv_screen_load(diagnosticsScreen);
 }
 
 bool readSettings(AnalyzerSettings& settings) {
@@ -135,8 +214,8 @@ void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) 
   copyText(&main_mod_bottom_text, text);
   formatMod(text, sizeof(text), "D", settings.po2Deco, data.O2Level.percentage, oxygen);
   copyText(&main_mod_deco_text, text);
-  lv_obj_t* oxygenLabel = lv_obj_find_by_name(largscr, "large_o2_value");
-  lv_obj_t* heliumLabel = lv_obj_find_by_name(largscr, "large_he_value");
+  lv_obj_t* oxygenLabel = lv_obj_find_by_name(largescr, "large_o2_value");
+  lv_obj_t* heliumLabel = lv_obj_find_by_name(largescr, "large_he_value");
   if (oxygenLabel) lv_obj_set_style_text_font(oxygenLabel, oxygen == ChannelState::Valid ? font_h1 : font_body, 0);
   if (heliumLabel) lv_obj_set_style_text_font(heliumLabel, helium == ChannelState::Valid ? font_h1 : font_body, 0);
 }
@@ -160,7 +239,7 @@ void presentStatus(const sensorsData& data, bool busy, bool ready) {
   const char* text = coWarning ? "CO warning" : !ready ? "Starting" : busy ? "Busy" :
                      level == UiLogLevel::Error ? "Error" : fault || level == UiLogLevel::Warning ? "Check sensors" : "Ready";
   copyText(&main_status_text, text);
-  lv_obj_t* coLabel = lv_obj_find_by_name(largscr, "large_co_value");
+  lv_obj_t* coLabel = lv_obj_find_by_name(largescr, "large_co_value");
   if (coLabel) lv_obj_set_style_text_color(coLabel, coWarning ? lv_palette_main(LV_PALETTE_RED) : COLOR_LIGHT_TEXT, 0);
 }
 }

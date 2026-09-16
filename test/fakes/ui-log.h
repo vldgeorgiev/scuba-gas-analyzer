@@ -11,6 +11,7 @@ class UiLog {
 public:
 	static UiLog& getInstance() { static UiLog instance; return instance; }
 	UiLogLevel getLevel() const { return UiLogLevel::None; }
+	const char* getLogAsCString() const { return ""; }
 };
 inline void logUi(const char*, UiLogLevel) {}
 

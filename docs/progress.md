@@ -37,11 +37,17 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
   transport security is unchanged, but passwords are no longer logged.
 - RGB565 draw buffers are explicitly sized and aligned to `LV_DRAW_BUF_ALIGN`. A real host run
   exposed an alignment assertion that compile-only checks missed.
-- The checked-in export contains a logo variable shadowing its asset name. XML now uses `logo_image`;
-  the build script corrects only that stale statement in a staged copy until the next Editor export.
-  Generated source files are not manually edited. The user's `largscr` edits are preserved.
+- The initial export contained a logo variable shadowing its asset name. The user re-exported the
+  renamed XML object, resolving the collision. PlatformIO now consumes the export directly through
+  `lvgl-ui-project/library.json` and a local symlink dependency. The Python script, staging copies,
+  and generated-source workaround are removed. Generated files are not manually edited.
 
 Verification:
+
+- Direct-library integration: both S3 profiles build and all four real-LVGL host tests pass with
+  the fresh Editor export. Static RAM is 144,920 bytes; release flash is 1,434,817 bytes.
+- EEZ cleanup verification: all 109 tests passed after deleting the legacy files and test fakes;
+  both S3 profiles also passed a clean rebuild without the former library exclusions.
 
 ```sh
 pio test -e native -e native-ui
@@ -55,7 +61,7 @@ pio run -e t-display-s3 -e t-display-s3-release
 - Both S3 builds passed. Static RAM: 144,932 bytes (44.2%). Release flash: 1,436,529 bytes (21.9%).
   These are linker totals, not measured runtime free heap or stack headroom.
 - No flashing, upload, OTA, or device tests performed. Action dialogs/keyboard, on-device layout,
-  warning visibility, persistence across reboot, regeneration, and sleep/wake remain acceptance gates.
+  warning visibility, persistence across reboot, and sleep/wake remain acceptance gates.
 
 ## 2026-09-15: Step 1
 

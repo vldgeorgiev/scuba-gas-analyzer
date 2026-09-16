@@ -1,0 +1,14 @@
+<screen>
+	<view extends="lv_obj" scrollable="false" style_pad_all="0">
+		<row width="100%" height="100%">
+			<button name="diagnostics_back" text="" icon="icon_arrow_left">
+				<screen_create_event screen="calibration" trigger="clicked" />
+			</button>
+			<column name="diagnostics_list" grow="1" height="100%" pad="#space_sm" gap="#space_xs" scrollable="true">
+				<h5 text="Diagnostics" />
+				<lv_label name="diagnostics_status" bind_text="main_status_text" width="100%" long_mode="wrap" />
+				<lv_label name="diagnostics_log" bind_text="diagnostics_log_text" width="100%" long_mode="wrap" />
+			</column>
+		</row>
+	</view>
+</screen>

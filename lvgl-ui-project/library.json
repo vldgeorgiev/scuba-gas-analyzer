@@ -1,0 +1,21 @@
+{
+  "name": "gas-analyzer-ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "lvgl/lvgl": "9.5.0"
+  },
+  "build": {
+    "srcDir": ".",
+    "includeDir": ".",
+    "srcFilter": [
+      "-<*>",
+      "+<lvgl_ui_project.c>",
+      "+<lvgl_ui_project_gen.c>",
+      "+<components/>",
+      "+<screens/>",
+      "+<fonts/>",
+      "+<images/>"
+    ],
+    "flags": ["-Winit-self", "-Werror=uninitialized"]
+  }
+}

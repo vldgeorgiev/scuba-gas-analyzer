@@ -36,7 +36,8 @@ calls `lvgl_ui_project_init("")` after display/input setup, binds callbacks once
 exist, seeds unavailable readings, and loads Main. The UI loop calls `lv_timer_handler()` only,
 with no generated UI tick. A handwritten adapter translates application data into exported string/int
 subjects. LVGL is pinned to 9.5.0; runtime XML is disabled. The generated UI is compiled as a library
-from a build-directory staging copy, not manually edited.
+directly from `lvgl-ui-project` through its `library.json` manifest and a PlatformIO local symlink
+dependency. No custom build script, staging copy, or source rewriting is involved.
 
 ## Message contract
 

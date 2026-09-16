@@ -9,8 +9,9 @@ static AnalyzerSettings submitted;
 static bool settingsOpen;
 static bool allowSubmit = true;
 static unsigned errors;
-static unsigned calibrationOpens;
-static unsigned updatesOpens;
+static unsigned calibrateAirActions;
+static unsigned wifiScanActions;
+static unsigned analyzerCommands;
 static unsigned flushes;
 static bool renderedPixels;
 static uint8_t brightness;
@@ -18,6 +19,7 @@ static uint8_t brightness;
 void DisplayManager::setBrightness(uint8_t value) { brightness = value; }
 void DisplayManager::resetInactivity() {}
 const AnalyzerSettings& uiSettings() { return effective; }
+bool submitAnalyzerCommand(app::Command) { ++analyzerCommands; return true; }
 void openUiSettings() { settingsOpen = true; ui::syncSettings(effective); }
 bool closeUiSettings(const AnalyzerSettings& draft) {
   settingsOpen = false;
@@ -26,12 +28,12 @@ bool closeUiSettings(const AnalyzerSettings& draft) {
   return allowSubmit;
 }
 void messageBox(const char*, float) { ++errors; }
-namespace ui {
-void openCalibration(lv_event_t*) { ++calibrationOpens; }
-void openUpdates(lv_event_t*) { ++updatesOpens; }
-void openLogs(lv_event_t*) {}
-void syncActionSettings(const AnalyzerSettings&) {}
-}
+void action_calibrate_o2_21(lv_event_t*) { ++calibrateAirActions; }
+void action_calibrate_o2_100(lv_event_t*) {}
+void action_calibrate_he(lv_event_t*) {}
+void action_reset_o2_100(lv_event_t*) {}
+void action_list_wifi(lv_event_t*) { ++wifiScanActions; }
+void action_update_firmware(lv_event_t*) {}
 
 static void flush(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {
   ++flushes;
@@ -66,15 +68,25 @@ void test_export_boot_and_navigation() {
   TEST_ASSERT_GREATER_THAN(0, flushes);
   TEST_ASSERT_TRUE(renderedPixels);
   click(lv_obj_find_by_name(mainscr, "readings"));
-  TEST_ASSERT_EQUAL_PTR(largscr, lv_screen_active());
-  click(lv_obj_find_by_name(largscr, "large_he_row"));
+  TEST_ASSERT_EQUAL_PTR(largescr, lv_screen_active());
+  click(lv_obj_find_by_name(largescr, "large_he_row"));
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
   click(lv_obj_find_by_name(mainscr, "open_calibration"));
-  TEST_ASSERT_EQUAL_UINT(1, calibrationOpens);
+  TEST_ASSERT_NOT_EQUAL(mainscr, lv_screen_active());
+  lv_subject_set_int(&calibration_on_start, !effective.calibrateOnStart);
+  lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "startup_calibration"), LV_EVENT_VALUE_CHANGED, nullptr);
+  TEST_ASSERT_EQUAL_UINT(1, analyzerCommands);
+  click(lv_obj_find_by_name(lv_screen_active(), "calibrate_air"));
+  TEST_ASSERT_EQUAL_UINT(1, calibrateAirActions);
+  click(lv_obj_find_by_name(lv_screen_active(), "open_diagnostics"));
+  TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "diagnostics_log"));
+  click(lv_obj_find_by_name(lv_screen_active(), "diagnostics_back"));
+  TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "calibrate_o2"));
+  click(lv_obj_find_by_name(lv_screen_active(), "calibration_back"));
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
   click(lv_obj_find_by_name(mainscr, "status"));
-  TEST_ASSERT_EQUAL_PTR(largscr, lv_screen_active());
-  click(largscr);
+  TEST_ASSERT_EQUAL_PTR(largescr, lv_screen_active());
+  click(largescr);
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
 }
 
@@ -91,8 +103,11 @@ void test_export_settings_round_trip_and_rejection() {
   lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "brightness"), LV_EVENT_VALUE_CHANGED, nullptr);
   TEST_ASSERT_EQUAL_UINT8(200, brightness);
   click(lv_obj_find_by_name(lv_screen_active(), "open_updates"));
-  TEST_ASSERT_EQUAL_UINT(1, updatesOpens);
+  TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "wifi_names"));
+  click(lv_obj_find_by_name(lv_screen_active(), "scan_wifi"));
+  TEST_ASSERT_EQUAL_UINT(1, wifiScanActions);
   TEST_ASSERT_TRUE(settingsOpen);
+  click(lv_obj_find_by_name(lv_screen_active(), "update_back"));
   click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
   TEST_ASSERT_FALSE(settingsOpen);
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
@@ -133,7 +148,7 @@ void test_export_readings_and_sensor_states() {
   ui::presentReadings(data.forDisplay(sensorsData::FRESHNESS_MS), effective);
   TEST_ASSERT_EQUAL_STRING("Stale", lv_subject_get_string(&main_o2_text));
   TEST_ASSERT_EQUAL_STRING("Stale", lv_subject_get_string(&main_o2_mv_text));
-  lv_obj_t* value = lv_obj_find_by_name(largscr, "large_o2_value");
+  lv_obj_t* value = lv_obj_find_by_name(largescr, "large_o2_value");
   TEST_ASSERT_EQUAL_PTR(font_body, lv_obj_get_style_text_font(value, LV_PART_MAIN));
   data.o2State = ChannelState::Valid;
   data.coState = ChannelState::Disabled;
