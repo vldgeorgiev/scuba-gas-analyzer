@@ -16,7 +16,24 @@ Libraries used:
 
 - [TFT eSPI](https://github.com/Bodmer/TFT_eSPI) MCU graphics library and driver
 - [LVGL UI library](https://github.com/lvgl/lvgl) lightweight GUI library for ESP32 and Arduino
-- [EEZ Studio](https://github.com/eez-open/studio) for generating the LVGL UI and for some UI automation
+- [LVGL Pro Editor](https://lvgl.io/docs/pro) for the exported C UI, using LVGL 9.5.0
+
+### UI build and checks
+
+The active UI is in [lvgl-ui-project](lvgl-ui-project/README.md). Export changes in the Editor before
+building; PlatformIO compiles exported C, fonts, and images, not XML. Application bindings live in
+[UiAdapter.cpp](src/display/UiAdapter.cpp), outside generated files. Only the LVGL Editor export is used.
+
+```sh
+pio run -e t-display-s3
+pio run -e t-display-s3-release
+pio test -e native -e native-ui
+```
+
+Tap the readings screen to switch Main/Large. Settings saves on exit. Calibration/reset, startup
+calibration preference, and Diagnostics are available from the Calibration button; Firmware update
+is in Settings. These action dialogs will be replaced by Editor screens. Stability-gated calibration,
+graph/cancellation, and on-device acceptance remain pending. No styles redesign is included in this migration.
 
 ## Hardware
 

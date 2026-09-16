@@ -1,6 +1,6 @@
 # Current app improvement plan
 
-Updated 2026-09-15. Implementation has started, one small step at a time, from restored `main`
+Updated 2026-09-16. Implementation has started, one small step at a time, from restored `main`
 at `ecde0b9`. See [progress and verification](progress.md) for completed work and pending checks.
 Earlier redesign build/test results describe discarded work, not completion of this plan.
 
@@ -32,10 +32,12 @@ the next change when requested; do not recreate the discarded framework.
   unchanged. The ADS1115 hardware provides internal digital filtering; the Adafruit library reads
   its conversion result, rather than performing an equivalent 20-sample software average.
   Removing the extra averaging is a deliberate latency/noise tradeoff, not numerical equivalence.
-- The user designs the replacement UI in LVGL Editor. Establish compatibility with LVGL 9.1.0
-  using a sample export before integration. Any version change requires an explicit decision.
-- Remove EEZ and EEZ Flow only after replacement UI feature parity. Never hand-edit generated
-  output; keep application bindings in a small handwritten adapter.
+- The user designs the replacement UI in LVGL Editor. LVGL 9.5.0 was explicitly approved on
+  2026-09-16 and the exported C now compiles with the firmware.
+- Decision 2026-09-16: activate the exported UI now; do not retain an EEZ runtime fallback while
+  waiting for all replacement screens. Keep generated sources untouched and application bindings
+  in a handwritten adapter. Existing calibration/reset, logs, and OTA remain accessible through
+  handwritten action dialogs until their Editor screens are ready.
 - Calibration must have a live millivolt graph, cancellation, and automatic stability-gated
   completion. These are required improvements, not an indefinite backlog item.
 - Add configurable inactivity sleep and button wake. CO has a fixed 5,000 ms startup interval
@@ -213,17 +215,50 @@ ADC rate or adding another task.
 
 ## 6. Integrate the replacement UI
 
+### Active migration checklist (2026-09-16)
+
+- [x] Compile checked-in exported C, fonts, and images with LVGL 9.5.0 in both S3 profiles.
+- [x] Exclude EEZ from the active firmware; replace `ui_init`, `ui_tick`, Flow globals, and direct
+  EEZ widget references. Keep existing analyzer/UI ownership and message queues.
+- [x] Initialize unavailable readings before loading Main. Bind percentages, mV, He temperature,
+  guarded Bottom/Deco MOD, battery, status, and the existing CO > 0 warning policy.
+- [x] Wire Main/Large screen taps after all permanent screens exist. Keep Settings/Calibration
+  actions separate, create Settings on entry, and delete it after returning to Main.
+- [x] Connect settings subjects to open/save callbacks, index conversion, effective-value rollback,
+  brightness preview, sleep policy, and calibration-coefficient protection.
+- [x] Retain calibration/reset/startup preference, diagnostics, and Wi-Fi/OTA entry points through
+  plain action dialogs. These do not replace the planned graph/cancellation backend work.
+- [x] Test real LVGL initialization/rendering, navigation, settings rejection and lifetime, sensor
+  status formatting, and all existing portable behavior. Compile debug and release firmware.
+- [ ] Re-export the renamed logo object in the Editor and verify a clean regeneration/build.
+- [ ] Verify physical touch, layout, warning readability, Settings save/reboot, brightness, dialogs,
+  keyboard, OTA access, heap/stack headroom, and sleep/wake on the device.
+- [ ] Finish Editor calibration/update/diagnostic screens and stability-gated calibration (step 5).
+- [x] Delete the retired EEZ project, generated runtime/assets, unused widget test fakes, and
+  obsolete PlatformIO exclusions. Git history retains the previous implementation.
+
+Build integration uses `scripts/build_exported_ui.py`, not a second UI source tree under `lib`.
+It stages only C/H sources under `.pio/build/<environment>/exported-ui-source`, removing stale
+staged files and excluding simulator/preview/tests. A narrow compatibility rewrite corrects the
+current export's logo local-variable/asset-name collision in the build copy only. The XML object
+is renamed `logo_image`; after re-export the rewrite is a no-op. No checked-in generated C is edited.
+Firmware callbacks replace generated navigation listeners after initialization, retaining their
+delete-time cleanup callbacks. This handles permanent-screen creation order and avoids capturing
+a NULL destination. Keep styles deferred; only safety status presentation and required layout
+behavior are adjusted during integration.
+
 Bind the user's actual Editor export through a thin adapter. Preserve normal/large readings, MOD,
 channel settings, calibration/reset, startup calibration preference, brightness, battery, logs,
 fault status, OTA access, and sleep configuration. Add the calibration graph, elapsed time,
 stability status, Cancel, and a retained final result. Do not invent generated filenames in advance.
 
-Keep interim EEZ changes limited to bindings needed for correctness. Avoid building new temporary
-screens. Remove EEZ/Flow and unused assets only after parity and regeneration checks.
+The retired UI sources and assets are removed. Shared component styling remains unchanged. Action dialogs
+are the explicitly documented interim entry points; replace them with Editor screens as those land.
 
 Acceptance: compatible export compiles, regeneration preserves handwritten code, navigation stays
 responsive, and invalid/disabled/warming states are understandable. Consult the LVGL MCP server
-and verify APIs against the selected version before implementation; compatibility is not yet proven.
+and verify APIs against the selected version before implementation. Export compilation and host
+adapter behavior are verified; physical acceptance and a fresh Editor regeneration remain pending.
 
 ## 7. Finish diagnostics and measured cleanup
 

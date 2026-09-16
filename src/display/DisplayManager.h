@@ -10,8 +10,6 @@ public:
   void init();
   void tick();
   void setBrightness(uint8_t brightness);
-  void setSleepMinutes(uint8_t minutes);
-  uint8_t getSleepMinutes() const;
   void resetInactivity();
   uint32_t inactiveTime() const;
   bool prepareSleep();
@@ -20,7 +18,6 @@ public:
   bool touchActive();
 private:
   bool resetTouchController();
-  lv_obj_t* _sleepDropdown = nullptr;
   bool _panelSleeping = false;
   bool _touchSleepAttempted = false;
   const char* _sleepFailure = "Display sleep failed";

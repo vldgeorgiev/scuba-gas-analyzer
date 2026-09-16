@@ -6,17 +6,16 @@
   #include <TouchLib.h>
 #endif
 
-#include "ui.h"
+#include "UiAdapter.h"
 #include "DisplayManager.h"
 #include "pin_config.h"
-#include "screens.h"
 #include "app/SleepPolicy.h"
 
 static const uint16_t screenWidth  = 320;
 static const uint16_t screenHeight = 170;
 
 enum { SCREENBUFFER_SIZE_PIXELS = screenWidth * screenHeight / 10 };
-static lv_color_t buf [SCREENBUFFER_SIZE_PIXELS];
+alignas(LV_DRAW_BUF_ALIGN) static uint16_t buf [SCREENBUFFER_SIZE_PIXELS];
 
 TFT_eSPI tft;
 
@@ -85,7 +84,8 @@ void DisplayManager::init() {
   static lv_disp_t* disp;
   // disp = lv_tft_espi_create(screenWidth, screenHeight, buf, sizeof(buf));
   disp = lv_display_create( screenWidth, screenHeight );
-  lv_display_set_buffers( disp, buf, NULL, SCREENBUFFER_SIZE_PIXELS * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL );
+  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_buffers( disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL );
   lv_display_set_flush_cb( disp, display_flush );
   lv_tick_set_cb( display_tick_get_cb );
 
@@ -93,34 +93,8 @@ void DisplayManager::init() {
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, my_input_read);
 
-  ui_init();
-
-  lv_obj_t* sleepControl = lv_obj_create(objects.config);
-  lv_obj_set_size(sleepControl, 116, 62);
-  lv_obj_set_style_pad_all(sleepControl, 0, 0);
-  lv_obj_set_style_border_width(sleepControl, 0, 0);
-  lv_obj_set_style_radius(sleepControl, 0, 0);
-  lv_obj_set_style_bg_opa(sleepControl, LV_OPA_TRANSP, 0);
-  lv_obj_clear_flag(sleepControl, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_t* sleepLabel = lv_label_create(sleepControl);
-  lv_label_set_text(sleepLabel, "Sleep");
-  lv_obj_set_pos(sleepLabel, 0, 0);
-  _sleepDropdown = lv_dropdown_create(sleepControl);
-  lv_obj_set_pos(_sleepDropdown, 0, 24);
-  lv_obj_set_size(_sleepDropdown, 116, 36);
-  char sleepOptions[64];
-  if (app::formatSleepOptions(sleepOptions, sizeof(sleepOptions))) {
-    lv_dropdown_set_options(_sleepDropdown, sleepOptions);
-  }
+  ui::init();
   resetInactivity();
-}
-
-void DisplayManager::setSleepMinutes(uint8_t minutes) {
-  if (_sleepDropdown) lv_dropdown_set_selected(_sleepDropdown, app::sleepSelectionForMinutes(minutes));
-}
-
-uint8_t DisplayManager::getSleepMinutes() const {
-  return _sleepDropdown ? app::sleepMinutesForSelection(lv_dropdown_get_selected(_sleepDropdown)) : app::DEFAULT_SLEEP_MINUTES;
 }
 
 void DisplayManager::resetInactivity() { lv_display_trigger_activity(nullptr); }
@@ -205,7 +179,6 @@ bool DisplayManager::restoreAfterSleepAbort(uint8_t brightness) {
 
 void DisplayManager::tick() {
   lv_timer_handler();
-  ui_tick();
 }
 
 void DisplayManager::setBrightness(uint8_t brightness)

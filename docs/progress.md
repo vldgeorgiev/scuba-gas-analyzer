@@ -13,8 +13,49 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | 3. Task ownership and sleep/wake | Software implemented through 3e: automatic S3 sleep/wake enabled; physical acceptance pending |
 | 4. Remaining settings behavior | Ownership/basic validated RAM settings moved into 3b; field-specific fallback, calibration-required state and device acceptance pending |
 | 5. Stability-gated calibration | Not started |
-| 6. Replacement UI | Not started; sample Editor export required |
+| 6. Replacement UI | Exported UI active; debug/release and host tests pass; Editor action screens and device acceptance pending |
 | 7. Diagnostics and measured cleanup | Not started |
+
+## 2026-09-16: Exported UI activated
+
+- User explicitly approved replacing EEZ now, without waiting for complete Editor screen parity.
+- Both S3 environments build the `lvgl-ui-project` export against LVGL 9.5.0. The retired EEZ project,
+  generated library/assets, unused widget/font fakes, and `lib_ignore = ui` exclusions are removed.
+  Earlier dated entries below describe the previous implementation, not active dependencies. The native sensor tests
+  remain isolated from LVGL; `native-ui` runs the actual generated UI and adapter with LVGL 9.5.0.
+- `UiAdapter` initializes assets/subjects and both permanent reading screens, replaces generated
+  navigation callbacks after initialization, opens/saves/deletes Settings, and publishes live text.
+  It preserves unavailable/stale/disabled/warming states, raw mV diagnostics, He temperature, guarded
+  MOD, checked CO integer conversion, battery, and explicit CO warnings. Large fault text uses a
+  smaller font instead of truncating large-digit status messages.
+- Settings still use the existing application session and analyzer command/result path. Drafts
+  start from effective settings; index validation preserves calibration coefficients. Queue rejection
+  and storage failure restore effective values and report an error. No retained rejected drafts.
+- Calibration/reset/startup preference, logs, and OTA use handwritten action dialogs for now.
+  Diagnostics is in the Calibration menu; taps elsewhere still switch Main/Large. No new analyzer
+  task, graph, cancellation, or stability algorithm was added. Wi-Fi/OTA callbacks remain blocking;
+  transport security is unchanged, but passwords are no longer logged.
+- RGB565 draw buffers are explicitly sized and aligned to `LV_DRAW_BUF_ALIGN`. A real host run
+  exposed an alignment assertion that compile-only checks missed.
+- The checked-in export contains a logo variable shadowing its asset name. XML now uses `logo_image`;
+  the build script corrects only that stale statement in a staged copy until the next Editor export.
+  Generated source files are not manually edited. The user's `largscr` edits are preserved.
+
+Verification:
+
+```sh
+pio test -e native -e native-ui
+pio run -e t-display-s3 -e t-display-s3-release
+```
+
+- 109 tests passed: 105 portable production tests and four real-LVGL integration tests.
+- Host checks cover screen creation, image source, nonblank RGB565 rendering, bubbled screen taps,
+  action isolation, settings index conversion/rejection, stale/raw reading handling, font restoration,
+  and 20 dynamic Settings cycles without heap loss. They invoke LVGL events directly, not physical touch.
+- Both S3 builds passed. Static RAM: 144,932 bytes (44.2%). Release flash: 1,436,529 bytes (21.9%).
+  These are linker totals, not measured runtime free heap or stack headroom.
+- No flashing, upload, OTA, or device tests performed. Action dialogs/keyboard, on-device layout,
+  warning visibility, persistence across reboot, regeneration, and sleep/wake remain acceptance gates.
 
 ## 2026-09-15: Step 1
 

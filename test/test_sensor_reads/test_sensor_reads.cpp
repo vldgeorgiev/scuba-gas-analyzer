@@ -6,7 +6,6 @@
 #include "sensors/TempSensor.h"
 
 #include "sensors/sensors.h"
-#include "display/ReadingStatus.h"
 
 void setUp() {
   delayCalls = 0;
@@ -596,52 +595,6 @@ void test_channel_state_labels_are_distinct() {
   TEST_ASSERT_EQUAL_STRING("", channelStateText(ChannelState::Valid));
 }
 
-void test_status_adapter_overrides_generated_text_and_restores_fonts() {
-  const lv_font_t smallFont{16};
-  const lv_font_t largeFont{48};
-  lv_obj_t oxygen{"O2 %", &smallFont};
-  lv_obj_t carbonMonoxide{"CO ppm", &smallFont};
-  lv_obj_t helium{"He %", &smallFont};
-  lv_obj_t largeOxygen{"O2 %", &largeFont};
-  objects = {&oxygen, &carbonMonoxide, &helium, &largeOxygen};
-  sensorsData data;
-  data.o2State = ChannelState::Stale;
-  data.coState = ChannelState::Unavailable;
-  data.heState = ChannelState::Invalid;
-  applyReadingStatus(data);
-  TEST_ASSERT_EQUAL_STRING("O2: Stale", oxygen.text.c_str());
-  TEST_ASSERT_EQUAL_STRING("CO: Unavailable", carbonMonoxide.text.c_str());
-  TEST_ASSERT_EQUAL_STRING("He: Invalid", helium.text.c_str());
-  TEST_ASSERT_EQUAL_STRING("O2: Stale", largeOxygen.text.c_str());
-  TEST_ASSERT_EQUAL_PTR(&ui_font_geneva16, largeOxygen.font);
-
-  largeOxygen.text = "O2 %";
-  applyReadingStatus(data);
-  TEST_ASSERT_EQUAL_STRING("O2: Stale", largeOxygen.text.c_str());
-  data.o2State = data.coState = data.heState = data.temperatureState = ChannelState::Valid;
-  oxygen.text = "O2 20.9%";
-  carbonMonoxide.text = "CO 0 ppm";
-  helium.text = "He 14.4%";
-  largeOxygen.text = "O2 20.9%";
-  applyReadingStatus(data);
-  TEST_ASSERT_EQUAL_STRING("O2 20.9%", oxygen.text.c_str());
-  TEST_ASSERT_EQUAL_STRING("CO 0 ppm", carbonMonoxide.text.c_str());
-  TEST_ASSERT_EQUAL_STRING("He 14.4%", helium.text.c_str());
-  TEST_ASSERT_EQUAL_STRING("O2 20.9%", largeOxygen.text.c_str());
-  TEST_ASSERT_EQUAL_PTR(&largeFont, largeOxygen.font);
-  TEST_ASSERT_EQUAL_PTR(&smallFont, oxygen.font);
-
-  data.HeLevel.percentage = 14.4f;
-  data.temperatureState = ChannelState::Unavailable;
-  applyReadingStatus(data);
-  TEST_ASSERT_EQUAL_STRING("He 14.4%, T: Unavailable", helium.text.c_str());
-  data.coState = ChannelState::Disabled;
-  applyReadingStatus(data);
-  TEST_ASSERT_EQUAL_STRING("CO: Off", carbonMonoxide.text.c_str());
-  objects = {};
-  applyReadingStatus(data);
-}
-
 void test_disabled_states_survive_stale_presentation_and_zero_co_is_valid() {
   FakeQueue queue(sizeof(sensorsData));
   QueueHandle_t handle = &queue;
@@ -718,7 +671,6 @@ int main(int, char**) {
   RUN_TEST(test_channel_states_distinguish_disabled_invalid_and_unavailable);
   RUN_TEST(test_stale_copy_keeps_disabled_distinct_and_leaves_producer_states_unchanged);
   RUN_TEST(test_channel_state_labels_are_distinct);
-  RUN_TEST(test_status_adapter_overrides_generated_text_and_restores_fonts);
   RUN_TEST(test_disabled_states_survive_stale_presentation_and_zero_co_is_valid);
   RUN_TEST(test_temperature_timeout_keeps_completed_he_read_valid);
   return UNITY_END();

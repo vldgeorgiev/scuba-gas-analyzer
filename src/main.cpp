@@ -1,8 +1,5 @@
 #include "main.h"
-#include "display/ReadingStatus.h"
-#include "ui.h"
-#include "vars.h"
-#include "structs.h"
+#include "display/UiAdapter.h"
 #include "ui-log.h"
 #include "utils.h"
 #include "app/SleepPolicy.h"
@@ -44,35 +41,12 @@ bool submitAnalyzerCommand(app::Command command) {
 
 void syncUiSettings() {
   const AnalyzerSettings& settings = uiSettings();
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED, settings.o2Enabled);
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED, settings.coEnabled);
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED, settings.heEnabled);
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM, FloatValue(settings.po2Bottom));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO, FloatValue(settings.po2Deco));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START, settings.calibrateOnStart);
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS, IntegerValue(settings.brightness));
+  ui::syncSettings(settings);
   displayManager.setBrightness(settings.brightness);
-  displayManager.setSleepMinutes(settings.sleepMinutes);
-}
-
-static eez::Value integerOrUnavailable(float value) {
-  int integer;
-  return conversions::toInt(value, integer) ? IntegerValue(integer) : FloatValue(NAN);
 }
 
 static void presentReadings(const sensorsData& data) {
-  const AnalyzerSettings& settings = uiSettings();
-  const float bottom = conversions::maximumOperatingDepth(settings.po2Bottom, data.O2Level.percentage);
-  const float deco = conversions::maximumOperatingDepth(settings.po2Deco, data.O2Level.percentage);
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_VALUE, FloatValue(data.O2Level.percentage));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_MILLIVOLTS, FloatValue(data.O2Level.millivolts));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_BOTTOM, integerOrUnavailable(bottom));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_DECO, integerOrUnavailable(deco));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_VALUE, integerOrUnavailable(data.CoLevel.ppm));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_MILLIVOLTS, FloatValue(data.CoLevel.millivolts));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_VALUE, FloatValue(data.HeLevel.percentage));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_MILLIVOLTS, FloatValue(data.HeLevel.millivolts));
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_TEMPERATURE, FloatValue(data.HeTemperature));
+  ui::presentReadings(data, uiSettings());
 }
 
 static void Task_UI(void*) {
@@ -137,27 +111,16 @@ static void Task_UI(void*) {
         presentReadings(displayed);
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
         if (pendingReading) {
-          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BATT_VOLTAGE, FloatValue(getBatteryVoltage()));
+          ui::presentBattery(getBatteryVoltage());
         }
 #endif
         pendingReading = false;
         presentedFresh = fresh;
       }
-      switch (UiLog::getInstance().getLevel()) {
-        case UiLogLevel::None:
-          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_None);
-          break;
-        case UiLogLevel::Warning:
-          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Warning);
-          break;
-        case UiLogLevel::Error:
-          flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Error);
-          break;
-      }
+      ui::presentStatus(displayed, uiState.busy(), uiState.ready);
       lastPresentation = now;
     }
     displayManager.tick();
-    applyReadingStatus(displayed);
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
     if (uiState.sleepPhase == app::SleepPhase::Prepared) {
       if (uiState.settingsEditing || app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),

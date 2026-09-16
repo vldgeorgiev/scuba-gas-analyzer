@@ -1,12 +1,9 @@
 #include <lvgl.h>
-#include "structs.h"
-#include "actions.h"
-#include "vars.h"
+#include "display/UiAdapter.h"
 #include "main.h"
 #include "ui-log.h"
 #include "pin_config.h"
 #include "updater.h"
-#include "screens.h"
 #include <HTTPClient.h>
 #include <Update.h>
 
@@ -15,6 +12,14 @@ public:
   NetworkOperation() { setNetworkOperationActive(true); }
   ~NetworkOperation() { setNetworkOperationActive(false); }
 };
+
+static lv_obj_t* wifiNames = nullptr;
+static lv_obj_t* wifiPassword = nullptr;
+static lv_obj_t* startupCalibration = nullptr;
+static lv_obj_t* updateKeyboard = nullptr;
+
+void action_list_wifi(lv_event_t* event);
+void action_update_firmware(lv_event_t* event);
 
 void messageBox(const char * title, float value) {
   char text[32] = "";
@@ -63,22 +68,106 @@ void action_reset_he(lv_event_t * e) {
   if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
-void action_open_config(lv_event_t * e) {
-  openUiSettings();
+namespace ui {
+namespace {
+lv_obj_t* actionDialog(const char* title) {
+  lv_obj_t* dialog = lv_msgbox_create(nullptr);
+  lv_obj_set_size(dialog, 310, 162);
+  lv_msgbox_add_title(dialog, title);
+  lv_msgbox_add_close_button(dialog);
+  lv_obj_t* content = lv_msgbox_get_content(dialog);
+  lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
+  return dialog;
 }
 
-void action_close_config(lv_event_t * e) {
+void addAction(lv_obj_t* content, const char* title, lv_event_cb_t callback) {
+  lv_obj_t* button = lv_button_create(content);
+  lv_obj_set_width(button, lv_pct(100));
+  lv_obj_t* label = lv_label_create(button);
+  lv_label_set_text(label, title);
+  lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, nullptr);
+}
+
+void changeStartupCalibration(lv_event_t* event) {
   app::Command command;
   command.settings = uiSettings();
-  command.settings.o2Enabled = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED).getBoolean();
-  command.settings.coEnabled = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED).getBoolean();
-  command.settings.heEnabled = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED).getBoolean();
-  command.settings.po2Bottom = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM).getFloat();
-  command.settings.po2Deco = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO).getFloat();
-  command.settings.calibrateOnStart = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean();
-  command.settings.brightness = flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8();
-  command.settings.sleepMinutes = displayManager.getSleepMinutes();
-  if (!closeUiSettings(command.settings)) messageBox("Settings not applied - analyzer busy", NAN);
+  command.settings.calibrateOnStart = lv_obj_has_state(lv_event_get_target_obj(event), LV_STATE_CHECKED);
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - preference not saved", NAN);
+  lv_obj_set_state(startupCalibration, LV_STATE_CHECKED, uiSettings().calibrateOnStart);
+}
+
+void closeCalibration(lv_event_t*) { startupCalibration = nullptr; }
+
+void closeUpdates(lv_event_t*) {
+  wifiNames = nullptr;
+  wifiPassword = nullptr;
+  if (updateKeyboard) lv_obj_delete(updateKeyboard);
+  updateKeyboard = nullptr;
+}
+
+void hideKeyboard(lv_event_t*) {
+  lv_obj_add_flag(updateKeyboard, LV_OBJ_FLAG_HIDDEN);
+}
+
+void editPassword(lv_event_t*) {
+  lv_keyboard_set_textarea(updateKeyboard, wifiPassword);
+  lv_obj_remove_flag(updateKeyboard, LV_OBJ_FLAG_HIDDEN);
+}
+}
+
+void syncActionSettings(const AnalyzerSettings& settings) {
+  if (startupCalibration) lv_obj_set_state(startupCalibration, LV_STATE_CHECKED, settings.calibrateOnStart);
+}
+
+void openCalibration(lv_event_t*) {
+  if (startupCalibration) return;
+  lv_obj_t* dialog = actionDialog("Calibration");
+  lv_obj_add_event_cb(dialog, closeCalibration, LV_EVENT_DELETE, nullptr);
+  lv_obj_t* content = lv_msgbox_get_content(dialog);
+  startupCalibration = lv_checkbox_create(content);
+  lv_checkbox_set_text(startupCalibration, "Calibrate on start");
+  syncActionSettings(uiSettings());
+  lv_obj_add_event_cb(startupCalibration, changeStartupCalibration, LV_EVENT_VALUE_CHANGED, nullptr);
+  addAction(content, "Calibrate air (20.9%)", action_calibrate_o2_21);
+  addAction(content, "Calibrate O2 (100%)", action_calibrate_o2_100);
+  addAction(content, "Calibrate He (100%)", action_calibrate_he);
+  addAction(content, "Reset air calibration", action_reset_o2_21);
+  addAction(content, "Clear pure O2 calibration", action_reset_o2_100);
+  addAction(content, "Reset He calibration", action_reset_he);
+  addAction(content, "Diagnostics", openLogs);
+}
+
+void openUpdates(lv_event_t*) {
+  if (wifiNames) return;
+  lv_obj_t* dialog = actionDialog("Firmware update");
+  lv_obj_add_event_cb(dialog, closeUpdates, LV_EVENT_DELETE, nullptr);
+  lv_obj_t* content = lv_msgbox_get_content(dialog);
+  wifiNames = lv_dropdown_create(content);
+  lv_obj_set_width(wifiNames, lv_pct(100));
+  lv_dropdown_clear_options(wifiNames);
+  lv_dropdown_set_text(wifiNames, "Scan for Wi-Fi");
+  addAction(content, "Scan Wi-Fi", action_list_wifi);
+  wifiPassword = lv_textarea_create(content);
+  lv_obj_set_width(wifiPassword, lv_pct(100));
+  lv_textarea_set_one_line(wifiPassword, true);
+  lv_textarea_set_password_mode(wifiPassword, true);
+  lv_textarea_set_max_length(wifiPassword, 64);
+  lv_textarea_set_placeholder_text(wifiPassword, "Wi-Fi password");
+  updateKeyboard = lv_keyboard_create(lv_layer_top());
+  lv_obj_set_size(updateKeyboard, 320, 100);
+  lv_obj_align(updateKeyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
+  lv_obj_add_flag(updateKeyboard, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_event_cb(updateKeyboard, hideKeyboard, LV_EVENT_READY, nullptr);
+  lv_obj_add_event_cb(updateKeyboard, hideKeyboard, LV_EVENT_CANCEL, nullptr);
+  lv_obj_add_event_cb(wifiPassword, editPassword, LV_EVENT_CLICKED, nullptr);
+  addAction(content, "Install firmware", action_update_firmware);
+}
+
+void openLogs(lv_event_t*) {
+  lv_obj_t* dialog = actionDialog("Diagnostics");
+  const char* log = UiLog::getInstance().getLogAsCString();
+  lv_msgbox_add_text(dialog, log && *log ? log : "No log entries");
+}
 }
 
 void showAnalyzerResult(const app::Result& result) {
@@ -117,20 +206,8 @@ void showAnalyzerResult(const app::Result& result) {
   if (title) messageBox(title, result.calibration);
 }
 
-const char *get_var_ui_log() {
-  return UiLog::getInstance().getLogAsCString();
-}
-
-void set_var_ui_log(const char *value) {
-  // ui_log is read only
-}
-
-void action_brightness_change(lv_event_t * e) {
-  log_i("Brightness change");
-  displayManager.setBrightness(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8());
-}
-
 void action_list_wifi(lv_event_t * e) {
+  if (!wifiNames) return;
   NetworkOperation operation;
   log_i("Listing WiFi networks");
   std::vector<String> ssidList = scanWifiNetworks();
@@ -138,11 +215,12 @@ void action_list_wifi(lv_event_t * e) {
     log_i("Found WiFi network: %s", ssid.c_str());
   }
 
-  std::string wifiListStr;
+  lv_dropdown_clear_options(wifiNames);
   for (const auto &ssid : ssidList) {
-    wifiListStr += std::string(ssid.c_str()) + "\n";
+    lv_dropdown_add_option(wifiNames, ssid.c_str(), LV_DROPDOWN_POS_LAST);
   }
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_WIFI_LIST, StringValue(wifiListStr.c_str()));
+  lv_dropdown_set_text(wifiNames, ssidList.empty() ? "No networks found" : nullptr);
+  WiFi.scanDelete();
 }
 
 // bool updateFromURL(const char* url) {
@@ -283,15 +361,18 @@ bool updateFromURL(const char* url) {
 }
 
 void action_update_firmware(lv_event_t * e) {
+  if (!wifiNames || !wifiPassword || lv_dropdown_get_option_count(wifiNames) == 0) {
+    messageBox("Select a Wi-Fi network first", NAN);
+    return;
+  }
   NetworkOperation operation;
   log_i("Updating firmware");
   log_i("Free heap before OTA: %d", ESP.getFreeHeap());
   char selectedSSID[64];
-  lv_dropdown_get_selected_str(objects.wifi_name, selectedSSID, sizeof(selectedSSID));
+  lv_dropdown_get_selected_str(wifiNames, selectedSSID, sizeof(selectedSSID));
 
-  const char* password = lv_textarea_get_text(objects.wifi_pass);
+  const char* password = lv_textarea_get_text(wifiPassword);
   log_i("Selected SSID: %s", selectedSSID);
-  log_i("Password: %s", password);
   WiFi.begin(selectedSSID, password);
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 10) {
@@ -305,7 +386,10 @@ void action_update_firmware(lv_event_t * e) {
   }
   else {
     log_i("Failed to connect to WiFi");
+    messageBox("Wi-Fi connection failed", NAN);
+    return;
   }
 
-  updateFromURL("https://vld.ams3.digitaloceanspaces.com/firmware.bin");
+  if (!updateFromURL("https://vld.ams3.digitaloceanspaces.com/firmware.bin"))
+    messageBox("Firmware update failed", NAN);
 }

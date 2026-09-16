@@ -1,6 +1,6 @@
 # Current firmware architecture
 
-Updated 2026-09-15 after step 3e. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-09-16 after exported UI activation. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
@@ -8,7 +8,7 @@ This describes the current implementation; the final section identifies work sti
 
 ```text
 UI task (core 0)                      Analyzer task (core 1)
-LVGL / EEZ, input, display            ADCs, sensor power, calibration
+LVGL export, input, display           ADCs, sensor power, calibration
 draft settings, effective copy        effective settings, Preferences
                command queue ------>
                <------ result queue
@@ -17,7 +17,7 @@ draft settings, effective copy        effective settings, Preferences
 
 `setup()` creates the three queues and the tasks. The analyzer task creates its own `SettingsStore`,
 `SensorManager`, and concrete `app::Analyzer` locally; UI callbacks cannot access those instances.
-The UI task owns `DisplayManager`, EEZ globals, widget pointers, and its copy of effective settings.
+The UI task owns `DisplayManager`, exported LVGL subjects, widget pointers, and its copy of effective settings.
 The Arduino loop blocks indefinitely. There is no extra manager/logger/battery/monitor task.
 
 | Task | Work and timing | Allocated stack |
@@ -31,10 +31,12 @@ catch-up loop. Processing a command makes a fresh cycle due. UI presentation che
 not measured response bounds; bus, flash, rendering, and scheduling add time.
 
 The old `Task_Screen_Update`, GUI mutex, `configOpen`, `SensorAccess`, and performance-monitor
-task were removed. UI initialization is ordered, not delayed by an arbitrary second. Installed
-EEZ `ui_init()` calls `eez_flow_init()`, which loads assets, starts flow/global variables, creates
-screens, and selects the initial screen before returning. UI then seeds settings and blank readings.
-LVGL MCP was consulted for single-task ownership; APIs remain compatible with pinned LVGL 9.1.0.
+task were removed. UI initialization is ordered, not delayed by an arbitrary second. `ui::init()`
+calls `lvgl_ui_project_init("")` after display/input setup, binds callbacks once permanent screens
+exist, seeds unavailable readings, and loads Main. The UI loop calls `lv_timer_handler()` only,
+with no generated UI tick. A handwritten adapter translates application data into exported string/int
+subjects. LVGL is pinned to 9.5.0; runtime XML is disabled. The generated UI is compiled as a library
+from a build-directory staging copy, not manually edited.
 
 ## Message contract
 
@@ -112,13 +114,11 @@ an invalid stored timeout is replaced with five without discarding other setting
 is serial-logged and marks the store dirty, so the next successful save reconciles it. No boot-time
 write or settings migration is added. Changing sleep timeout does not change measurement generation.
 
-DisplayManager appends a plain Sleep label/dropdown group to the existing configuration flex layout
-after generated UI initialization. It uses no EEZ variable and generated ticks do not overwrite it.
-Opening/synchronizing settings selects the effective value; closing includes the selected timeout
-in the existing ApplySettings command. Until acknowledgement, the control uses the previous effective
-value, including on busy/rejected/write-failed requests. The runtime group is 116 by 62 pixels;
-accessibility in the existing scrolling configuration layout requires a device check. No generated
-UI file is edited, and this binding will be replaced with the user's future Editor export.
+The exported Settings dropdown binds `settings_sleep_index`. Opening settings copies effective values
+into subjects; closing maps the selected index through `app::SLEEP_OPTIONS` into the existing
+ApplySettings command. Settings is dynamically created and deleted on exit. Subject synchronization
+restores effective values on busy/rejected/write-failed requests. DisplayManager has no
+UI-specific sleep controls or accessors.
 
 LVGL's display inactivity counter is the only inactivity time source. Touch input already updates
 it. DisplayManager exposes its read/reset APIs; UI resets activity after initialization and whenever
@@ -220,8 +220,8 @@ acceptance checklist in progress for held buttons, aborts, retained settings/pin
 ## UI and drafts
 
 Settings are loaded on the analyzer and copied into `UiState::effective` through results.
-UI refreshes never read Preferences. Opening seeds the existing EEZ controls from effective settings.
-Closing captures editable controls and submits ApplySettings, then restores effective globals and
+UI refreshes never read Preferences. Opening seeds exported settings subjects from effective settings.
+Closing captures editable controls and submits ApplySettings, then restores effective subjects and
 brightness while awaiting acknowledgement. A failure or busy/queue refusal shows an ordinary error
 dialog and keeps the effective settings; rejected edits are not retained. Reopening always starts
 from the latest effective values. There is no retained draft, discard action, or separate save ID.
@@ -251,7 +251,7 @@ sensor code only writes serial diagnostics. The old bounded-log/active-fault red
 ## Settings and application
 
 `AnalyzerSettings` is one small RAM value with validation and measurement-semantic comparison.
-The name avoids EEZ's own `Settings` type. `SettingsStore` has only initialization/load/save/readiness operations;
+`SettingsStore` has only initialization/load/save/readiness operations;
 legacy UI-callable field setters were removed. The analyzer is its only runtime user.
 
 Both headers live under `src/settings`: `Settings.h` contains the RAM data/defaults/validation;
@@ -342,13 +342,12 @@ Result handling invalidates cached old-generation readings immediately, includin
 Freshness is recomputed even with no new sample, so a stopped analyzer cannot keep old readings current
 while the UI is progressing. A blocked OTA callback can still delay visible updates.
 
-`ReadingStatus.h` remains a thin temporary adapter after generated ticks in the UI task. Invalid,
-Unavailable, Warming, and Stale replace existing primary reading labels; disabled panels retain EEZ's hiding
-policy. The large O2 font shrinks for text and restores for valid values. It assumes lifetime-stable
-generated objects. Generated ticks compare actual text, so recovery restores text even at the same
-numeric value. Repeated non-valid overrides can allocate/invalidate labels and need sustained device
-testing. The replacement UI should bind states directly, not inherit this workaround. A false
-CO-positive colour condition is not proof of a safe measurement.
+`UiAdapter` publishes formatted text through exported subjects. Invalid, Unavailable, Warming,
+and Stale replace primary numeric readings; disabled channels display Off. Large O2 and He fonts
+shrink for status text and restore for valid values. Raw diagnostics remain visible when available,
+but stale snapshots suppress them. Subject strings are updated only when their content changes.
+CO warnings appear as explicit status text as well as colour; absence of a warning is not proof
+of a safe measurement. The retired generated-tick status adapter and its widget fakes are removed.
 
 ## Verification boundary
 
@@ -358,7 +357,9 @@ failure retention, changed-key writes, startup admission, matching IDs, queue-fu
 backpressure with continued measurements, generation filtering, sleep-ID matching, late acknowledgements,
 resume retries, queue clearing, power restoration, CO warm-up boundaries/recovery, consumed markers,
 confirmed-wake calibration handling, and ten simulated wake cycles. It does not execute actual UI
-callbacks or FreeRTOS scheduling. Target debug/release builds use real libraries and generated assets.
+callbacks or FreeRTOS scheduling. The separate `native-ui` suite uses real LVGL and exported assets
+to test the adapter's navigation, settings, presentation, rendering, and dynamic-screen lifetimes.
+Target debug/release builds use real libraries and generated assets.
 
 Current measured test counts and binary sizes live in progress. Device checks remain required for startup, setting/calibration
 navigation, latency, stack high-water marks, ADC fault behavior, status layout, and heap stability.
@@ -371,5 +372,5 @@ navigation, latency, stack high-water marks, ADC fault behavior, status layout, 
   reboot/failure acceptance. Do not repeat the ownership refactor already done here.
 - Step 5: incremental cancellable stability-gated calibration with graph progress and a qualified
   final window. No general operation scheduler is needed.
-- Step 6: replace EEZ after feature parity with the user's actual LVGL Editor export.
+- Step 6: finish Editor action screens, regeneration checks, and device acceptance of the active export.
 - Step 7: bounded chronological log, active faults, and measured efficiency cleanup.

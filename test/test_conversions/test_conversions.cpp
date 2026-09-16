@@ -3,6 +3,7 @@
 #include <limits>
 
 #include "sensors/conversions.h"
+#include "display/UiPresentation.h"
 
 constexpr float kTolerance = 0.0001f;
 
@@ -134,6 +135,45 @@ void test_mod_requires_positive_finite_inputs() {
       conversions::maximumOperatingDepth(1.4f, std::numeric_limits<float>::min()), depth));
 }
 
+void test_ui_formats_states_and_mod() {
+  char text[32];
+  ui::formatValue(text, sizeof(text), 20.9f, ChannelState::Valid, "%.1f%%");
+  TEST_ASSERT_EQUAL_STRING("20.9%", text);
+  ui::formatValue(text, sizeof(text), 20.9f, ChannelState::Stale, "%.1f%%");
+  TEST_ASSERT_EQUAL_STRING("Stale", text);
+  ui::formatValue(text, sizeof(text), 0, ChannelState::Warming, "%.0f ppm");
+  TEST_ASSERT_EQUAL_STRING("Warming", text);
+  ui::formatValue(text, sizeof(text), NAN, ChannelState::Valid, "%.1f%%");
+  TEST_ASSERT_EQUAL_STRING("Invalid", text);
+  ui::formatMod(text, sizeof(text), "B", 1.4f, 20.9f, ChannelState::Valid);
+  TEST_ASSERT_EQUAL_STRING("B 56 m", text);
+  ui::formatMod(text, sizeof(text), "D", 1.6f, 0, ChannelState::Valid);
+  TEST_ASSERT_EQUAL_STRING("D -- m", text);
+  ui::formatMod(text, sizeof(text), "B", 1.4f, 20.9f, ChannelState::Stale);
+  TEST_ASSERT_EQUAL_STRING("B -- m", text);
+}
+
+void test_ui_settings_indices_preserve_calibration() {
+  AnalyzerSettings candidate;
+  candidate.o2Air = 12;
+  candidate.o2Pure = 55;
+  candidate.heCalibration = 610;
+  TEST_ASSERT_TRUE(ui::applySelections(candidate, 3, 5, 200, 4));
+  TEST_ASSERT_FLOAT_WITHIN(kTolerance, 1.3f, candidate.po2Bottom);
+  TEST_ASSERT_FLOAT_WITHIN(kTolerance, 1.5f, candidate.po2Deco);
+  TEST_ASSERT_EQUAL_UINT8(10, candidate.sleepMinutes);
+  TEST_ASSERT_EQUAL_FLOAT(12, candidate.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(55, candidate.o2Pure);
+  TEST_ASSERT_EQUAL_FLOAT(610, candidate.heCalibration);
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 6, 0, 128, 3));
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 128, -1));
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 256, 3));
+  TEST_ASSERT_EQUAL_UINT8(200, candidate.brightness);
+  candidate.po2Bottom = 1.35f;
+  TEST_ASSERT_TRUE(ui::applySelections(candidate, ui::po2Selection(1.35f), 5, 200, 4));
+  TEST_ASSERT_EQUAL_FLOAT(1.35f, candidate.po2Bottom);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_o2_air_only);
@@ -148,5 +188,7 @@ int main(int, char**) {
   RUN_TEST(test_co_and_temperature_reject_non_finite_inputs);
   RUN_TEST(test_integer_conversion_checks_range_before_casting);
   RUN_TEST(test_mod_requires_positive_finite_inputs);
+  RUN_TEST(test_ui_formats_states_and_mod);
+  RUN_TEST(test_ui_settings_indices_preserve_calibration);
   return UNITY_END();
 }

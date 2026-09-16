@@ -6,7 +6,12 @@
 #define log_i(...) ((void)0)
 #define log_d(...) ((void)0)
 
-enum class UiLogLevel { Error };
+enum class UiLogLevel { None, Warning, Error, Unchanged };
+class UiLog {
+public:
+	static UiLog& getInstance() { static UiLog instance; return instance; }
+	UiLogLevel getLevel() const { return UiLogLevel::None; }
+};
 inline void logUi(const char*, UiLogLevel) {}
 
 #endif

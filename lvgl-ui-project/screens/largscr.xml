@@ -1,4 +1,4 @@
-<screen>
+<screen permanent="true">
 	<view extends="lv_obj" scrollable="false" clickable="true" style_pad_all="0">
 		<screen_load_event screen="mainscr" trigger="clicked" />
 		<column width="100%" height="100%" pad="#space_sm" gap="#space_sm" event_bubble="true">
