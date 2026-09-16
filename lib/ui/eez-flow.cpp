@@ -3777,7 +3777,7 @@ int32_t anim_callback_get_width(lv_anim_t * a) { return lv_obj_get_width((lv_obj
 void anim_callback_set_height(void *obj, int32_t v) { lv_obj_set_height((lv_obj_t *)obj, v); }
 int32_t anim_callback_get_height(lv_anim_t * a) { return lv_obj_get_height((lv_obj_t *)a->user_data); }
 void anim_callback_set_opacity(void *obj, int32_t v) { lv_obj_set_style_opa((lv_obj_t *)obj, v, 0); }
-int32_t anim_callback_get_opacity(lv_anim_t * a) { return lv_obj_get_style_opa((lv_obj_t *)a->user_data, 0); }
+int32_t anim_callback_get_opacity(lv_anim_t * a) { return lv_obj_get_style_opa((lv_obj_t *)a->user_data, LV_PART_MAIN); }
 void anim_callback_set_image_zoom(void *obj, int32_t v) { lv_img_set_zoom((lv_obj_t *)obj, v); }
 int32_t anim_callback_get_image_zoom(lv_anim_t * a) { return lv_img_get_zoom((lv_obj_t *)a->user_data); }
 void anim_callback_set_image_angle(void *obj, int32_t v) { lv_img_set_angle((lv_obj_t *)obj, v); }
@@ -3958,7 +3958,7 @@ void executeLVGLComponent(FlowState *flowState, unsigned componentIndex) {
                     } else if (specific->property == BASIC_OPACITY) {
                         lv_obj_set_style_opa(target, intValue, 0);
                     } else if (specific->property == DROPDOWN_SELECTED) {
- #if LVGL_VERSION_MAJOR >= 9 && LVGL_VERSION_MINOR >= 3
+ #if LVGL_VERSION_MAJOR == 9 && LVGL_VERSION_MINOR >= 3 && LVGL_VERSION_MINOR < 5
                         lv_dropdown_set_selected(target, intValue, LV_ANIM_OFF);
 #else
                         lv_dropdown_set_selected(target, intValue);
@@ -4348,7 +4348,7 @@ ACTION_START(objSetStyleOpa)
 ACTION_END
 ACTION_START(objGetStyleOpa)
     WIDGET_PROP(obj);
-    int32_t opa = (int32_t)lv_obj_get_style_opa(obj, 0);
+    int32_t opa = (int32_t)lv_obj_get_style_opa(obj, LV_PART_MAIN);
     RESULT(result, Value((int)opa, VALUE_TYPE_INT32));
 ACTION_END
 ACTION_START(objAddStyle)
@@ -4426,7 +4426,7 @@ ACTION_START(dropdownSetSelected)
     WIDGET_PROP(obj);
     UINT32_PROP(value);
 #if LVGL_VERSION_MAJOR >= 9
-#if LVGL_VERSION_MINOR >= 3
+#if LVGL_VERSION_MINOR >= 3 && LVGL_VERSION_MINOR < 5
     lv_dropdown_set_selected(obj, value, LV_ANIM_OFF);
 #else
     lv_dropdown_set_selected(obj, value);
