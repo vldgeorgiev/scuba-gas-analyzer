@@ -407,6 +407,121 @@ void test_full_result_path_retains_outcome_without_blocking_measurements() {
   TEST_ASSERT_FALSE(results.occupied);
 }
 
+static app::Result startServiceCalibration(Rig& rig, FakeQueue& commands, FakeQueue& results,
+                                           app::CommandType type, uint32_t id = 42) {
+  rig.analyzer.service(&commands, &results);
+  app::Result startup;
+  xQueueReceive(&results, &startup, 0);
+  app::Command command;
+  command.type = type;
+  command.id = id;
+  xQueueSend(&commands, &command, 0);
+  rig.analyzer.service(&commands, &results);
+  app::Result progress;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &progress, 0));
+  return progress;
+}
+
+void test_stable_service_calibration_saves_at_five_seconds() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[0]->counts = 640;
+  auto started = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  TEST_ASSERT_FALSE(started.complete);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Settling, started.calibrationPhase);
+  for (nowMs = app::Analyzer::CALIBRATION_SAMPLE_MS;
+       nowMs <= app::Analyzer::CALIBRATION_MINIMUM_MS;
+       nowMs += app::Analyzer::CALIBRATION_SAMPLE_MS) {
+    rig.analyzer.service(&commands, &results);
+  }
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, rig.analyzer.effective().o2Air);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, Preferences::values["o2_calib_21"]);
+  xQueueReceive(&results, &started, 0);
+  rig.analyzer.service(&commands, &results);
+  app::Result saved;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &saved, 0));
+  TEST_ASSERT_TRUE(saved.complete);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Saved, saved.calibrationPhase);
+  TEST_ASSERT_EQUAL_UINT32(app::Analyzer::CALIBRATION_MINIMUM_MS, saved.calibrationElapsedMs);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, saved.calibration);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, saved.effective.o2Air);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, Preferences::values["o2_calib_21"]);
+}
+
+void test_unstable_service_calibration_fails_at_timeout_without_saving() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  auto progress = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  for (nowMs = app::Analyzer::CALIBRATION_SAMPLE_MS;
+       nowMs <= app::Analyzer::CALIBRATION_TIMEOUT_MS;
+       nowMs += app::Analyzer::CALIBRATION_SAMPLE_MS) {
+    Adafruit_ADS1115::devices[0]->counts = (nowMs / app::Analyzer::CALIBRATION_SAMPLE_MS) % 2 ? 320 : 352;
+    rig.analyzer.service(&commands, &results);
+  }
+  xQueueReceive(&results, &progress, 0);
+  rig.analyzer.service(&commands, &results);
+  app::Result failed;
+  xQueueReceive(&results, &failed, 0);
+  TEST_ASSERT_EQUAL(app::Failure::Sampling, failed.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, failed.calibrationPhase);
+  TEST_ASSERT_EQUAL_UINT32(app::Analyzer::CALIBRATION_TIMEOUT_MS, failed.calibrationElapsedMs);
+  TEST_ASSERT_EQUAL_FLOAT(10, failed.effective.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(10, Preferences::values["o2_calib_21"]);
+}
+
+void test_calibration_progress_and_cancel_keep_previous_value() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  app::UiState state;
+  app::Result startup;
+  rig.analyzer.service(&commands, &results);
+  xQueueReceive(&results, &startup, 0);
+  TEST_ASSERT_TRUE(state.accept(startup));
+  app::Command command;
+  command.type = app::CommandType::CalibrateAir;
+  TEST_ASSERT_TRUE(state.submit(command, &commands));
+  rig.analyzer.service(&commands, &results);
+  app::Result progress;
+  xQueueReceive(&results, &progress, 0);
+  TEST_ASSERT_TRUE(state.accept(progress));
+  TEST_ASSERT_TRUE(state.busy());
+  TEST_ASSERT_TRUE(state.cancelCalibration(&commands));
+  rig.analyzer.service(&commands, &results);
+  rig.analyzer.service(&commands, &results);
+  app::Result cancelled;
+  xQueueReceive(&results, &cancelled, 0);
+  TEST_ASSERT_TRUE(state.accept(cancelled));
+  TEST_ASSERT_FALSE(state.busy());
+  TEST_ASSERT_EQUAL(app::Failure::Cancelled, cancelled.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Cancelled, cancelled.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(10, cancelled.effective.o2Air);
+}
+
+void test_calibration_reports_saved_only_after_persistence() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[0]->counts = 640;
+  auto progress = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  Preferences::failWrite = true;
+  for (nowMs = app::Analyzer::CALIBRATION_SAMPLE_MS;
+       nowMs <= app::Analyzer::CALIBRATION_MINIMUM_MS;
+       nowMs += app::Analyzer::CALIBRATION_SAMPLE_MS) {
+    rig.analyzer.service(&commands, &results);
+  }
+  xQueueReceive(&results, &progress, 0);
+  rig.analyzer.service(&commands, &results);
+  app::Result failed;
+  xQueueReceive(&results, &failed, 0);
+  TEST_ASSERT_EQUAL(app::Failure::Storage, failed.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, failed.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(10, failed.effective.o2Air);
+}
+
 void test_successful_calibration_then_reset_changes_live_and_stored_values() {
   Rig rig;
   Adafruit_ADS1115::devices[0]->counts = 640;
@@ -960,6 +1075,10 @@ int main(int, char**) {
   RUN_TEST(test_invalid_timeout_alone_does_not_flag_general_settings_recovery);
   RUN_TEST(test_startup_reports_adc_failure_without_blocking_other_device);
   RUN_TEST(test_full_result_path_retains_outcome_without_blocking_measurements);
+  RUN_TEST(test_stable_service_calibration_saves_at_five_seconds);
+  RUN_TEST(test_unstable_service_calibration_fails_at_timeout_without_saving);
+  RUN_TEST(test_calibration_progress_and_cancel_keep_previous_value);
+  RUN_TEST(test_calibration_reports_saved_only_after_persistence);
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);
   RUN_TEST(test_co_warmup_skips_conversions_until_configured_deadline);
   RUN_TEST(test_co_reenable_restarts_warmup_across_clock_wrap);

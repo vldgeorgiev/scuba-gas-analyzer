@@ -6,6 +6,7 @@
 extern DisplayManager displayManager;
 
 bool submitAnalyzerCommand(app::Command command);
+bool cancelAnalyzerCalibration();
 const AnalyzerSettings& uiSettings();
 void syncUiSettings();
 void openUiSettings();

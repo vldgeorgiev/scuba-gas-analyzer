@@ -146,6 +146,10 @@
 		<string name="main_battery_text" value="4.10 V" />
 		<int name="calibration_on_start" value="1" min_value="0" max_value="1" />
 		<string name="calibration_result_text" value="Not calibrated" />
+		<string name="calibration_run_title_text" value="Calibrating" />
+		<string name="calibration_current_text" value="-- mV" />
+		<string name="calibration_elapsed_text" value="0.0 s" />
+		<string name="calibration_stability_text" value="Settling" />
 		<int name="update_network_index" value="0" />
 		<int name="update_keyboard_visible" value="0" min_value="0" max_value="1" />
 		<int name="update_can_install" value="0" min_value="0" max_value="1" />

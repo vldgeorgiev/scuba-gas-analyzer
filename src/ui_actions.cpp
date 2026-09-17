@@ -26,24 +26,6 @@ void messageBox(const char * title, float value) {
   lv_obj_set_size(mbox, LV_PCT(70), LV_SIZE_CONTENT);
 }
 
-void action_calibrate_o2_21(lv_event_t * e) {
-  app::Command command;
-  command.type = app::CommandType::CalibrateAir;
-  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
-}
-
-void action_calibrate_o2_100(lv_event_t * e) {
-  app::Command command;
-  command.type = app::CommandType::CalibratePure;
-  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
-}
-
-void action_calibrate_he(lv_event_t * e) {
-  app::Command command;
-  command.type = app::CommandType::CalibrateHe;
-  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
-}
-
 void action_reset_o2_100(lv_event_t * e) {
   app::Command command;
   command.type = app::CommandType::ClearPure;
@@ -54,6 +36,7 @@ void showAnalyzerResult(const app::Result& result) {
   if (result.sensorError != SensorError::None) {
     logUi(SensorManager::getErrorString(result.sensorError), UiLogLevel::Warning);
   }
+  if (result.calibrationPhase != app::CalibrationPhase::None && !result.complete) return;
   const char* title = nullptr;
   const char* required = result.calibrationRequiredMessage();
   if (required && result.failure != app::Failure::CalibrationRequired &&
@@ -71,6 +54,7 @@ void showAnalyzerResult(const app::Result& result) {
         title = result.calibrationRequiredMessage();
         if (!title) title = "O2 calibration required";
         break;
+      case app::Failure::Cancelled: break;
       default: title = "Operation failed"; break;
     }
     logUi(title, UiLogLevel::Error);

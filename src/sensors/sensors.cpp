@@ -167,6 +167,24 @@ float SensorManager::calibrateHe_100() {
   return _heCalibration100;
 }
 
+float SensorManager::readO2CalibrationSample() {
+  recoverDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
+  if (!_adc1State.ready) return NAN;
+  bool timedOut = false;
+  const float sample = _o2Sensor.readLevel(&timedOut).millivolts;
+  recordRead(_adc1State, timedOut, std::isfinite(sample));
+  return sample;
+}
+
+float SensorManager::readHeCalibrationSample() {
+  recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
+  if (!_adc2State.ready) return NAN;
+  bool timedOut = false;
+  const float sample = _heSensor.readLevel(0, &timedOut).millivolts;
+  recordRead(_adc2State, timedOut, std::isfinite(sample));
+  return sample;
+}
+
 const char* SensorManager::getErrorString(SensorError error) {
   switch (error) {
     case SensorError::None: return "No error";

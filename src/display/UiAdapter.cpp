@@ -5,6 +5,8 @@
 #include "ui_actions.h"
 #include "ui-log.h"
 #include "app/SleepPolicy.h"
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace ui {
@@ -13,6 +15,15 @@ lv_obj_t* settingsScreen = nullptr;
 lv_obj_t* calibrationScreen = nullptr;
 lv_obj_t* updateScreen = nullptr;
 lv_obj_t* diagnosticsScreen = nullptr;
+lv_obj_t* calibrationRunScreen = nullptr;
+lv_obj_t* calibrationChart = nullptr;
+lv_chart_series_t* calibrationSeries = nullptr;
+lv_obj_t* calibrationCancel = nullptr;
+lv_obj_t* calibrationDone = nullptr;
+float calibrationGraphMinimum = NAN;
+float calibrationGraphMaximum = NAN;
+uint32_t calibrationGraphElapsedMs = UINT32_MAX;
+bool calibrationGraphFrozen = false;
 
 void copyText(lv_subject_t* subject, const char* text) {
   if (std::strcmp(lv_subject_get_string(subject), text) != 0) lv_subject_copy_string(subject, text);
@@ -73,6 +84,70 @@ void closeUpdates(lv_event_t*) {
 void closeDiagnostics(lv_event_t*) {
   diagnosticsScreen = nullptr;
   lv_screen_load_anim(calibrationScreen ? calibrationScreen : mainscr, LV_SCREEN_LOAD_ANIM_NONE, 0, 0, true);
+}
+
+void finishCalibrationRun(lv_event_t*) {
+  lv_obj_t* previous = calibrationRunScreen;
+  calibrationRunScreen = nullptr;
+  calibrationChart = nullptr;
+  calibrationSeries = nullptr;
+  calibrationCancel = nullptr;
+  calibrationDone = nullptr;
+  calibrationGraphFrozen = false;
+  lv_screen_load(calibrationScreen ? calibrationScreen : mainscr);
+  lv_obj_delete(previous);
+}
+
+void cancelCalibrationRun(lv_event_t* event) {
+  lv_obj_t* button = lv_event_get_target_obj(event);
+  lv_obj_add_state(button, LV_STATE_DISABLED);
+  copyText(&calibration_stability_text, "Cancelling");
+  if (!cancelAnalyzerCalibration()) {
+    lv_obj_remove_state(button, LV_STATE_DISABLED);
+    copyText(&calibration_stability_text, "Cancel failed");
+  }
+}
+
+void openCalibrationRun(app::CommandType type, const char* title) {
+  app::Command command;
+  command.type = type;
+  if (!submitAnalyzerCommand(command)) {
+    messageBox("Analyzer busy - try again", NAN);
+    return;
+  }
+  copyText(&calibration_run_title_text, title);
+  copyText(&calibration_current_text, "-- mV");
+  copyText(&calibration_elapsed_text, "0.0 s");
+  copyText(&calibration_stability_text, "Settling");
+  calibrationRunScreen = calibration_run_create();
+  if (!calibrationRunScreen) {
+    cancelAnalyzerCalibration();
+    messageBox("Could not open calibration graph", NAN);
+    return;
+  }
+  calibrationChart = lv_obj_find_by_name(calibrationRunScreen, "calibration_graph");
+  calibrationSeries = calibrationChart ? lv_chart_get_series_next(calibrationChart, nullptr) : nullptr;
+  calibrationCancel = lv_obj_find_by_name(calibrationRunScreen, "calibration_cancel");
+  calibrationDone = lv_obj_find_by_name(calibrationRunScreen, "calibration_done");
+  calibrationGraphMinimum = NAN;
+  calibrationGraphMaximum = NAN;
+  calibrationGraphElapsedMs = UINT32_MAX;
+  calibrationGraphFrozen = false;
+  bindClick(calibrationCancel, cancelCalibrationRun);
+  bindClick(calibrationDone, finishCalibrationRun);
+  lv_screen_load(calibrationRunScreen);
+}
+
+void startAirCalibration(lv_event_t*) {
+  openCalibrationRun(app::CommandType::CalibrateAir, "Air calibration");
+}
+
+void startPureCalibration(lv_event_t*) {
+  openCalibrationRun(app::CommandType::CalibratePure, "Pure O2 calibration");
+}
+
+void startHeliumCalibration(lv_event_t*) {
+  openCalibrationRun(app::CommandType::CalibrateHe, "Helium calibration");
 }
 
 void openSettings(lv_event_t*) {
@@ -146,9 +221,9 @@ void openCalibration(lv_event_t*) {
     return;
   }
   bindClick(lv_obj_find_by_name(calibrationScreen, "calibration_back"), closeCalibration);
-  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_air"), action_calibrate_o2_21);
-  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_o2"), action_calibrate_o2_100);
-  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_he"), action_calibrate_he);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_air"), startAirCalibration);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_o2"), startPureCalibration);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_he"), startHeliumCalibration);
   bindClick(lv_obj_find_by_name(calibrationScreen, "clear_o2"), action_reset_o2_100);
   bindClick(lv_obj_find_by_name(calibrationScreen, "open_diagnostics"), openLogs);
   lv_obj_t* startup = lv_obj_find_by_name(calibrationScreen, "startup_calibration");
@@ -241,5 +316,50 @@ void presentStatus(const sensorsData& data, bool busy, bool ready) {
   copyText(&main_status_text, text);
   lv_obj_t* coLabel = lv_obj_find_by_name(largescr, "large_co_value");
   if (coLabel) lv_obj_set_style_text_color(coLabel, coWarning ? lv_palette_main(LV_PALETTE_RED) : COLOR_LIGHT_TEXT, 0);
+}
+
+void presentCalibration(const app::Result& result) {
+  if (!calibrationRunScreen || calibrationGraphFrozen || result.calibrationPhase == app::CalibrationPhase::None) return;
+  char text[32];
+  if (std::isfinite(result.calibrationMillivolts)) {
+    std::snprintf(text, sizeof(text), "%.2f mV", static_cast<double>(result.calibrationMillivolts));
+  } else {
+    std::snprintf(text, sizeof(text), "-- mV");
+  }
+  copyText(&calibration_current_text, text);
+  std::snprintf(text, sizeof(text), "%.1f s", static_cast<double>(result.calibrationElapsedMs) / 1000.0);
+  copyText(&calibration_elapsed_text, text);
+
+  if (calibrationChart && calibrationSeries && std::isfinite(result.calibrationMillivolts) &&
+      result.calibrationElapsedMs != calibrationGraphElapsedMs) {
+    calibrationGraphElapsedMs = result.calibrationElapsedMs;
+    calibrationGraphMinimum = std::isfinite(calibrationGraphMinimum)
+        ? std::min(calibrationGraphMinimum, result.calibrationMillivolts) : result.calibrationMillivolts;
+    calibrationGraphMaximum = std::isfinite(calibrationGraphMaximum)
+        ? std::max(calibrationGraphMaximum, result.calibrationMillivolts) : result.calibrationMillivolts;
+    const float margin = std::max(0.5f, (calibrationGraphMaximum - calibrationGraphMinimum) * 0.2f);
+    lv_chart_set_axis_range(calibrationChart, LV_CHART_AXIS_PRIMARY_Y,
+                            static_cast<int32_t>(std::floor((calibrationGraphMinimum - margin) * 100)),
+                            static_cast<int32_t>(std::ceil((calibrationGraphMaximum + margin) * 100)));
+    lv_chart_set_next_value(calibrationChart, calibrationSeries,
+                            static_cast<int32_t>(std::lround(result.calibrationMillivolts * 100)));
+  }
+
+  const char* status = "Settling";
+  switch (result.calibrationPhase) {
+    case app::CalibrationPhase::Stable: status = "Stable"; break;
+    case app::CalibrationPhase::Saved: status = "Saved"; break;
+    case app::CalibrationPhase::Cancelled: status = "Cancelled"; break;
+    case app::CalibrationPhase::Failed:
+      status = result.failure == app::Failure::Storage ? "Save failed" : "Unstable - not saved";
+      break;
+    default: break;
+  }
+  copyText(&calibration_stability_text, status);
+  if (result.complete) {
+    calibrationGraphFrozen = true;
+    if (calibrationCancel) lv_obj_add_flag(calibrationCancel, LV_OBJ_FLAG_HIDDEN);
+    if (calibrationDone) lv_obj_remove_flag(calibrationDone, LV_OBJ_FLAG_HIDDEN);
+  }
 }
 }

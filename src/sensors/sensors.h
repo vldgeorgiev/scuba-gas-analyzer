@@ -89,6 +89,8 @@ public:
     float calibrateO2_21();
     float calibrateO2_100();
     float calibrateHe_100();
+    float readO2CalibrationSample();
+    float readHeCalibrationSample();
 
     // Get last error for diagnostics
     SensorError getLastError() const { return _lastError; }

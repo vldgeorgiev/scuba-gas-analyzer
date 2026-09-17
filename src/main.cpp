@@ -39,6 +39,10 @@ bool submitAnalyzerCommand(app::Command command) {
   return uiState.submit(command, commandQueue);
 }
 
+bool cancelAnalyzerCalibration() {
+  return uiState.cancelCalibration(commandQueue);
+}
+
 void syncUiSettings() {
   const AnalyzerSettings& settings = uiSettings();
   ui::syncSettings(settings);
@@ -92,6 +96,7 @@ static void Task_UI(void*) {
       displayed = latest.forDisplay(::millis(), uiState.generation);
       presentReadings(displayed);
       pendingReading = true;
+      ui::presentCalibration(result);
       showAnalyzerResult(result);
     }
     sensorsData incoming;
@@ -161,7 +166,7 @@ static void Task_Analyzer(void*) {
     if (analyzer.service(commandQueue, resultQueue)) {
       lastMeasurement = ::millis() - 500;
     }
-    if (static_cast<uint32_t>(::millis() - lastMeasurement) >= 500) {
+    if (!analyzer.calibrating() && static_cast<uint32_t>(::millis() - lastMeasurement) >= 500) {
       analyzer.measure();
       lastMeasurement = ::millis();
     }

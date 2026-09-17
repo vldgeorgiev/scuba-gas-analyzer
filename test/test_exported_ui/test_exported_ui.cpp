@@ -9,9 +9,10 @@ static AnalyzerSettings submitted;
 static bool settingsOpen;
 static bool allowSubmit = true;
 static unsigned errors;
-static unsigned calibrateAirActions;
 static unsigned wifiScanActions;
 static unsigned analyzerCommands;
+static unsigned calibrationCancels;
+static app::CommandType lastCommandType;
 static unsigned flushes;
 static bool renderedPixels;
 static uint8_t brightness;
@@ -19,7 +20,12 @@ static uint8_t brightness;
 void DisplayManager::setBrightness(uint8_t value) { brightness = value; }
 void DisplayManager::resetInactivity() {}
 const AnalyzerSettings& uiSettings() { return effective; }
-bool submitAnalyzerCommand(app::Command) { ++analyzerCommands; return true; }
+bool submitAnalyzerCommand(app::Command command) {
+  ++analyzerCommands;
+  lastCommandType = command.type;
+  return true;
+}
+bool cancelAnalyzerCalibration() { ++calibrationCancels; return true; }
 void openUiSettings() { settingsOpen = true; ui::syncSettings(effective); }
 bool closeUiSettings(const AnalyzerSettings& draft) {
   settingsOpen = false;
@@ -28,9 +34,6 @@ bool closeUiSettings(const AnalyzerSettings& draft) {
   return allowSubmit;
 }
 void messageBox(const char*, float) { ++errors; }
-void action_calibrate_o2_21(lv_event_t*) { ++calibrateAirActions; }
-void action_calibrate_o2_100(lv_event_t*) {}
-void action_calibrate_he(lv_event_t*) {}
 void action_reset_o2_100(lv_event_t*) {}
 void action_list_wifi(lv_event_t*) { ++wifiScanActions; }
 void action_update_firmware(lv_event_t*) {}
@@ -57,6 +60,14 @@ static void click(lv_obj_t* object) {
   refresh();
 }
 
+static bool chartContains(lv_obj_t* graph, lv_chart_series_t* series, int32_t value) {
+  int32_t* values = lv_chart_get_series_y_array(graph, series);
+  for (uint32_t index = 0; index < lv_chart_get_point_count(graph); ++index) {
+    if (values[index] == value) return true;
+  }
+  return false;
+}
+
 void test_export_boot_and_navigation() {
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
   TEST_ASSERT_EQUAL_STRING("Unavailable", lv_subject_get_string(&main_o2_text));
@@ -77,7 +88,49 @@ void test_export_boot_and_navigation() {
   lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "startup_calibration"), LV_EVENT_VALUE_CHANGED, nullptr);
   TEST_ASSERT_EQUAL_UINT(1, analyzerCommands);
   click(lv_obj_find_by_name(lv_screen_active(), "calibrate_air"));
-  TEST_ASSERT_EQUAL_UINT(1, calibrateAirActions);
+  TEST_ASSERT_EQUAL(app::CommandType::CalibrateAir, lastCommandType);
+  TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "calibration_graph"));
+  refresh();
+  lv_obj_t* graph = lv_obj_find_by_name(lv_screen_active(), "calibration_graph");
+  TEST_ASSERT_GREATER_OR_EQUAL(300, lv_obj_get_width(graph));
+  TEST_ASSERT_EQUAL_INT(90, lv_obj_get_height(graph));
+  app::Result progress;
+  progress.type = app::CommandType::CalibrateAir;
+  progress.complete = false;
+  progress.calibrationPhase = app::CalibrationPhase::Settling;
+  progress.calibrationMillivolts = 10.25f;
+  progress.calibrationElapsedMs = 250;
+  ui::presentCalibration(progress);
+  TEST_ASSERT_EQUAL_STRING("10.25 mV", lv_subject_get_string(&calibration_current_text));
+  TEST_ASSERT_EQUAL_STRING("0.2 s", lv_subject_get_string(&calibration_elapsed_text));
+  lv_chart_series_t* series = lv_chart_get_series_next(graph, nullptr);
+  TEST_ASSERT_TRUE(chartContains(graph, series, 1025));
+  app::Result saved = progress;
+  saved.complete = true;
+  saved.calibrationPhase = app::CalibrationPhase::Saved;
+  saved.calibrationMillivolts = 10.3f;
+  saved.calibrationElapsedMs = 5000;
+  ui::presentCalibration(saved);
+  TEST_ASSERT_EQUAL_STRING("Saved", lv_subject_get_string(&calibration_stability_text));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(lv_obj_find_by_name(lv_screen_active(), "calibration_cancel"), LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_FALSE(lv_obj_has_flag(lv_obj_find_by_name(lv_screen_active(), "calibration_done"), LV_OBJ_FLAG_HIDDEN));
+  progress.calibrationMillivolts = 12;
+  progress.calibrationElapsedMs = 5250;
+  ui::presentCalibration(progress);
+  TEST_ASSERT_EQUAL_STRING("10.30 mV", lv_subject_get_string(&calibration_current_text));
+  TEST_ASSERT_TRUE(chartContains(graph, series, 1030));
+  TEST_ASSERT_FALSE(chartContains(graph, series, 1200));
+  click(lv_obj_find_by_name(lv_screen_active(), "calibration_done"));
+  TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "calibrate_o2"));
+  click(lv_obj_find_by_name(lv_screen_active(), "calibrate_he"));
+  TEST_ASSERT_EQUAL(app::CommandType::CalibrateHe, lastCommandType);
+  click(lv_obj_find_by_name(lv_screen_active(), "calibration_cancel"));
+  TEST_ASSERT_EQUAL_UINT(1, calibrationCancels);
+  app::Result cancelled;
+  cancelled.type = app::CommandType::CalibrateHe;
+  cancelled.calibrationPhase = app::CalibrationPhase::Cancelled;
+  ui::presentCalibration(cancelled);
+  click(lv_obj_find_by_name(lv_screen_active(), "calibration_done"));
   click(lv_obj_find_by_name(lv_screen_active(), "open_diagnostics"));
   TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "diagnostics_log"));
   click(lv_obj_find_by_name(lv_screen_active(), "diagnostics_back"));

@@ -4,7 +4,7 @@
 			<button name="calibration_back" text="" icon="icon_arrow_left">
 				<screen_load_event screen="mainscr" trigger="clicked" />
 			</button>
-			<column name="calibration_list" grow="1" height="100%" pad="#space_md" gap="#space_sm" scrollable="true">
+			<column name="calibration_list" grow="1" pad="#space_md" gap="#space_sm" scrollable="true">
 				<h5 text="Calibration" />
 				<row width="100%" horizontal_align="space_between" vertical_align="center">
 					<text text="Calibrate air on start" />

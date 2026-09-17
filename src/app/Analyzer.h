@@ -9,9 +9,10 @@ namespace app {
 
 enum class CommandType : uint8_t {
   Startup, ApplySettings, CalibrateAir, CalibratePure, CalibrateHe, ResetAir, ClearPure, ResetHe,
-  PrepareSleep, Resume
+  PrepareSleep, Resume, CancelCalibration
 };
-enum class Failure : uint8_t { None, Invalid, Storage, Sampling, LoadedDefaults, Busy, CalibrationRequired };
+enum class Failure : uint8_t { None, Invalid, Storage, Sampling, LoadedDefaults, Busy, CalibrationRequired, Cancelled };
+enum class CalibrationPhase : uint8_t { None, Settling, Stable, Saved, Failed, Cancelled };
 enum class SleepPhase : uint8_t { Awake, Preparing, Prepared, Resuming };
 
 struct Command {
@@ -27,6 +28,10 @@ struct Result {
   AnalyzerSettings effective;
   uint32_t generation = 1;
   float calibration = NAN;
+  float calibrationMillivolts = NAN;
+  uint32_t calibrationElapsedMs = 0;
+  CalibrationPhase calibrationPhase = CalibrationPhase::None;
+  bool complete = true;
   SensorError sensorError = SensorError::None;
   bool oxygenCalibrationRequired = false;
   bool heliumCalibrationRequired = false;
@@ -84,6 +89,13 @@ struct UiState {
     if (++nextId == 0) nextId = 1;
     return true;
   }
+  bool cancelCalibration(QueueHandle_t queue) const {
+    if (!ready || pendingId == 0) return false;
+    Command command;
+    command.type = CommandType::CancelCalibration;
+    command.id = pendingId;
+    return xQueueSend(queue, &command, 0) == pdPASS;
+  }
   bool preparationExpired(uint32_t now) const {
     return sleepPhase == SleepPhase::Preparing &&
            static_cast<uint32_t>(now - prepareStarted) >= PREPARE_TIMEOUT_MS;
@@ -128,7 +140,7 @@ struct UiState {
         } else return false;
       } else {
         if (result.type == CommandType::PrepareSleep || result.type == CommandType::Resume) return false;
-        pendingId = 0;
+        if (result.complete) pendingId = 0;
       }
     }
     effective = result.effective;
@@ -140,11 +152,18 @@ struct UiState {
 class Analyzer {
 public:
   static constexpr uint32_t CO_STARTUP_MS = 5000;
+  static constexpr uint32_t CALIBRATION_SAMPLE_MS = 250;
+  static constexpr uint32_t CALIBRATION_STABILITY_WINDOW_MS = 2000;
+  static constexpr uint32_t CALIBRATION_MINIMUM_MS = 5000;
+  static constexpr uint32_t CALIBRATION_TIMEOUT_MS = 10000;
+  static constexpr float O2_CALIBRATION_STABILITY_MV = 0.25f;
+  static constexpr float HE_CALIBRATION_STABILITY_MV = 1.0f;
   Analyzer(SettingsStore& settingsStore, SensorManager& sensors) : _settingsStore(settingsStore), _sensors(sensors) {}
   Result begin(bool applicationWake = false);
   Result execute(const Command& command);
   bool service(QueueHandle_t commands, QueueHandle_t results);
   SensorError measure() { return preparedForSleep() ? SensorError::None : _sensors.readSensors(coWarming()); }
+  bool calibrating() const { return _calibrationActive; }
   bool preparedForSleep() const { return _sleepId != 0; }
   bool coWarming() const {
     return _coPowered && static_cast<uint32_t>(::millis() - _coPoweredAt) < CO_STARTUP_MS;
@@ -152,8 +171,15 @@ public:
   const AnalyzerSettings& effective() const { return _effective; }
 
 private:
+  static constexpr uint8_t CALIBRATION_WINDOW_SAMPLES =
+      CALIBRATION_STABILITY_WINDOW_MS / CALIBRATION_SAMPLE_MS + 1;
   void apply();
   void advanceGeneration() { if (++_generation == 0) _generation = 1; }
+  bool calibrationCommand(CommandType type) const;
+  void startCalibration(const Command& command, QueueHandle_t results);
+  bool advanceCalibration(QueueHandle_t results);
+  Result finishCalibration(Failure failure, CalibrationPhase phase, float candidate = NAN);
+  void publishCalibration(QueueHandle_t results, CalibrationPhase phase, float sample, uint32_t elapsed);
   SettingsStore& _settingsStore;
   SensorManager& _sensors;
   AnalyzerSettings _effective;
@@ -165,6 +191,13 @@ private:
   uint32_t _sleepId = 0;
   bool _oxygenRequired = false;
   bool _heliumRequired = false;
+  bool _calibrationActive = false;
+  Command _calibrationCommand;
+  uint32_t _calibrationStartedMs = 0;
+  uint32_t _calibrationLastSampleMs = 0;
+  float _calibrationSamples[CALIBRATION_WINDOW_SAMPLES] = {};
+  uint8_t _calibrationSampleCount = 0;
+  uint8_t _calibrationSampleIndex = 0;
 };
 
 }
