@@ -6,17 +6,16 @@
 		<prop name="grow" type="int" default="0" />
 	</api>
 
-	<view
-		extends="column"
-		width="0"
-		height="100%"
-		grow="$grow"
-		gap="#space_sm"
-		horizontal_align="center"
-		vertical_align="center"
-	>
+	<view extends="column" width="0" height="100%" grow="$grow" gap="#space_sm" horizontal_align="center">
 		<h5 text="$label" />
-		<lv_label width="100%" long_mode="dots" bind_text="$subject" style_text_align="center" />
+		<lv_label
+			name="primary_value"
+			width="100%"
+			long_mode="dots"
+			bind_text="$subject"
+			style_text_align="center"
+			style_text_font="font_h3"
+		/>
 		<lv_label width="100%" long_mode="dots" bind_text="$secondary_subject" style_text_align="center" />
 	</view>
 </component>

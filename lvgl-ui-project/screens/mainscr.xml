@@ -1,10 +1,22 @@
 <screen permanent="true">
 	<view extends="lv_obj" scrollable="false" clickable="true">
 		<screen_create_event screen="largescr" trigger="clicked" />
-		<column width="100%" height="100%" pad="#space_xs" gap="#space_xs" event_bubble="true">
+		<column width="100%" height="100%" pad="#space_sm" gap="#space_xs" event_bubble="true">
 			<row width="100%" horizontal_align="space_between" vertical_align="center" event_bubble="true">
 				<image name="logo_image" src="phony_divers_logo" />
 				<row gap="#space_sm" vertical_align="center" event_bubble="true">
+					<row gap="#space_xs" vertical_align="center" event_bubble="true">
+						<monoicon src="icon_battery" />
+						<lv_label bind_text="main_battery_text" />
+					</row>
+					<button
+						name="open_diagnostics"
+						text=""
+						icon="icon_bell"
+						bg_color="#color_danger"
+						hidden="true"
+						event_bubble="false"
+					/>
 					<button name="open_calibration" text="" icon="icon_refresh" event_bubble="false" />
 					<button name="open_settings" text="" icon="icon_settings" event_bubble="false">
 						<screen_create_event screen="settings" trigger="clicked" />
@@ -12,22 +24,23 @@
 				</row>
 			</row>
 
-			<row
-				name="readings"
-				width="100%"
-				grow="1"
-				gap="#space_md"
-				vertical_align="center"
-				clickable="true"
-				event_bubble="true"
-			>
+			<row name="readings" width="100%" grow="1" gap="#space_md" clickable="true" event_bubble="true">
 				<measurement_reading
+					name="main_o2_reading"
 					label="O2"
 					subject="main_o2_text"
 					secondary_subject="main_o2_mv_text"
 					grow="1"
 					event_bubble="true"
-				/>
+				>
+					<lv_label
+						bind_text="main_mod_bottom_text"
+						width="100%"
+						long_mode="dots"
+						style_text_align="center"
+					/>
+					<lv_label bind_text="main_mod_deco_text" width="100%" long_mode="dots" style_text_align="center" />
+				</measurement_reading>
 				<measurement_reading
 					label="He"
 					subject="main_he_text"
@@ -44,21 +57,13 @@
 					/>
 				</measurement_reading>
 				<measurement_reading
+					name="main_co_reading"
 					label="CO"
 					subject="main_co_text"
 					secondary_subject="main_co_mv_text"
 					grow="1"
 					event_bubble="true"
 				/>
-			</row>
-
-			<row name="status" width="100%" gap="#space_sm" vertical_align="center" event_bubble="true">
-				<lv_label bind_text="main_status_text" flex_grow="1" />
-				<text text="MOD" />
-				<lv_label bind_text="main_mod_bottom_text" />
-				<lv_label bind_text="main_mod_deco_text" />
-				<monoicon src="icon_battery" />
-				<lv_label bind_text="main_battery_text" />
 			</row>
 		</column>
 	</view>

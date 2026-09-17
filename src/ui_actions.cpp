@@ -68,12 +68,7 @@ void showAnalyzerResult(const app::Result& result) {
     }
   }
   if (!title && required && result.type == app::CommandType::ApplySettings) title = required;
-  const bool calibrationResult = result.type == app::CommandType::CalibrateAir ||
-                                 result.type == app::CommandType::CalibratePure ||
-                                 result.type == app::CommandType::CalibrateHe ||
-                                 result.type == app::CommandType::ClearPure;
-  if (title && calibrationResult) lv_subject_copy_string(&calibration_result_text, title);
-  else if (title) messageBox(title, result.calibration);
+  if (title && result.calibrationPhase == app::CalibrationPhase::None) messageBox(title, result.calibration);
 }
 
 void action_list_wifi(lv_event_t * e) {

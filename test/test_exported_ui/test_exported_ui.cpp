@@ -2,6 +2,7 @@
 #include "lvgl_ui_project.h"
 #include "display/UiAdapter.h"
 #include "main.h"
+#include "ui-log.h"
 
 DisplayManager displayManager;
 static AnalyzerSettings effective;
@@ -137,7 +138,7 @@ void test_export_boot_and_navigation() {
   TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "calibrate_o2"));
   click(lv_obj_find_by_name(lv_screen_active(), "calibration_back"));
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
-  click(lv_obj_find_by_name(mainscr, "status"));
+  click(lv_obj_find_by_name(mainscr, "readings"));
   TEST_ASSERT_EQUAL_PTR(largescr, lv_screen_active());
   click(largescr);
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
@@ -192,8 +193,31 @@ void test_export_readings_and_sensor_states() {
   ui::presentStatus(data, false, true);
   TEST_ASSERT_EQUAL_STRING("20.9%", lv_subject_get_string(&main_o2_text));
   TEST_ASSERT_EQUAL_STRING("10.4 mV", lv_subject_get_string(&main_o2_mv_text));
-  TEST_ASSERT_EQUAL_STRING("CO warning", lv_subject_get_string(&main_status_text));
   TEST_ASSERT_EQUAL_STRING("B 56 m", lv_subject_get_string(&main_mod_bottom_text));
+  lv_obj_t* coReading = lv_obj_find_by_name(mainscr, "main_co_reading");
+  TEST_ASSERT_NOT_NULL(coReading);
+  lv_obj_t* coValue = lv_obj_find_by_name(coReading, "primary_value");
+  TEST_ASSERT_NOT_NULL(coValue);
+  TEST_ASSERT_TRUE(lv_obj_has_state(coValue, LV_STATE_USER_1));
+  TEST_ASSERT_EQUAL_UINT32(lv_color_to_u32(COLOR_DANGER), lv_color_to_u32(lv_obj_get_style_text_color(coValue, LV_PART_MAIN)));
+  lv_obj_t* warning = lv_obj_find_by_name(mainscr, "open_diagnostics");
+  TEST_ASSERT_NOT_NULL(warning);
+  TEST_ASSERT_TRUE(lv_obj_has_flag(warning, LV_OBJ_FLAG_HIDDEN));
+  logUi("Test warning", UiLogLevel::Warning);
+  ui::presentStatus(data, false, true);
+  TEST_ASSERT_FALSE(lv_obj_has_flag(warning, LV_OBJ_FLAG_HIDDEN));
+  click(warning);
+  TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "diagnostics_log"));
+  click(lv_obj_find_by_name(lv_screen_active(), "diagnostics_back"));
+  TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
+  UiLog::getInstance().clearLog();
+  data.CoLevel.ppm = 0.9f;
+  ui::presentReadings(data, effective);
+  ui::presentStatus(data, false, true);
+  TEST_ASSERT_EQUAL_STRING("0 ppm", lv_subject_get_string(&main_co_text));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(warning, LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_FALSE(lv_obj_has_state(coValue, LV_STATE_USER_1));
+  TEST_ASSERT_NOT_EQUAL(lv_color_to_u32(COLOR_DANGER), lv_color_to_u32(lv_obj_get_style_text_color(coValue, LV_PART_MAIN)));
   data.o2State = ChannelState::Invalid;
   ui::presentReadings(data, effective);
   TEST_ASSERT_EQUAL_STRING("10.4 mV", lv_subject_get_string(&main_o2_mv_text));

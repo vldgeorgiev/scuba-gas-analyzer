@@ -158,6 +158,7 @@ public:
   static constexpr uint32_t CALIBRATION_TIMEOUT_MS = 10000;
   static constexpr float O2_CALIBRATION_STABILITY_MV = 0.25f;
   static constexpr float HE_CALIBRATION_STABILITY_MV = 1.0f;
+  
   Analyzer(SettingsStore& settingsStore, SensorManager& sensors) : _settingsStore(settingsStore), _sensors(sensors) {}
   Result begin(bool applicationWake = false);
   Result execute(const Command& command);

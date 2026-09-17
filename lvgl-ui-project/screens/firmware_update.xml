@@ -1,7 +1,7 @@
 <screen>
 	<view extends="lv_obj" scrollable="false">
 		<subject_set_int_event subject="update_keyboard_visible" trigger="screen_loaded" value="0" />
-		<column width="100%" height="100%" gap="#space_sm">
+		<column width="100%" height="100%" gap="#space_sm" pad="#space_sm">
 			<row width="100%" grow="1">
 				<button name="update_back" text="" icon="icon_arrow_left" />
 				<column name="update_form" grow="1" height="100%" pad="#space_md" gap="#space_md" scrollable="true">

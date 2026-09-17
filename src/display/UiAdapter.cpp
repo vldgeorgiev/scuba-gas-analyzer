@@ -20,6 +20,9 @@ lv_obj_t* calibrationChart = nullptr;
 lv_chart_series_t* calibrationSeries = nullptr;
 lv_obj_t* calibrationCancel = nullptr;
 lv_obj_t* calibrationDone = nullptr;
+lv_obj_t* mainWarning = nullptr;
+lv_obj_t* mainCoValue = nullptr;
+lv_obj_t* largeCoValue = nullptr;
 float calibrationGraphMinimum = NAN;
 float calibrationGraphMaximum = NAN;
 uint32_t calibrationGraphElapsedMs = UINT32_MAX;
@@ -187,13 +190,19 @@ void setRaw(lv_subject_t* subject, float value, ChannelState state) {
 void init() {
   lvgl_ui_project_set_target(LVGL_UI_PROJECT_TARGET_TARGET1);
   lvgl_ui_project_init("");
+  mainWarning = lv_obj_find_by_name(mainscr, "open_diagnostics");
+  lv_obj_t* mainCoReading = lv_obj_find_by_name(mainscr, "main_co_reading");
+  mainCoValue = mainCoReading ? lv_obj_find_by_name(mainCoReading, "primary_value") : nullptr;
+  largeCoValue = lv_obj_find_by_name(largescr, "large_co_value");
+  if (mainCoValue) lv_obj_set_style_text_color(mainCoValue, COLOR_DANGER, LV_PART_MAIN | LV_STATE_USER_1);
+  if (largeCoValue) lv_obj_set_style_text_color(largeCoValue, COLOR_DANGER, LV_PART_MAIN | LV_STATE_USER_1);
   bindClick(mainscr, switchReadings);
   bindClick(largescr, switchReadings);
+  bindClick(mainWarning, openLogs);
   bindClick(lv_obj_find_by_name(mainscr, "open_settings"), openSettings);
   bindClick(lv_obj_find_by_name(mainscr, "open_calibration"), openCalibration);
   presentReadings(sensorsData{}, AnalyzerSettings{});
   presentBattery(NAN);
-  copyText(&main_status_text, "Starting");
   lv_screen_load(mainscr);
 }
 
@@ -302,20 +311,20 @@ void presentBattery(float voltage) {
   copyText(&main_battery_text, text);
 }
 
-void presentStatus(const sensorsData& data, bool busy, bool ready) {
-  const bool coWarning = data.coState == ChannelState::Valid && std::isfinite(data.CoLevel.ppm) && data.CoLevel.ppm > 0;
+void presentStatus(const sensorsData& data, bool, bool) {
+  int displayedCo;
+  const bool coWarning = data.coState == ChannelState::Valid &&
+                         conversions::toInt(data.CoLevel.ppm, displayedCo) && displayedCo > 0;
   const UiLogLevel level = UiLog::getInstance().getLevel();
-  const ChannelState oxygen = percentageState(data.O2Level.percentage, data.o2State);
-  const ChannelState helium = percentageState(data.HeLevel.percentage, data.heState);
-  const bool fault = (oxygen != ChannelState::Valid && oxygen != ChannelState::Disabled) ||
-                     (helium != ChannelState::Valid && helium != ChannelState::Disabled) ||
-                     (data.coState != ChannelState::Valid && data.coState != ChannelState::Disabled) ||
-                     (data.heState != ChannelState::Disabled && data.temperatureState != ChannelState::Valid);
-  const char* text = coWarning ? "CO warning" : !ready ? "Starting" : busy ? "Busy" :
-                     level == UiLogLevel::Error ? "Error" : fault || level == UiLogLevel::Warning ? "Check sensors" : "Ready";
-  copyText(&main_status_text, text);
-  lv_obj_t* coLabel = lv_obj_find_by_name(largescr, "large_co_value");
-  if (coLabel) lv_obj_set_style_text_color(coLabel, coWarning ? lv_palette_main(LV_PALETTE_RED) : COLOR_LIGHT_TEXT, 0);
+  if (mainWarning) lv_obj_set_flag(mainWarning, LV_OBJ_FLAG_HIDDEN, level == UiLogLevel::None);
+  if (mainCoValue) {
+    if (coWarning) lv_obj_add_state(mainCoValue, LV_STATE_USER_1);
+    else lv_obj_remove_state(mainCoValue, LV_STATE_USER_1);
+  }
+  if (largeCoValue) {
+    if (coWarning) lv_obj_add_state(largeCoValue, LV_STATE_USER_1);
+    else lv_obj_remove_state(largeCoValue, LV_STATE_USER_1);
+  }
 }
 
 void presentCalibration(const app::Result& result) {

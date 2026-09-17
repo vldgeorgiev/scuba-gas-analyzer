@@ -21,7 +21,7 @@
 			<row width="100%" horizontal_align="space_between" vertical_align="center">
 				<row gap="#space_xs" vertical_align="center">
 					<lv_label name="calibration_stability" bind_text="calibration_stability_text" long_mode="dots" />
-					<text text="·" />
+					<text text=" - " />
 					<lv_label name="calibration_elapsed" bind_text="calibration_elapsed_text" long_mode="dots" />
 				</row>
 				<button name="calibration_cancel" text="Cancel" icon="icon_close" width="96" />
