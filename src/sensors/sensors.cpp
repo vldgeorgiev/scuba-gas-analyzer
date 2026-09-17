@@ -108,7 +108,7 @@ SensorError SensorManager::readSensors(bool coWarmupWindow) {
     data.CoLevel = _coSensor.readLevel(&timedOut);
     data.coState = recordRead(_adc2State, timedOut, std::isfinite(data.CoLevel.ppm));
     if (data.coState == ChannelState::Valid && coWarmupWindow &&
-        data.CoLevel.ppm > CO_WARMUP_PPM) data.coState = ChannelState::Warming;
+      data.CoLevel.ppm > app::policy::CO_WARMUP_PPM) data.coState = ChannelState::Warming;
   }
 
   if (_isHeEnabled && _adc2State.ready) {
@@ -120,54 +120,12 @@ SensorError SensorManager::readSensors(bool coWarmupWindow) {
     data.HeTemperature = _tempSensor.readLevel(&timedOut);
     data.temperatureState = recordRead(_adc2State, timedOut, std::isfinite(data.HeTemperature));
     if (data.heState == ChannelState::Valid && data.temperatureState == ChannelState::Valid &&
-        data.HeTemperature < HE_WARMUP_TEMPERATURE_C) data.heState = ChannelState::Warming;
+      data.HeTemperature < app::policy::HE_WARMUP_TEMPERATURE_C) data.heState = ChannelState::Warming;
   }
   data.lastError = _lastError;
 
   xQueueOverwrite(_dataQueue, &data);
   return _lastError;
-}
-
-float SensorManager::calibrateO2_21() {
-  log_d("Calibrating O2 sensor for 21%% O2...");
-  recoverDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
-  if (!_adc1State.ready) return NAN;
-  const float candidate = _o2Sensor.calibrate();
-  if (!std::isfinite(candidate)) {
-    recordRead(_adc1State, true, false);
-    return NAN;
-  }
-  _o2Calibration21 = candidate;
-  _o2Sensor.setCalibrations(_o2Calibration21, _o2Calibration100);
-  return _o2Calibration21;
-}
-
-float SensorManager::calibrateO2_100() {
-  log_d("Calibrating O2 sensor for 100%% O2...");
-  recoverDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
-  if (!_adc1State.ready) return NAN;
-  const float candidate = _o2Sensor.calibrate();
-  if (!std::isfinite(candidate)) {
-    recordRead(_adc1State, true, false);
-    return NAN;
-  }
-  _o2Calibration100 = candidate;
-  _o2Sensor.setCalibrations(_o2Calibration21, _o2Calibration100);
-  return _o2Calibration100;
-}
-
-float SensorManager::calibrateHe_100() {
-  log_d("Calibrating He sensor for 100%% He...");
-  recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
-  if (!_adc2State.ready) return NAN;
-  const float candidate = _heSensor.calibrate();
-  if (!std::isfinite(candidate)) {
-    recordRead(_adc2State, true, false);
-    return NAN;
-  }
-  _heCalibration100 = candidate;
-  _heSensor.setCalibrations(_heCalibration100);
-  return _heCalibration100;
 }
 
 float SensorManager::readO2CalibrationSample() {

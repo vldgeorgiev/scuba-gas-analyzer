@@ -65,22 +65,6 @@ void test_rejection_and_write_failure_keep_effective_state() {
   TEST_ASSERT_EQUAL_UINT32(1, result.generation);
 }
 
-void test_calibration_failure_restores_live_coefficients() {
-  Rig rig;
-  Adafruit_ADS1115::devices[0]->counts = 640;
-  app::Command command;
-  command.type = app::CommandType::CalibrateAir;
-  Preferences::failWrite = true;
-  const auto result = rig.analyzer.execute(command);
-  TEST_ASSERT_EQUAL(app::Failure::Storage, result.failure);
-  TEST_ASSERT_EQUAL_FLOAT(10, result.effective.o2Air);
-  Adafruit_ADS1115::devices[0]->counts = 320;
-  rig.analyzer.measure();
-  sensorsData sample;
-  xQueueReceive(rig.handle, &sample, 0);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20.9f, sample.O2Level.percentage);
-}
-
 void test_clear_optional_calibration_and_unchanged_commands() {
   Preferences::values["o2_calib_21"] = 10;
   Preferences::values["o2_calib_100"] = 50;
@@ -210,9 +194,9 @@ void test_valid_settings_repair_is_a_noop() {
   value.sleepMinutes = 0;
   value.po2Bottom = 1;
   value.po2Deco = 2;
-  value.o2Air = 50;
-  value.o2Pure = 100;
-  value.heCalibration = 700;
+  value.o2Air = 20;
+  value.o2Pure = 30;
+  value.heCalibration = 400;
   const auto previous = value;
   TEST_ASSERT_FALSE(value.repairInvalidFields());
   TEST_ASSERT_TRUE(value.sameMeasurementSettings(previous));
@@ -254,10 +238,11 @@ void test_po2_repair_preserves_valid_limits_and_calibration() {
 void test_calibration_repair_is_limited_to_invalid_fields_and_dependencies() {
   const struct { float air, pure, helium, expectedAir, expectedPure, expectedHelium; } cases[] = {
     {NAN, 55, 700, 10, NAN, 700}, {INFINITY, 55, 700, 10, NAN, 700},
-    {4.9f, 55, 700, 10, NAN, 700}, {50.1f, 55, 700, 10, NAN, 700},
+    {4.9f, 55, 700, 10, NAN, 700}, {20.1f, 55, 700, 10, NAN, 700},
     {12, 12, 700, 12, NAN, 700}, {12, INFINITY, 700, 12, NAN, 700},
+    {12, 29.9f, 700, 12, NAN, 700},
     {12, 101, 700, 12, NAN, 700}, {12, -INFINITY, 700, 12, NAN, 700},
-    {12, 55, 0, 12, 55, 620}, {12, 55, NAN, 12, 55, 620},
+    {12, 55, 399.9f, 12, 55, 620}, {12, 55, NAN, 12, 55, 620},
     {12, 55, INFINITY, 12, 55, 620}, {12, 55, -1, 12, 55, 620}
   };
   for (const auto& entry : cases) {
@@ -278,6 +263,21 @@ void test_calibration_repair_is_limited_to_invalid_fields_and_dependencies() {
     TEST_ASSERT_EQUAL_FLOAT(1.2f, value.po2Bottom);
     TEST_ASSERT_EQUAL_UINT8(64, value.brightness);
   }
+}
+
+void test_calibration_guard_boundaries() {
+  TEST_ASSERT_FALSE(AnalyzerSettings::validO2Air(4.99f));
+  TEST_ASSERT_TRUE(AnalyzerSettings::validO2Air(5.0f));
+  TEST_ASSERT_TRUE(AnalyzerSettings::validO2Air(20.0f));
+  TEST_ASSERT_FALSE(AnalyzerSettings::validO2Air(20.01f));
+
+  TEST_ASSERT_FALSE(AnalyzerSettings::validO2Pure(29.99f, 20.0f));
+  TEST_ASSERT_TRUE(AnalyzerSettings::validO2Pure(30.0f, 20.0f));
+  TEST_ASSERT_TRUE(AnalyzerSettings::validO2Pure(100.0f, 20.0f));
+  TEST_ASSERT_FALSE(AnalyzerSettings::validO2Pure(100.01f, 20.0f));
+
+  TEST_ASSERT_FALSE(AnalyzerSettings::validHeCalibration(399.99f));
+  TEST_ASSERT_TRUE(AnalyzerSettings::validHeCalibration(400.0f));
 }
 
 void test_repaired_load_defers_writes_and_retries_full_save() {
@@ -364,10 +364,21 @@ void test_startup_reports_adc_failure_without_blocking_other_device() {
   SensorManager sensors(handle);
   SettingsStore settingsStore;
   app::Analyzer analyzer(settingsStore, sensors);
-  const auto result = analyzer.begin();
+  const auto initial = analyzer.begin();
+  TEST_ASSERT_FALSE(initial.complete);
+  TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[1]->beginCalls);
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+    for (nowMs = 0; nowMs <= app::policy::CALIBRATION_TIMEOUT_MS;
+      nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    analyzer.service(&commands, &results);
+  }
+  analyzer.service(&commands, &results);
+  app::Result result;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &result, 0));
+  TEST_ASSERT_EQUAL(app::CommandType::Startup, result.type);
   TEST_ASSERT_EQUAL(app::Failure::Sampling, result.failure);
   TEST_ASSERT_EQUAL(SensorError::ADC_Init_Failed, result.sensorError);
-  TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[1]->beginCalls);
   app::UiState state;
   TEST_ASSERT_TRUE(state.accept(result));
   TEST_ASSERT_FALSE(state.busy());
@@ -422,6 +433,21 @@ static app::Result startServiceCalibration(Rig& rig, FakeQueue& commands, FakeQu
   return progress;
 }
 
+static app::Result finishServiceCalibration(Rig& rig, FakeQueue& commands, FakeQueue& results,
+                                            app::CommandType type, uint32_t id = 42) {
+  auto progress = startServiceCalibration(rig, commands, results, type, id);
+    for (nowMs = app::policy::CALIBRATION_SAMPLE_MS;
+      nowMs <= app::policy::CALIBRATION_MINIMUM_MS;
+      nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    rig.analyzer.service(&commands, &results);
+  }
+  xQueueReceive(&results, &progress, 0);
+  rig.analyzer.service(&commands, &results);
+  app::Result terminal;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &terminal, 0));
+  return terminal;
+}
+
 void test_stable_service_calibration_saves_at_five_seconds() {
   Rig rig;
   FakeQueue commands(sizeof(app::Command));
@@ -430,9 +456,9 @@ void test_stable_service_calibration_saves_at_five_seconds() {
   auto started = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
   TEST_ASSERT_FALSE(started.complete);
   TEST_ASSERT_EQUAL(app::CalibrationPhase::Settling, started.calibrationPhase);
-  for (nowMs = app::Analyzer::CALIBRATION_SAMPLE_MS;
-       nowMs <= app::Analyzer::CALIBRATION_MINIMUM_MS;
-       nowMs += app::Analyzer::CALIBRATION_SAMPLE_MS) {
+    for (nowMs = app::policy::CALIBRATION_SAMPLE_MS;
+      nowMs <= app::policy::CALIBRATION_MINIMUM_MS;
+      nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
     rig.analyzer.service(&commands, &results);
   }
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, rig.analyzer.effective().o2Air);
@@ -443,7 +469,7 @@ void test_stable_service_calibration_saves_at_five_seconds() {
   TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &saved, 0));
   TEST_ASSERT_TRUE(saved.complete);
   TEST_ASSERT_EQUAL(app::CalibrationPhase::Saved, saved.calibrationPhase);
-  TEST_ASSERT_EQUAL_UINT32(app::Analyzer::CALIBRATION_MINIMUM_MS, saved.calibrationElapsedMs);
+  TEST_ASSERT_EQUAL_UINT32(app::policy::CALIBRATION_MINIMUM_MS, saved.calibrationElapsedMs);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, saved.calibration);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, saved.effective.o2Air);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, Preferences::values["o2_calib_21"]);
@@ -455,10 +481,10 @@ void test_unstable_service_calibration_fails_at_timeout_without_saving() {
   FakeQueue results(sizeof(app::Result));
   Adafruit_ADS1115::devices[0]->counts = 320;
   auto progress = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
-  for (nowMs = app::Analyzer::CALIBRATION_SAMPLE_MS;
-       nowMs <= app::Analyzer::CALIBRATION_TIMEOUT_MS;
-       nowMs += app::Analyzer::CALIBRATION_SAMPLE_MS) {
-    Adafruit_ADS1115::devices[0]->counts = (nowMs / app::Analyzer::CALIBRATION_SAMPLE_MS) % 2 ? 320 : 352;
+  for (nowMs = app::policy::CALIBRATION_SAMPLE_MS;
+       nowMs <= app::policy::CALIBRATION_TIMEOUT_MS;
+       nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    Adafruit_ADS1115::devices[0]->counts = (nowMs / app::policy::CALIBRATION_SAMPLE_MS) % 2 ? 320 : 352;
     rig.analyzer.service(&commands, &results);
   }
   xQueueReceive(&results, &progress, 0);
@@ -467,9 +493,61 @@ void test_unstable_service_calibration_fails_at_timeout_without_saving() {
   xQueueReceive(&results, &failed, 0);
   TEST_ASSERT_EQUAL(app::Failure::Sampling, failed.failure);
   TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, failed.calibrationPhase);
-  TEST_ASSERT_EQUAL_UINT32(app::Analyzer::CALIBRATION_TIMEOUT_MS, failed.calibrationElapsedMs);
+  TEST_ASSERT_EQUAL_UINT32(app::policy::CALIBRATION_TIMEOUT_MS, failed.calibrationElapsedMs);
   TEST_ASSERT_EQUAL_FLOAT(10, failed.effective.o2Air);
   TEST_ASSERT_EQUAL_FLOAT(10, Preferences::values["o2_calib_21"]);
+}
+
+static void assertDriftingCalibrationFails(bool rising) {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  auto progress = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  for (nowMs = app::policy::CALIBRATION_SAMPLE_MS;
+       nowMs <= app::policy::CALIBRATION_TIMEOUT_MS;
+       nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    const int16_t offset = static_cast<int16_t>((nowMs / app::policy::CALIBRATION_SAMPLE_MS) / 2);
+    Adafruit_ADS1115::devices[0]->counts = rising ? 640 + offset : 680 - offset;
+    rig.analyzer.service(&commands, &results);
+  }
+  xQueueReceive(&results, &progress, 0);
+  rig.analyzer.service(&commands, &results);
+  app::Result failed;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &failed, 0));
+  TEST_ASSERT_EQUAL(app::Failure::Sampling, failed.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, failed.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(10, failed.effective.o2Air);
+}
+
+void test_positive_drift_fails_even_when_window_spread_is_small() {
+  assertDriftingCalibrationFails(true);
+}
+
+void test_negative_drift_fails_even_when_window_spread_is_small() {
+  assertDriftingCalibrationFails(false);
+}
+
+void test_drifting_calibration_can_settle_before_timeout() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  auto progress = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  for (nowMs = app::policy::CALIBRATION_SAMPLE_MS;
+       nowMs <= app::policy::CALIBRATION_TIMEOUT_MS;
+       nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    const uint32_t sampleNumber = nowMs / app::policy::CALIBRATION_SAMPLE_MS;
+    Adafruit_ADS1115::devices[0]->counts = nowMs <= app::policy::CALIBRATION_MINIMUM_MS
+      ? 600 + static_cast<int16_t>(sampleNumber / 2) : 610;
+    rig.analyzer.service(&commands, &results);
+    if (!rig.analyzer.calibrating()) break;
+  }
+  xQueueReceive(&results, &progress, 0);
+  rig.analyzer.service(&commands, &results);
+  app::Result saved;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &saved, 0));
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Saved, saved.calibrationPhase);
+  TEST_ASSERT_GREATER_THAN(app::policy::CALIBRATION_MINIMUM_MS, saved.calibrationElapsedMs);
+  TEST_ASSERT_LESS_THAN(app::policy::CALIBRATION_TIMEOUT_MS, saved.calibrationElapsedMs);
 }
 
 void test_calibration_progress_and_cancel_keep_previous_value() {
@@ -508,9 +586,9 @@ void test_calibration_reports_saved_only_after_persistence() {
   Adafruit_ADS1115::devices[0]->counts = 640;
   auto progress = startServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
   Preferences::failWrite = true;
-  for (nowMs = app::Analyzer::CALIBRATION_SAMPLE_MS;
-       nowMs <= app::Analyzer::CALIBRATION_MINIMUM_MS;
-       nowMs += app::Analyzer::CALIBRATION_SAMPLE_MS) {
+    for (nowMs = app::policy::CALIBRATION_SAMPLE_MS;
+      nowMs <= app::policy::CALIBRATION_MINIMUM_MS;
+      nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
     rig.analyzer.service(&commands, &results);
   }
   xQueueReceive(&results, &progress, 0);
@@ -522,12 +600,59 @@ void test_calibration_reports_saved_only_after_persistence() {
   TEST_ASSERT_EQUAL_FLOAT(10, failed.effective.o2Air);
 }
 
+static void assertAirCalibrationRejected(int16_t counts) {
+  nowMs = 0;
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[0]->counts = counts;
+  const auto failed = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, failed.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, failed.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::O2_AIR_CALIBRATION_DEFAULT_MV, failed.effective.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::O2_AIR_CALIBRATION_DEFAULT_MV, Preferences::values["o2_calib_21"]);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_out_of_range_air_calibration_is_not_saved() {
+  assertAirCalibrationRejected(128);  // 4 mV
+  assertAirCalibrationRejected(672);  // 21 mV
+}
+
+void test_out_of_range_pure_o2_calibration_is_not_saved() {
+  Preferences::values["o2_calib_100"] = 50;
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[0]->counts = 928;  // 29 mV
+  const auto failed = finishServiceCalibration(rig, commands, results, app::CommandType::CalibratePure);
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, failed.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, failed.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(50, failed.effective.o2Pure);
+  TEST_ASSERT_EQUAL_FLOAT(50, Preferences::values["o2_calib_100"]);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_out_of_range_helium_calibration_is_not_saved() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[1]->counts = 6384;  // 399 mV
+  const auto failed = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateHe);
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, failed.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, failed.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::HE_CALIBRATION_DEFAULT_MV, failed.effective.heCalibration);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::HE_CALIBRATION_DEFAULT_MV, Preferences::values["he_calib_100"]);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
 void test_successful_calibration_then_reset_changes_live_and_stored_values() {
   Rig rig;
   Adafruit_ADS1115::devices[0]->counts = 640;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  const auto calibrated = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
   app::Command command;
-  command.type = app::CommandType::CalibrateAir;
-  const auto calibrated = rig.analyzer.execute(command);
   TEST_ASSERT_EQUAL(app::Failure::None, calibrated.failure);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, calibrated.effective.o2Air);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, Preferences::values["o2_calib_21"]);
@@ -546,7 +671,7 @@ void test_co_warmup_samples_raw_value_and_ends_at_configured_deadline() {
   oxygen->counts = 320;
   secondary->counts = 7040;
   TEST_ASSERT_TRUE(rig.analyzer.coWarming());
-  nowMs = app::Analyzer::CO_WARMUP_MS - 1;
+  nowMs = app::policy::CO_WARMUP_MS - 1;
   rig.analyzer.measure();
   sensorsData sample;
   xQueueReceive(rig.handle, &sample, 0);
@@ -556,7 +681,7 @@ void test_co_warmup_samples_raw_value_and_ends_at_configured_deadline() {
   TEST_ASSERT_EQUAL(ChannelState::Valid, sample.o2State);
   TEST_ASSERT_EQUAL(ChannelState::Valid, sample.heState);
   TEST_ASSERT_EQUAL_UINT(2, secondary->singleEndedReads);
-  nowMs = app::Analyzer::CO_WARMUP_MS;
+  nowMs = app::policy::CO_WARMUP_MS;
   TEST_ASSERT_FALSE(rig.analyzer.coWarming());
   rig.analyzer.measure();
   xQueueReceive(rig.handle, &sample, 0);
@@ -576,7 +701,7 @@ void test_co_reenable_restarts_warmup_across_clock_wrap() {
   command.settings.coEnabled = true;
   rig.analyzer.execute(command);
   TEST_ASSERT_TRUE(rig.analyzer.coWarming());
-  nowMs += app::Analyzer::CO_WARMUP_MS - 1;
+  nowMs += app::policy::CO_WARMUP_MS - 1;
   command.settings.brightness = 64;
   rig.analyzer.execute(command);
   TEST_ASSERT_TRUE(rig.analyzer.coWarming());
@@ -587,7 +712,7 @@ void test_co_reenable_restarts_warmup_across_clock_wrap() {
 void test_adc_recovery_does_not_restart_co_warmup() {
   Rig rig;
   auto* secondary = Adafruit_ADS1115::devices[1];
-  nowMs = app::Analyzer::CO_WARMUP_MS;
+  nowMs = app::policy::CO_WARMUP_MS;
   secondary->conversionCompletes = false;
   rig.analyzer.measure();
   TEST_ASSERT_FALSE(rig.analyzer.coWarming());
@@ -604,7 +729,7 @@ void test_adc_recovery_does_not_restart_co_warmup() {
 
 void test_prepare_stops_publication_and_resume_restores_power_with_fresh_generation() {
   Rig rig;
-  nowMs = app::Analyzer::CO_WARMUP_MS;
+  nowMs = app::policy::CO_WARMUP_MS;
   rig.analyzer.measure();
   TEST_ASSERT_TRUE(rig.queue.occupied);
   app::Command prepare;
@@ -749,7 +874,7 @@ void test_sleep_handshake_preserves_disabled_sensor_power_and_settings() {
 
 void test_resume_when_already_awake_is_harmless_and_does_not_restart_co() {
   Rig rig;
-  nowMs = app::Analyzer::CO_WARMUP_MS;
+  nowMs = app::policy::CO_WARMUP_MS;
   rig.analyzer.measure();
   app::Command resume;
   resume.type = app::CommandType::Resume;
@@ -905,15 +1030,24 @@ void test_air_acceptance_clears_orphan_pure_point_across_reboot() {
   Preferences::values["o2_calib_100"] = 55;
   Rig rig;
   TEST_ASSERT_TRUE(std::isnan(rig.analyzer.effective().o2Pure));
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  rig.analyzer.service(&commands, &results);
+  app::Result startup;
+  xQueueReceive(&results, &startup, 0);
   app::Command command;
   command.type = app::CommandType::CalibratePure;
-  const auto refused = rig.analyzer.execute(command);
+  command.id = 41;
+  xQueueSend(&commands, &command, 0);
+  rig.analyzer.service(&commands, &results);
+  rig.analyzer.service(&commands, &results);
+  app::Result refused;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &refused, 0));
   TEST_ASSERT_EQUAL(app::Failure::CalibrationRequired, refused.failure);
   TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
   TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
   Adafruit_ADS1115::devices[0]->counts = 320;
-  command.type = app::CommandType::CalibrateAir;
-  const auto accepted = rig.analyzer.execute(command);
+  const auto accepted = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir, 42);
   TEST_ASSERT_EQUAL(app::Failure::None, accepted.failure);
   TEST_ASSERT_FALSE(accepted.oxygenCalibrationRequired);
   TEST_ASSERT_EQUAL_UINT32(refused.generation + 1, accepted.generation);
@@ -930,14 +1064,15 @@ void test_partial_acceptance_failure_is_unaccepted_and_reconciled_on_retry() {
   Rig rig;
   Adafruit_ADS1115::devices[0]->counts = 320;
   Preferences::failAfter = 1;
-  app::Command command;
-  command.type = app::CommandType::CalibrateAir;
-  const auto failed = rig.analyzer.execute(command);
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  const auto failed = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
   TEST_ASSERT_EQUAL(app::Failure::Storage, failed.failure);
   TEST_ASSERT_TRUE(failed.oxygenCalibrationRequired);
   TEST_ASSERT_FALSE(rig.settingsStore.hasOxygenCalibration());
   TEST_ASSERT_EQUAL_FLOAT(10, Preferences::values["o2_calib_21"]);
   Preferences::failAfter = -1;
+  app::Command command;
   command.type = app::CommandType::ApplySettings;
   command.settings = rig.analyzer.effective();
   const auto reconciled = rig.analyzer.execute(command);
@@ -965,21 +1100,90 @@ void test_calibration_required_message_respects_enabled_channels_and_helium_depe
   TEST_ASSERT_NULL(result.calibrationRequiredMessage());
 }
 
-void test_unaccepted_sentinels_do_not_block_enabled_startup_calibration() {
+void test_enabled_startup_calibration_uses_incremental_session() {
   Preferences::values["calib_start"] = 1;
-  Preferences::values["o2_calib_21"] = NAN;
-  Preferences::values["he_calib_100"] = NAN;
   FakeQueue queue(sizeof(sensorsData));
   QueueHandle_t handle = &queue;
   SensorManager sensors(handle);
   SettingsStore store;
   app::Analyzer analyzer(store, sensors);
-  const auto result = analyzer.begin();
-  TEST_ASSERT_FALSE(store.loadedDefaults());
-  TEST_ASSERT_EQUAL_UINT(100, Adafruit_ADS1115::devices[0]->differential23Reads);
-  TEST_ASSERT_EQUAL(app::Failure::Invalid, result.failure);
-  TEST_ASSERT_TRUE(result.oxygenCalibrationRequired);
-  TEST_ASSERT_TRUE(result.heliumCalibrationRequired);
+  const auto initial = analyzer.begin();
+  Adafruit_ADS1115::devices[0]->counts = 640;
+  TEST_ASSERT_EQUAL(app::CommandType::Startup, initial.type);
+  TEST_ASSERT_TRUE(analyzer.calibrating());
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+    for (nowMs = 0; nowMs <= app::policy::CALIBRATION_MINIMUM_MS;
+      nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    analyzer.service(&commands, &results);
+  }
+  analyzer.service(&commands, &results);
+  TEST_ASSERT_FALSE(analyzer.calibrating());
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, analyzer.effective().o2Air);
+  app::Result startup;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &startup, 0));
+  TEST_ASSERT_EQUAL(app::CommandType::Startup, startup.type);
+  TEST_ASSERT_TRUE(startup.complete);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Saved, startup.calibrationPhase);
+  TEST_ASSERT_EQUAL(app::Failure::None, startup.failure);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20, startup.calibration);
+  TEST_ASSERT_EQUAL_UINT(1, Preferences::writes);
+}
+
+void test_out_of_range_startup_calibration_keeps_previous_value() {
+  Preferences::values["calib_start"] = 1;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  const auto initial = analyzer.begin();
+  Adafruit_ADS1115::devices[0]->counts = 672;  // 21 mV
+  TEST_ASSERT_FALSE(initial.complete);
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  for (nowMs = 0; nowMs <= app::policy::CALIBRATION_MINIMUM_MS;
+       nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    analyzer.service(&commands, &results);
+  }
+  analyzer.service(&commands, &results);
+  app::Result startup;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &startup, 0));
+  TEST_ASSERT_EQUAL(app::CommandType::Startup, startup.type);
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, startup.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, startup.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::O2_AIR_CALIBRATION_DEFAULT_MV, startup.effective.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::O2_AIR_CALIBRATION_DEFAULT_MV, Preferences::values["o2_calib_21"]);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_unstable_startup_calibration_keeps_previous_value() {
+  Preferences::values["calib_start"] = 1;
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager sensors(handle);
+  SettingsStore store;
+  app::Analyzer analyzer(store, sensors);
+  const auto initial = analyzer.begin();
+  TEST_ASSERT_FALSE(initial.complete);
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  for (nowMs = 0; nowMs <= app::policy::CALIBRATION_TIMEOUT_MS;
+       nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    Adafruit_ADS1115::devices[0]->counts =
+        (nowMs / app::policy::CALIBRATION_SAMPLE_MS) % 2 ? 320 : 352;
+    analyzer.service(&commands, &results);
+  }
+  analyzer.service(&commands, &results);
+  app::Result startup;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &startup, 0));
+  TEST_ASSERT_EQUAL(app::CommandType::Startup, startup.type);
+  TEST_ASSERT_EQUAL(app::Failure::Sampling, startup.failure);
+  TEST_ASSERT_EQUAL(app::CalibrationPhase::Failed, startup.calibrationPhase);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::O2_AIR_CALIBRATION_DEFAULT_MV, startup.effective.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(app::policy::O2_AIR_CALIBRATION_DEFAULT_MV, Preferences::values["o2_calib_21"]);
   TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
 }
 
@@ -1059,7 +1263,6 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_apply_settings_acknowledges_live_state_and_generation);
   RUN_TEST(test_rejection_and_write_failure_keep_effective_state);
-  RUN_TEST(test_calibration_failure_restores_live_coefficients);
   RUN_TEST(test_clear_optional_calibration_and_unchanged_commands);
   RUN_TEST(test_brightness_does_not_invalidate_measurements);
   RUN_TEST(test_startup_barrier_single_outstanding_and_matching_results);
@@ -1070,6 +1273,7 @@ int main(int, char**) {
   RUN_TEST(test_valid_settings_repair_is_a_noop);
   RUN_TEST(test_po2_repair_preserves_valid_limits_and_calibration);
   RUN_TEST(test_calibration_repair_is_limited_to_invalid_fields_and_dependencies);
+  RUN_TEST(test_calibration_guard_boundaries);
   RUN_TEST(test_repaired_load_defers_writes_and_retries_full_save);
   RUN_TEST(test_repaired_wake_preserves_valid_calibration);
   RUN_TEST(test_invalid_timeout_alone_does_not_flag_general_settings_recovery);
@@ -1077,8 +1281,14 @@ int main(int, char**) {
   RUN_TEST(test_full_result_path_retains_outcome_without_blocking_measurements);
   RUN_TEST(test_stable_service_calibration_saves_at_five_seconds);
   RUN_TEST(test_unstable_service_calibration_fails_at_timeout_without_saving);
+  RUN_TEST(test_positive_drift_fails_even_when_window_spread_is_small);
+  RUN_TEST(test_negative_drift_fails_even_when_window_spread_is_small);
+  RUN_TEST(test_drifting_calibration_can_settle_before_timeout);
   RUN_TEST(test_calibration_progress_and_cancel_keep_previous_value);
   RUN_TEST(test_calibration_reports_saved_only_after_persistence);
+  RUN_TEST(test_out_of_range_air_calibration_is_not_saved);
+  RUN_TEST(test_out_of_range_pure_o2_calibration_is_not_saved);
+  RUN_TEST(test_out_of_range_helium_calibration_is_not_saved);
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);
   RUN_TEST(test_co_warmup_samples_raw_value_and_ends_at_configured_deadline);
   RUN_TEST(test_co_reenable_restarts_warmup_across_clock_wrap);
@@ -1096,7 +1306,9 @@ int main(int, char**) {
   RUN_TEST(test_air_acceptance_clears_orphan_pure_point_across_reboot);
   RUN_TEST(test_partial_acceptance_failure_is_unaccepted_and_reconciled_on_retry);
   RUN_TEST(test_calibration_required_message_respects_enabled_channels_and_helium_dependency);
-  RUN_TEST(test_unaccepted_sentinels_do_not_block_enabled_startup_calibration);
+  RUN_TEST(test_enabled_startup_calibration_uses_incremental_session);
+  RUN_TEST(test_out_of_range_startup_calibration_keeps_previous_value);
+  RUN_TEST(test_unstable_startup_calibration_keeps_previous_value);
   RUN_TEST(test_save_on_exit_uses_acknowledged_values_and_releases_editing);
   RUN_TEST(test_refused_save_on_exit_does_not_retain_edits_or_block_sleep);
   RUN_TEST(test_delayed_results_do_not_sync_an_open_editor);

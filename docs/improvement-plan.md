@@ -39,8 +39,8 @@ the next change when requested; do not recreate the discarded framework.
   Calibration, Calibration Run, Firmware Update, and Diagnostics screens are now integrated.
 - Calibration must have a live millivolt graph, cancellation, and automatic stability-gated
   completion. These are required improvements, not an indefinite backlog item.
-- Add configurable inactivity sleep and button wake. CO uses a 12,000 ms post-power window and is
-  Warming in that window only above 10 ppm; He is Warming below 30 C. Raw mV remains visible.
+- Add configurable inactivity sleep and button wake. CO uses a 14,000 ms post-power window and is
+  Warming in that window above zero ppm; He is Warming below 30 C. Raw mV remains visible.
 - Keep individual Preferences keys, defaults, and one validated RAM settings value. No settings
   blobs, migration, schema versions, CRCs, redundant records, or atomic multi-key guarantees.
 - Preserve existing OTA access. OTA security/protocol redesign and additional product features
@@ -102,8 +102,8 @@ end-to-end response and review the task wait interval so a fixed delay does not 
 Compare steady-input noise and step response on hardware before claiming an improvement in displayed
 readings. Do not automatically reintroduce smoothing if noise rises; review the measured tradeoff.
 
-Retire the `RunningAverage` dependency once its calibration uses are also replaced by the bounded
-stability window in step 5. That window is evidence for calibration, not normal-reading smoothing.
+The `RunningAverage` dependency was retired after calibration moved to the bounded stability window
+in step 5. That window is evidence for calibration, not normal-reading smoothing.
 
 Acceptance: focused tests for invalid/disabled values, stopped producer, independent readiness,
 timeout/recovery, clock wrap, and exactly one fresh conversion per enabled channel (temperature only
@@ -188,9 +188,9 @@ reported accurately, and no repeated NVS reads during display updates. No new st
 
 ## 5. Complete stability-gated calibration
 
-Implementation status: manual calibration is complete in software. Enabled cold-boot calibration
-still uses the synchronous 100-sample path; unification, threshold tuning from device traces, and
-physical acceptance remain.
+Implementation status: manual and enabled cold-boot calibration share one incremental session.
+Spread and drift qualification, cancellation, persistence-gated completion, and legacy averaging
+removal are complete in software. Threshold tuning from device traces and physical acceptance remain.
 
 Use one incremental calibration session for manual and enabled cold-boot calibration. Collect fresh
 timestamped millivolt samples into a fixed rolling window. Require minimum sample count/coverage,
@@ -208,7 +208,10 @@ Compute the candidate from the final stable window, validate, persist, then appl
 sampling failure, invalid input, timeout, and reported write failure retain the previous live
 calibration. Define late cancellation after successful application as already completed, not undone.
 Publish bounded history/progress independently of screen refresh. Thresholds are code constants
-chosen from recorded traces, not new user-facing settings. No CO calibration workflow is added.
+chosen from recorded traces, not new user-facing settings. Accept O2-air candidates from 5 through
+20 mV, pure-O2 candidates from 30 through 100 mV, and helium candidates at or above 400 mV.
+Calibration and warm-up constants are centralized in `src/app/AnalyzerPolicy.h`. No CO calibration
+workflow is added.
 
 Acceptance: tests for steady input, noise, positive/negative slow drift, settling, spikes,
 timeout, cancellation, and clock wrap. Sample-gap and additional dwell changes are deferred.
@@ -241,7 +244,7 @@ ADC rate or adding another task.
 - [x] Prepare component-based `calibration.xml`, `firmware_update.xml`, and `diagnostics.xml`.
 - [x] Export and verify the new screens, wire their controls, and remove handwritten action dialogs.
 - [x] Implement manual calibration graph/progress/cancellation UI and stability gating.
-- [ ] Route enabled cold-boot calibration through the timed session and remove `RunningAverage`.
+- [x] Route enabled cold-boot calibration through the timed session and remove `RunningAverage`.
 - [x] Delete the retired EEZ project, generated runtime/assets, unused widget test fakes, and
   obsolete PlatformIO exclusions. Git history retains the previous implementation.
 

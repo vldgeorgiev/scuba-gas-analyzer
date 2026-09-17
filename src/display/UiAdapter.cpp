@@ -20,6 +20,7 @@ lv_obj_t* calibrationChart = nullptr;
 lv_chart_series_t* calibrationSeries = nullptr;
 lv_obj_t* calibrationCancel = nullptr;
 lv_obj_t* calibrationDone = nullptr;
+lv_obj_t* calibrationStability = nullptr;
 lv_obj_t* mainWarning = nullptr;
 lv_obj_t* mainCoValue = nullptr;
 lv_obj_t* largeCoValue = nullptr;
@@ -96,6 +97,7 @@ void finishCalibrationRun(lv_event_t*) {
   calibrationSeries = nullptr;
   calibrationCancel = nullptr;
   calibrationDone = nullptr;
+  calibrationStability = nullptr;
   calibrationGraphFrozen = false;
   lv_screen_load(calibrationScreen ? calibrationScreen : mainscr);
   lv_obj_delete(previous);
@@ -132,6 +134,11 @@ void openCalibrationRun(app::CommandType type, const char* title) {
   calibrationSeries = calibrationChart ? lv_chart_get_series_next(calibrationChart, nullptr) : nullptr;
   calibrationCancel = lv_obj_find_by_name(calibrationRunScreen, "calibration_cancel");
   calibrationDone = lv_obj_find_by_name(calibrationRunScreen, "calibration_done");
+  calibrationStability = lv_obj_find_by_name(calibrationRunScreen, "calibration_stability");
+  if (calibrationStability) {
+    lv_obj_set_style_text_color(calibrationStability, COLOR_DANGER, LV_PART_MAIN | LV_STATE_USER_1);
+    lv_obj_remove_state(calibrationStability, LV_STATE_USER_1);
+  }
   calibrationGraphMinimum = NAN;
   calibrationGraphMaximum = NAN;
   calibrationGraphElapsedMs = UINT32_MAX;
@@ -355,16 +362,24 @@ void presentCalibration(const app::Result& result) {
   }
 
   const char* status = "Settling";
+  const bool failed = result.calibrationPhase == app::CalibrationPhase::Failed;
+  const bool outOfRange = failed && result.failure == app::Failure::Invalid;
   switch (result.calibrationPhase) {
     case app::CalibrationPhase::Stable: status = "Stable"; break;
     case app::CalibrationPhase::Saved: status = "Saved"; break;
     case app::CalibrationPhase::Cancelled: status = "Cancelled"; break;
     case app::CalibrationPhase::Failed:
-      status = result.failure == app::Failure::Storage ? "Save failed" : "Unstable - not saved";
+      if (result.failure == app::Failure::Storage) status = "Save failed";
+      else if (outOfRange) status = "Invalid value range. Check gas or sensor";
+      else status = "Unstable - not saved";
       break;
     default: break;
   }
   copyText(&calibration_stability_text, status);
+  if (calibrationStability) {
+    if (failed) lv_obj_add_state(calibrationStability, LV_STATE_USER_1);
+    else lv_obj_remove_state(calibrationStability, LV_STATE_USER_1);
+  }
   if (result.complete) {
     calibrationGraphFrozen = true;
     if (calibrationCancel) lv_obj_add_flag(calibrationCancel, LV_OBJ_FLAG_HIDDEN);

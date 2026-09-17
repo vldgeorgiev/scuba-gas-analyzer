@@ -12,7 +12,7 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
 | 3. Task ownership and sleep/wake | Software implemented through 3e: automatic S3 sleep/wake enabled; physical acceptance pending |
 | 4. Remaining settings behavior | Field-specific fallback, independent calibration acceptance, and save-on-exit implemented; device acceptance pending |
-| 5. Stability-gated calibration | Manual session, progress, cancellation, persistence-gated Saved state, and graph implemented; cold-boot unification, threshold tuning, and device acceptance pending |
+| 5. Stability-gated calibration | Manual/cold-boot session, spread/drift checks, progress, cancellation, persistence-gated Saved state, graph, and legacy averaging removal implemented; threshold tuning and device acceptance pending |
 | 6. Replacement UI | Generated Main/Large/Settings/Calibration/Run/Update/Diagnostics screens active; host/build verification passes; device acceptance pending |
 | 7. Measured cleanup | Not started; diagnostics redesign declined on 2026-09-17 |
 
@@ -26,6 +26,19 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
   separate active-fault state, recovery history, and duplicate suppression from planned work.
 - Measured efficiency cleanup remains separate. These are planning changes only; firmware unchanged.
 
+## 2026-09-17: Calibration session unified
+
+- Enabled cold-boot O2-air calibration now uses the same 250 ms incremental, five-to-ten-second
+  session as manual calibration. Startup remains busy until one terminal Startup result is delivered;
+  automatic progress does not open or update the manual calibration screen.
+- Stability now requires both the existing rolling range and bounded drift between equal older/newer
+  window halves. Tests cover positive drift, negative drift, and a drifting signal that settles.
+- Removed synchronous 100-sample sensor calibration methods, calibration-only averaging code, the
+  `RunningAverage` dependency, and batch-specific tests. Device trace tuning remains pending.
+- Added final-candidate guards: O2 air 5-20 mV, pure O2 30-100 mV, and helium at least 400 mV.
+  Invalid manual or cold-boot candidates retain previous live/stored values and are reported as
+  out of range. Calibration and warm-up constants now live together in `src/app/AnalyzerPolicy.h`.
+
 ## 2026-09-17: Calibration, generated screens, and warm-up presentation
 
 - Replaced handwritten Calibration, Firmware Update, and Diagnostics dialogs with generated Editor
@@ -35,18 +48,17 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
   an unstable session fails at 10 s. Cancellation, invalid samples, timeout, and persistence failure
   preserve the prior calibration. Saved is published only after persistence succeeds, and terminal
   UI state freezes the graph. Stability constants remain code values pending measured trace tuning.
-- Enabled cold-boot calibration still uses the legacy synchronous 100-sample path. Routing it through
-  the timed session and removing the remaining `RunningAverage` dependency are still open.
+- Enabled cold-boot calibration now uses the same incremental session as manual calibration.
 - Main uses larger primary readings, groups Bottom/Deco MOD under O2, places battery in the header,
   and exposes a danger-coloured warning button that opens Diagnostics. Valid displayed CO above zero
   is highlighted and returns to inherited colour at zero. The obsolete main status subject and
   Calibration result label were removed.
 - Large O2/He values use the exported 60 px H1 font. Diagnostics navigation is available from Main
   and Calibration. Transient Cancel/Done flags are application-owned to avoid stale LVGL 9.5 observers.
-- CO is sampled during its first 12 s after power-on. It reports Warming only when ppm is above 10,
+- CO is sampled during its first 14 s after power-on. It reports Warming when ppm is above zero,
   while retaining raw mV. He reports Warming below 30 C while retaining raw mV. Thresholds live with
   analyzer timing and sensor classification respectively.
-- Latest verification: 111 native tests and four real-LVGL tests pass; `t-display-s3` builds with
+- Latest verification: 114 native tests and four real-LVGL tests pass; both S3 profiles build with
   LVGL 9.5.0. No device flash or physical acceptance was performed by the assistant.
 
 ## 2026-09-16: Exported UI activated

@@ -79,9 +79,6 @@ struct sensorsData {
 
 class SensorManager {
 public:
-  static constexpr float CO_WARMUP_PPM = 10.0f;
-  static constexpr float HE_WARMUP_TEMPERATURE_C = 30.0f;
-
     SensorManager(QueueHandle_t& dataQueue);
 
     SensorError init();
@@ -89,9 +86,6 @@ public:
     SensorError readSensors(bool coWarmupWindow = false);
     void discardMeasurements() { xQueueReset(_dataQueue); }
     void setGeneration(uint32_t generation) { _generation = generation; }
-    float calibrateO2_21();
-    float calibrateO2_100();
-    float calibrateHe_100();
     float readO2CalibrationSample();
     float readHeCalibrationSample();
 

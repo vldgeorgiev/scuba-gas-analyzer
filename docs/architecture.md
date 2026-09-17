@@ -283,10 +283,9 @@ intentional NaN markers alone do not suppress it. Failed sampling/persistence ke
 
 Apply-settings commands validate brightness, pO2 ranges/relationship, and calibration relationships.
 Draft calibration fields are replaced by current coefficients before validation, so an old settings
-screen cannot undo a calibration. Calibration commands derive a candidate, validate, persist changed
-keys, then accept it. Existing SensorManager calibration routines temporarily mutate internal
-coefficients, but no acquisition runs concurrently; `apply()` always restores the final effective
-settings before another measurement, including after storage or validation failure.
+screen cannot undo a calibration. Calibration sessions derive a candidate from their final qualified
+window, validate and persist it, then update live coefficients. Sampling, validation, or storage
+failure leaves the previous effective settings in place.
 
 Writes are best-effort per-key. No blob, migration, schema, CRC, or redundant record. If a later
 write fails, earlier keys may already be stored; runtime remains unchanged and failure is reported.
@@ -310,9 +309,11 @@ exceeds it. Startup and manual calibration use the same owner validation/persist
 ## Measurements and freshness
 
 Sensor classes retain the existing conversion formulas in `src/sensors/conversions.cpp`. Normal
-gas reads use one conversion, not 20-sample averaging. Manual calibration uses individual fresh
-conversions in a fixed rolling window. Enabled cold-boot calibration still calls the legacy
-synchronous 100-sample `RunningAverage` path; unifying it with the timed session remains planned.
+gas reads use one conversion, not 20-sample averaging. Manual and enabled cold-boot calibration use
+individual fresh conversions in the same fixed rolling window. Stability requires both bounded range
+and bounded drift between the older and newer halves. Final candidates must be 5-20 mV for O2 air,
+30-100 mV for pure O2, and at least 400 mV for helium; rejected candidates do not change live or
+stored calibration. `RunningAverage` is no longer a dependency.
 
 `adc_read.h` is one shared function using unmodified Adafruit start/poll/result calls. The elapsed
 deadline is 25 ms at 128 SPS; polls yield with `delay(1)`, and Wire has a 10 ms timeout. Completion
@@ -326,15 +327,15 @@ skip remaining channels on that ADC, not the other ADC. Invalid numerical data d
 reinitialization. The analyzer owns all ADC work and power GPIO writes; retries do not cycle power.
 CO power-start timing is implemented in the analyzer. It records the time only when the CO output
 changes from off to on, including startup, re-enable, and resume after preparation. During the first
-12,000 ms, a valid CO sample is classified Warming only when ppm exceeds 10; at or below 10 ppm it is
+14,000 ms, a valid CO sample is classified Warming only when ppm exceeds zero; at zero ppm it is
 Valid. CO is sampled throughout this interval, so raw mV remains available while the primary value
 shows Warming. ADC-only retry and unrelated settings do not restart the timer. Constants are
-`Analyzer::CO_WARMUP_MS` and `SensorManager::CO_WARMUP_PPM`.
+centralized with calibration policy in `src/app/AnalyzerPolicy.h`.
 
 He is classified Warming when both its derived reading and temperature are valid and temperature is
 below 30 C. At 30 C or above it is Valid. Invalid/unavailable temperature does not overwrite an
-independent He failure state. Raw He mV remains visible while warming. The threshold is
-`SensorManager::HE_WARMUP_TEMPERATURE_C`.
+independent He failure state. Raw He mV remains visible while warming. Its threshold is also in
+`src/app/AnalyzerPolicy.h`.
 
 Every snapshot carries cycle-start timestamp, generation, initialized numeric fields, and channel
 states for O2/CO/He/temperature: Disabled, Valid, Invalid, Unavailable, and Warming (CO and He).
@@ -387,7 +388,6 @@ navigation, latency, stack high-water marks, ADC fault behavior, status layout, 
   output holds and calibration preservation. No hardware acceptance is implied by native tests.
 - Step 4: finish field-specific invalid-load handling, calibration-required state, settings UX and
   reboot/failure acceptance. Do not repeat the ownership refactor already done here.
-- Step 5: route enabled cold-boot calibration through the timed session, remove the remaining
-  `RunningAverage` path, tune thresholds from traces, and complete device acceptance.
+- Step 5: tune calibration range/drift thresholds from device traces and complete device acceptance.
 - Step 6: complete regeneration and device acceptance of the active Editor screens.
 - Step 7: measured efficiency cleanup; retain existing diagnostics and reset-to-clear behavior.

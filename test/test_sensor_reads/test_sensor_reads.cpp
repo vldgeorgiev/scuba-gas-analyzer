@@ -86,27 +86,6 @@ void test_temperature_still_uses_one_conversion() {
   TEST_ASSERT_EQUAL_UINT8(2, adc.lastChannel);
 }
 
-void test_o2_calibration_keeps_its_original_sample_count_and_pauses() {
-  Adafruit_ADS1115 adc;
-  adc.millivoltsPerCount = 0.03125f;
-  adc.counts = 320;
-  O2Sensor sensor(adc);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, sensor.calibrate());
-  TEST_ASSERT_EQUAL_UINT(100, adc.differential23Reads);
-  TEST_ASSERT_EQUAL_UINT(5, delayCalls);
-  TEST_ASSERT_EQUAL_UINT(500, delayedMs);
-}
-
-void test_he_calibration_keeps_its_original_sample_count_and_pauses() {
-  Adafruit_ADS1115 adc;
-  adc.counts = 9600;
-  HESensor sensor(adc);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 600, sensor.calibrate());
-  TEST_ASSERT_EQUAL_UINT(100, adc.differential01Reads);
-  TEST_ASSERT_EQUAL_UINT(5, delayCalls);
-  TEST_ASSERT_EQUAL_UINT(500, delayedMs);
-}
-
 void test_default_snapshot_contains_no_numeric_readings() {
   sensorsData data;
   TEST_ASSERT_TRUE(std::isnan(data.O2Level.millivolts));
@@ -343,19 +322,6 @@ void test_conversion_deadline_is_wrap_safe_and_rejects_late_result() {
   TEST_ASSERT_EQUAL_INT16(123, result);
 }
 
-void test_calibration_stops_on_first_conversion_timeout() {
-  Adafruit_ADS1115 adc;
-  adc.conversionCompletes = false;
-  O2Sensor oxygen(adc);
-  HESensor helium(adc);
-  TEST_ASSERT_TRUE(std::isnan(oxygen.calibrate()));
-  TEST_ASSERT_TRUE(std::isnan(helium.calibrate()));
-  TEST_ASSERT_EQUAL_UINT(1, adc.differential23Reads);
-  TEST_ASSERT_EQUAL_UINT(1, adc.differential01Reads);
-  TEST_ASSERT_EQUAL_UINT(0, adc.resultReads);
-  TEST_ASSERT_EQUAL_UINT32(50, nowMs);
-}
-
 void test_adc1_failure_does_not_prevent_adc2_initialization_or_co() {
   FakeQueue queue(sizeof(sensorsData));
   QueueHandle_t handle = &queue;
@@ -447,8 +413,7 @@ void test_timed_out_calibration_keeps_previous_coefficient_after_recovery() {
   manager.init();
   manager.setSensorsConfig(true, false, false, 10, NAN, 621.2f);
   Adafruit_ADS1115::devices[0]->conversionCompletes = false;
-  TEST_ASSERT_TRUE(std::isnan(manager.calibrateO2_21()));
-  TEST_ASSERT_TRUE(std::isnan(manager.calibrateO2_100()));
+  TEST_ASSERT_TRUE(std::isnan(manager.readO2CalibrationSample()));
   TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[0]->differential23Reads);
   Adafruit_ADS1115::devices[0]->conversionCompletes = true;
   Adafruit_ADS1115::devices[0]->counts = 320;
@@ -466,8 +431,8 @@ void test_calibration_request_retries_offline_device_without_acquisition() {
   Adafruit_ADS1115::present[0] = false;
   Adafruit_ADS1115::present[1] = false;
   manager.init();
-  TEST_ASSERT_TRUE(std::isnan(manager.calibrateO2_21()));
-  TEST_ASSERT_TRUE(std::isnan(manager.calibrateHe_100()));
+  TEST_ASSERT_TRUE(std::isnan(manager.readO2CalibrationSample()));
+  TEST_ASSERT_TRUE(std::isnan(manager.readHeCalibrationSample()));
   TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[0]->beginCalls);
   TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[1]->beginCalls);
   Adafruit_ADS1115::present[0] = true;
@@ -475,38 +440,10 @@ void test_calibration_request_retries_offline_device_without_acquisition() {
   Adafruit_ADS1115::devices[0]->counts = 320;
   Adafruit_ADS1115::devices[1]->counts = 9600;
   nowMs += 1000;
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, manager.calibrateO2_21());
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 600, manager.calibrateHe_100());
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, manager.readO2CalibrationSample());
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 600, manager.readHeCalibrationSample());
   TEST_ASSERT_EQUAL_UINT(2, Adafruit_ADS1115::devices[0]->beginCalls);
   TEST_ASSERT_EQUAL_UINT(2, Adafruit_ADS1115::devices[1]->beginCalls);
-}
-
-void test_partial_calibration_timeout_keeps_pure_o2_and_he_coefficients() {
-  FakeQueue queue(sizeof(sensorsData));
-  QueueHandle_t handle = &queue;
-  SensorManager manager(handle);
-  manager.init();
-  manager.setSensorsConfig(true, false, true, 10, 50, 621.2f);
-  auto* oxygen = Adafruit_ADS1115::devices[0];
-  auto* helium = Adafruit_ADS1115::devices[1];
-  oxygen->counts = 960;
-  helium->counts = 1600;
-  oxygen->successfulConversions = 3;
-  helium->successfulConversions = 3;
-  TEST_ASSERT_TRUE(std::isnan(manager.calibrateO2_100()));
-  TEST_ASSERT_TRUE(std::isnan(manager.calibrateHe_100()));
-  TEST_ASSERT_EQUAL_UINT(4, oxygen->differential23Reads);
-  TEST_ASSERT_EQUAL_UINT(4, helium->differential01Reads);
-  TEST_ASSERT_EQUAL_UINT(3, oxygen->resultReads);
-  TEST_ASSERT_EQUAL_UINT(3, helium->resultReads);
-  oxygen->successfulConversions = UINT32_MAX;
-  helium->successfulConversions = UINT32_MAX;
-  nowMs += 1000;
-  TEST_ASSERT_EQUAL(SensorError::None, manager.readSensors());
-  sensorsData snapshot;
-  xQueueReceive(handle, &snapshot, 0);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 60.45f, snapshot.O2Level.percentage);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, conversions::hePercentage(89, 621.2f), snapshot.HeLevel.percentage);
 }
 
 void test_timeout_error_takes_precedence_over_invalid_and_offline_channels() {
@@ -628,9 +565,9 @@ void test_co_warming_requires_startup_window_and_ppm_above_threshold() {
   xQueueReceive(handle, &snapshot, 0);
   TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.coState);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 440, snapshot.CoLevel.millivolts);
-  TEST_ASSERT_GREATER_THAN(SensorManager::CO_WARMUP_PPM, snapshot.CoLevel.ppm);
+  TEST_ASSERT_GREATER_THAN(app::policy::CO_WARMUP_PPM, snapshot.CoLevel.ppm);
 
-  Adafruit_ADS1115::devices[1]->counts = 6880;
+  Adafruit_ADS1115::devices[1]->counts = 6400;
   manager.readSensors(true);
   xQueueReceive(handle, &snapshot, 0);
   TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.coState);
@@ -660,7 +597,7 @@ void test_he_warming_requires_valid_temperature_below_threshold() {
   manager.readSensors();
   xQueueReceive(handle, &snapshot, 0);
   TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.heState);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, SensorManager::HE_WARMUP_TEMPERATURE_C, snapshot.HeTemperature);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, app::policy::HE_WARMUP_TEMPERATURE_C, snapshot.HeTemperature);
 }
 
 void test_temperature_timeout_keeps_completed_he_read_valid() {
@@ -689,8 +626,6 @@ int main(int, char**) {
   RUN_TEST(test_invalid_o2_calibration_preserves_raw_reading_only);
   RUN_TEST(test_he_reads_one_conversion_and_keeps_the_existing_correction);
   RUN_TEST(test_temperature_still_uses_one_conversion);
-  RUN_TEST(test_o2_calibration_keeps_its_original_sample_count_and_pauses);
-  RUN_TEST(test_he_calibration_keeps_its_original_sample_count_and_pauses);
   RUN_TEST(test_default_snapshot_contains_no_numeric_readings);
   RUN_TEST(test_invalid_he_dependency_preserves_raw_input_and_recovers);
   RUN_TEST(test_invalid_o2_pair_does_not_become_a_clamped_value);
@@ -705,14 +640,12 @@ int main(int, char**) {
   RUN_TEST(test_no_received_sample_is_blank_even_before_freshness_expires);
   RUN_TEST(test_conversion_timeout_does_not_fetch_or_publish_counts);
   RUN_TEST(test_conversion_deadline_is_wrap_safe_and_rejects_late_result);
-  RUN_TEST(test_calibration_stops_on_first_conversion_timeout);
   RUN_TEST(test_adc1_failure_does_not_prevent_adc2_initialization_or_co);
   RUN_TEST(test_adc2_timeout_leaves_o2_working_and_skips_other_adc2_channels);
   RUN_TEST(test_recovery_is_per_device_delayed_and_wrap_safe);
   RUN_TEST(test_disabled_device_is_not_retried_and_invalid_values_do_not_reinitialize);
   RUN_TEST(test_timed_out_calibration_keeps_previous_coefficient_after_recovery);
   RUN_TEST(test_calibration_request_retries_offline_device_without_acquisition);
-  RUN_TEST(test_partial_calibration_timeout_keeps_pure_o2_and_he_coefficients);
   RUN_TEST(test_timeout_error_takes_precedence_over_invalid_and_offline_channels);
   RUN_TEST(test_invalid_single_ended_channel_does_not_issue_conversion);
   RUN_TEST(test_channel_states_distinguish_disabled_invalid_and_unavailable);

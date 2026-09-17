@@ -15,6 +15,29 @@ void setUp() {
 }
 void tearDown() {}
 
+static app::Result finishAirCalibration(app::Analyzer& analyzer) {
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  analyzer.service(&commands, &results);
+  app::Result progress;
+  xQueueReceive(&results, &progress, 0);
+  app::Command command;
+  command.type = app::CommandType::CalibrateAir;
+  command.id = 1;
+  xQueueSend(&commands, &command, 0);
+  analyzer.service(&commands, &results);
+    for (nowMs = app::policy::CALIBRATION_SAMPLE_MS;
+      nowMs <= app::policy::CALIBRATION_MINIMUM_MS;
+      nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    analyzer.service(&commands, &results);
+  }
+  xQueueReceive(&results, &progress, 0);
+  analyzer.service(&commands, &results);
+  app::Result terminal;
+  xQueueReceive(&results, &terminal, 0);
+  return terminal;
+}
+
 void test_sleep_default_and_invalid_load_do_not_reset_other_settings() {
   SettingsStore store;
   store.begin();
@@ -189,9 +212,7 @@ void test_missing_wake_calibration_does_not_publish_defaults_as_accepted() {
   xQueueReceive(handle, &sample, 0);
   TEST_ASSERT_TRUE(std::isnan(sample.O2Level.percentage));
   TEST_ASSERT_TRUE(std::isnan(sample.HeLevel.percentage));
-  app::Command command;
-  command.type = app::CommandType::CalibrateAir;
-  const auto calibrated = analyzer.execute(command);
+  const auto calibrated = finishAirCalibration(analyzer);
   TEST_ASSERT_EQUAL(app::Failure::None, calibrated.failure);
   TEST_ASSERT_TRUE(store.hasOxygenCalibration());
   TEST_ASSERT_FALSE(store.hasHeliumCalibration());
@@ -288,7 +309,12 @@ void test_cold_boot_still_attempts_enabled_automatic_calibration() {
   app::Analyzer analyzer(store, sensors);
   uint32_t marker = app::APPLICATION_SLEEP_MARKER;
   analyzer.begin(app::consumeSleepMarker(marker, false));
-  TEST_ASSERT_EQUAL_UINT(100, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_TRUE(analyzer.calibrating());
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  analyzer.service(&commands, &results);
+  TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[0]->differential23Reads);
 }
 
 int main(int, char**) {

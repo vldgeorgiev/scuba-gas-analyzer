@@ -2,7 +2,7 @@
 #define O2_SENSOR_H
 
 #include <Adafruit_ADS1X15.h>
-#include <RunningAverage.h>
+#include "app/AnalyzerPolicy.h"
 #include <cmath>
 #include "conversions.h"
 #include "adc_read.h"
@@ -18,7 +18,8 @@ public:
 
   void setCalibrations(float calibration21, float calibration100) {
     // The 100% may not be defined, but the 21% must always be valid
-    if (!std::isfinite(calibration21) || calibration21 < MIN_VALID_O2_MV_21)
+    if (!std::isfinite(calibration21) || calibration21 < app::policy::O2_AIR_CALIBRATION_MIN_MV ||
+      calibration21 > app::policy::O2_AIR_CALIBRATION_MAX_MV)
       log_e("Invalid O2 air calibration %.2f mv", calibration21);
 
     if (!isnan(calibration100) && (calibration100 <= calibration21)) {
@@ -51,32 +52,11 @@ public:
     return reading;
   }
 
-  float calibrate() {
-    // Is taking more reading and the delay needed? Does it increase the accuracy?
-    RunningAverage calibrateAvg(CALIBRATION_COUNT * CALIBRATION_SAMPLES_PER_BATCH);
-    for (int i = 0; i < CALIBRATION_COUNT; i++)
-    {
-      for (int j = 0; j < CALIBRATION_SAMPLES_PER_BATCH; j++)
-      {
-        int16_t adcValue;
-        if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_2_3, adcValue)) return NAN;
-        calibrateAvg.addValue(adcValue);
-      }
-      delay(CALIBRATION_DELAY);
-    }
-    float millivolts = abs(_adc.computeVolts(calibrateAvg.getAverage()) * 1000);
-    return millivolts;
-  }
-
 private:
     Adafruit_ADS1115 &_adc;
-    const int CALIBRATION_SAMPLES_PER_BATCH = 20;
     // The calibration coeficitients for air and 100% O2
     float _calibration21 = NAN;
     float _calibration100 = NAN;
-    const float MIN_VALID_O2_MV_21 = 5;
-    const int CALIBRATION_COUNT = 5;
-    const int CALIBRATION_DELAY = 100;
 };
 
 #endif // O2SENSOR_H

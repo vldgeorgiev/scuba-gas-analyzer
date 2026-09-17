@@ -2,7 +2,6 @@
 #define HE_SENSOR_H
 
 #include <Adafruit_ADS1X15.h>
-#include <RunningAverage.h>
 #include "conversions.h"
 #include "adc_read.h"
 
@@ -65,30 +64,10 @@ public:
     return reading;
   }
 
-  float calibrate() {
-    // Is taking more reading and the delay needed? Does it increase the accuracy?
-    RunningAverage calibrateAvg(CALIBRATION_COUNT * CALIBRATION_SAMPLES_PER_BATCH);
-    for (int i = 0; i < CALIBRATION_COUNT; i++)
-    {
-      for (int j = 0; j < CALIBRATION_SAMPLES_PER_BATCH; j++)
-      {
-        int16_t adcValue;
-        if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_0_1, adcValue)) return NAN;
-        calibrateAvg.addValue(adcValue);
-      }
-      delay(CALIBRATION_DELAY);
-    }
-    float millivolts = abs(_adc.computeVolts(calibrateAvg.getAverage()) * 1000);
-    return millivolts;
-  }
-
 private:
     Adafruit_ADS1115 &_adc;
-    const int CALIBRATION_SAMPLES_PER_BATCH = 20;
     // The calibration coeficitients for air and 100% HE
     float _calibration100 = NAN;
-    const int CALIBRATION_COUNT = 5;
-    const int CALIBRATION_DELAY = 100;
 };
 
 #endif // HESENSOR_H

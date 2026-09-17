@@ -37,7 +37,11 @@ Result Analyzer::begin(bool applicationWake) {
   if (!applicationWake && result.failure == Failure::None && _effective.calibrateOnStart) {
     Command startup;
     startup.type = CommandType::CalibrateAir;
-    result = execute(startup);
+    initializeCalibration(startup);
+    _startupCalibration = true;
+    _startupSensorError = initialization;
+    result.complete = false;
+    result.calibrationPhase = CalibrationPhase::Settling;
   }
   if (!_settingsStore.ready()) result.failure = Failure::Storage;
   result.sensorError = initialization;
@@ -47,8 +51,10 @@ Result Analyzer::begin(bool applicationWake) {
   result.oxygenCalibrationRequired = _oxygenRequired;
   result.heliumCalibrationRequired = _heliumRequired;
   if (result.failure == Failure::None && result.calibrationRequiredMessage()) result.failure = Failure::CalibrationRequired;
-  _pending = result;
-  _hasPending = true;
+  if (!_startupCalibration) {
+    _pending = result;
+    _hasPending = true;
+  }
   return result;
 }
 
@@ -85,21 +91,33 @@ bool Analyzer::calibrationCommand(CommandType type) const {
 
 void Analyzer::startCalibration(const Command& command, QueueHandle_t results) {
   if (command.type == CommandType::CalibratePure && _oxygenRequired) {
-    _pending = execute(command);
+    _pending = Result{};
+    _pending.type = command.type;
+    _pending.id = command.id;
+    _pending.failure = Failure::CalibrationRequired;
+    _pending.effective = _effective;
+    _pending.generation = _generation;
+    _pending.oxygenCalibrationRequired = _oxygenRequired;
+    _pending.heliumCalibrationRequired = _heliumRequired;
     _pending.calibrationPhase = CalibrationPhase::Failed;
     _hasPending = true;
     return;
   }
-  _calibrationActive = true;
-  _calibrationCommand = command;
-  _calibrationStartedMs = ::millis();
-  _calibrationLastSampleMs = _calibrationStartedMs - CALIBRATION_SAMPLE_MS;
-  _calibrationSampleCount = 0;
-  _calibrationSampleIndex = 0;
+  initializeCalibration(command);
   publishCalibration(results, CalibrationPhase::Settling, NAN, 0);
 }
 
+void Analyzer::initializeCalibration(const Command& command) {
+  _calibrationActive = true;
+  _calibrationCommand = command;
+  _calibrationStartedMs = ::millis();
+  _calibrationLastSampleMs = _calibrationStartedMs - policy::CALIBRATION_SAMPLE_MS;
+  _calibrationSampleCount = 0;
+  _calibrationSampleIndex = 0;
+}
+
 void Analyzer::publishCalibration(QueueHandle_t results, CalibrationPhase phase, float sample, uint32_t elapsed) {
+  if (_startupCalibration) return;
   Result result;
   result.type = _calibrationCommand.type;
   result.id = _calibrationCommand.id;
@@ -117,37 +135,47 @@ void Analyzer::publishCalibration(QueueHandle_t results, CalibrationPhase phase,
 bool Analyzer::advanceCalibration(QueueHandle_t results) {
   const uint32_t now = ::millis();
   const uint32_t elapsed = static_cast<uint32_t>(now - _calibrationStartedMs);
-  if (static_cast<uint32_t>(now - _calibrationLastSampleMs) < CALIBRATION_SAMPLE_MS) return false;
+  if (static_cast<uint32_t>(now - _calibrationLastSampleMs) < policy::CALIBRATION_SAMPLE_MS) return false;
   _calibrationLastSampleMs = now;
   const float sample = _calibrationCommand.type == CommandType::CalibrateHe
       ? _sensors.readHeCalibrationSample() : _sensors.readO2CalibrationSample();
   if (std::isfinite(sample)) {
     _calibrationSamples[_calibrationSampleIndex] = sample;
-    _calibrationSampleIndex = (_calibrationSampleIndex + 1) % CALIBRATION_WINDOW_SAMPLES;
-    if (_calibrationSampleCount < CALIBRATION_WINDOW_SAMPLES) ++_calibrationSampleCount;
+    _calibrationSampleIndex = (_calibrationSampleIndex + 1) % policy::CALIBRATION_WINDOW_SAMPLES;
+    if (_calibrationSampleCount < policy::CALIBRATION_WINDOW_SAMPLES) ++_calibrationSampleCount;
   } else {
     _calibrationSampleCount = 0;
     _calibrationSampleIndex = 0;
   }
-  bool stable = _calibrationSampleCount == CALIBRATION_WINDOW_SAMPLES;
+  bool stable = _calibrationSampleCount == policy::CALIBRATION_WINDOW_SAMPLES;
   float minimum = INFINITY;
   float maximum = -INFINITY;
   float total = 0;
+  float olderTotal = 0;
+  float newerTotal = 0;
+  constexpr uint8_t halfWindow = policy::CALIBRATION_WINDOW_SAMPLES / 2;
   for (uint8_t index = 0; stable && index < _calibrationSampleCount; ++index) {
-    minimum = std::min(minimum, _calibrationSamples[index]);
-    maximum = std::max(maximum, _calibrationSamples[index]);
-    total += _calibrationSamples[index];
+    const float value = _calibrationSamples[(_calibrationSampleIndex + index) % policy::CALIBRATION_WINDOW_SAMPLES];
+    minimum = std::min(minimum, value);
+    maximum = std::max(maximum, value);
+    total += value;
+    if (index < halfWindow) olderTotal += value;
+    else if (index >= policy::CALIBRATION_WINDOW_SAMPLES - halfWindow) newerTotal += value;
   }
   const float threshold = _calibrationCommand.type == CommandType::CalibrateHe
-      ? HE_CALIBRATION_STABILITY_MV : O2_CALIBRATION_STABILITY_MV;
-  stable = stable && maximum - minimum <= threshold;
-  if (stable && elapsed >= CALIBRATION_MINIMUM_MS) {
+      ? policy::HE_CALIBRATION_STABILITY_MV : policy::O2_CALIBRATION_STABILITY_MV;
+  const float driftThreshold = _calibrationCommand.type == CommandType::CalibrateHe
+      ? policy::HE_CALIBRATION_DRIFT_MV_PER_SECOND : policy::O2_CALIBRATION_DRIFT_MV_PER_SECOND;
+    const float halfCenterSeconds = (halfWindow + 1) * policy::CALIBRATION_SAMPLE_MS / 1000.0f;
+  const float drift = std::fabs(newerTotal / halfWindow - olderTotal / halfWindow) / halfCenterSeconds;
+  stable = stable && maximum - minimum <= threshold && drift <= driftThreshold;
+  if (stable && elapsed >= policy::CALIBRATION_MINIMUM_MS) {
     _pending = finishCalibration(Failure::None, CalibrationPhase::Saved,
                                  total / _calibrationSampleCount);
     _hasPending = true;
     return true;
   }
-  if (elapsed >= CALIBRATION_TIMEOUT_MS) {
+  if (elapsed >= policy::CALIBRATION_TIMEOUT_MS) {
     _pending = finishCalibration(Failure::Sampling, CalibrationPhase::Failed);
     _hasPending = true;
     return true;
@@ -162,7 +190,8 @@ Result Analyzer::finishCalibration(Failure failure, CalibrationPhase phase, floa
   result.id = _calibrationCommand.id;
   result.calibration = candidateValue;
   result.calibrationMillivolts = _calibrationSampleCount
-      ? _calibrationSamples[(_calibrationSampleIndex + CALIBRATION_WINDOW_SAMPLES - 1) % CALIBRATION_WINDOW_SAMPLES] : NAN;
+      ? _calibrationSamples[(_calibrationSampleIndex + policy::CALIBRATION_WINDOW_SAMPLES - 1) %
+                policy::CALIBRATION_WINDOW_SAMPLES] : NAN;
   result.calibrationElapsedMs = static_cast<uint32_t>(::millis() - _calibrationStartedMs);
   result.calibrationPhase = phase;
   AnalyzerSettings candidate = _effective;
@@ -191,6 +220,15 @@ Result Analyzer::finishCalibration(Failure failure, CalibrationPhase phase, floa
   result.generation = _generation;
   result.oxygenCalibrationRequired = _oxygenRequired;
   result.heliumCalibrationRequired = _heliumRequired;
+  if (_startupCalibration) {
+    result.type = CommandType::Startup;
+    result.id = 0;
+    result.sensorError = _startupSensorError;
+    if (result.failure == Failure::None && result.calibrationRequiredMessage()) {
+      result.failure = Failure::CalibrationRequired;
+    }
+    _startupCalibration = false;
+  }
   return result;
 }
 
@@ -234,22 +272,6 @@ Result Analyzer::execute(const Command& command) {
       candidate.o2Pure = _effective.o2Pure;
       candidate.heCalibration = _effective.heCalibration;
       break;
-    case CommandType::CalibrateAir:
-      result.calibration = _sensors.calibrateO2_21();
-      candidate.o2Air = result.calibration;
-      break;
-    case CommandType::CalibratePure:
-      if (_oxygenRequired) {
-        result.failure = Failure::CalibrationRequired;
-        break;
-      }
-      result.calibration = _sensors.calibrateO2_100();
-      candidate.o2Pure = result.calibration;
-      break;
-    case CommandType::CalibrateHe:
-      result.calibration = _sensors.calibrateHe_100();
-      candidate.heCalibration = result.calibration;
-      break;
     case CommandType::ResetAir:
       candidate.o2Air = AnalyzerSettings{}.o2Air;
       if (candidate.o2Pure <= candidate.o2Air) candidate.o2Pure = NAN;
@@ -258,12 +280,9 @@ Result Analyzer::execute(const Command& command) {
     case CommandType::ResetHe: candidate.heCalibration = AnalyzerSettings{}.heCalibration; break;
     default: result.failure = Failure::Invalid; break;
   }
-  const bool calibration = command.type == CommandType::CalibrateAir ||
-      command.type == CommandType::CalibratePure || command.type == CommandType::CalibrateHe;
-  if (calibration && result.failure == Failure::None && !std::isfinite(result.calibration)) result.failure = Failure::Sampling;
   if (result.failure == Failure::None && !candidate.valid()) result.failure = Failure::Invalid;
-  const bool acceptOxygen = command.type == CommandType::CalibrateAir || command.type == CommandType::ResetAir;
-  const bool acceptHelium = command.type == CommandType::CalibrateHe || command.type == CommandType::ResetHe;
+  const bool acceptOxygen = command.type == CommandType::ResetAir;
+  const bool acceptHelium = command.type == CommandType::ResetHe;
   if (result.failure == Failure::None && !_settingsStore.save(candidate, _effective, acceptOxygen, acceptHelium)) {
     result.failure = Failure::Storage;
   }

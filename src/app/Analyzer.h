@@ -1,6 +1,7 @@
 #ifndef APP_ANALYZER_H
 #define APP_ANALYZER_H
 
+#include "app/AnalyzerPolicy.h"
 #include "settings/SettingsStore.h"
 #include "sensors/sensors.h"
 #include <type_traits>
@@ -151,14 +152,6 @@ struct UiState {
 
 class Analyzer {
 public:
-  static constexpr uint32_t CO_WARMUP_MS = 12000;
-  static constexpr uint32_t CALIBRATION_SAMPLE_MS = 250;
-  static constexpr uint32_t CALIBRATION_STABILITY_WINDOW_MS = 2000;
-  static constexpr uint32_t CALIBRATION_MINIMUM_MS = 5000;
-  static constexpr uint32_t CALIBRATION_TIMEOUT_MS = 10000;
-  static constexpr float O2_CALIBRATION_STABILITY_MV = 0.25f;
-  static constexpr float HE_CALIBRATION_STABILITY_MV = 1.0f;
-  
   Analyzer(SettingsStore& settingsStore, SensorManager& sensors) : _settingsStore(settingsStore), _sensors(sensors) {}
   Result begin(bool applicationWake = false);
   Result execute(const Command& command);
@@ -167,16 +160,15 @@ public:
   bool calibrating() const { return _calibrationActive; }
   bool preparedForSleep() const { return _sleepId != 0; }
   bool coWarming() const {
-    return _coPowered && static_cast<uint32_t>(::millis() - _coPoweredAt) < CO_WARMUP_MS;
+    return _coPowered && static_cast<uint32_t>(::millis() - _coPoweredAt) < policy::CO_WARMUP_MS;
   }
   const AnalyzerSettings& effective() const { return _effective; }
 
 private:
-  static constexpr uint8_t CALIBRATION_WINDOW_SAMPLES =
-      CALIBRATION_STABILITY_WINDOW_MS / CALIBRATION_SAMPLE_MS + 1;
   void apply();
   void advanceGeneration() { if (++_generation == 0) _generation = 1; }
   bool calibrationCommand(CommandType type) const;
+  void initializeCalibration(const Command& command);
   void startCalibration(const Command& command, QueueHandle_t results);
   bool advanceCalibration(QueueHandle_t results);
   Result finishCalibration(Failure failure, CalibrationPhase phase, float candidate = NAN);
@@ -193,10 +185,12 @@ private:
   bool _oxygenRequired = false;
   bool _heliumRequired = false;
   bool _calibrationActive = false;
+  bool _startupCalibration = false;
+  SensorError _startupSensorError = SensorError::None;
   Command _calibrationCommand;
   uint32_t _calibrationStartedMs = 0;
   uint32_t _calibrationLastSampleMs = 0;
-  float _calibrationSamples[CALIBRATION_WINDOW_SAMPLES] = {};
+  float _calibrationSamples[policy::CALIBRATION_WINDOW_SAMPLES] = {};
   uint8_t _calibrationSampleCount = 0;
   uint8_t _calibrationSampleIndex = 0;
 };
