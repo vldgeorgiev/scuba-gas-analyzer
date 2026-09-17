@@ -3,18 +3,20 @@
 Current scope: [improvement plan](improvement-plan.md).
 Technical reference: [architecture and messaging](architecture.md).
 Historical documents describe the discarded redesign, not acceptance evidence for this work.
+Older dated entries below are implementation snapshots; the status table is authoritative where
+their pending-validation notes have since been completed.
 
 ## Status
 
 | Step | Status |
 | --- | --- |
-| 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
-| 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
-| 3. Task ownership and sleep/wake | Software implemented through 3e: automatic S3 sleep/wake enabled; physical acceptance pending |
-| 4. Remaining settings behavior | Field-specific fallback, independent calibration acceptance, and save-on-exit implemented; device acceptance pending |
-| 5. Stability-gated calibration | Manual/cold-boot session, spread/drift checks, progress, cancellation, persistence-gated Saved state, graph, and legacy averaging removal implemented; threshold tuning and device acceptance pending |
-| 6. Replacement UI | Generated Main/Large/Settings/Calibration/Run/Update/Diagnostics screens active; host/build verification passes; device acceptance pending |
-| 7. Measured cleanup | Not started; diagnostics redesign declined on 2026-09-17 |
+| 1. Build/test baseline | Implemented and validated locally and on the device; hosted CI execution remains separate |
+| 2. Measurement handling and averaging removal | Implemented and physically validated |
+| 3. Task ownership and sleep/wake | Implemented and physically validated |
+| 4. Remaining settings behavior | Implemented and physically validated |
+| 5. Stability-gated calibration | Implemented and physically validated with current thresholds |
+| 6. Replacement UI | Implemented and physically validated |
+| 7. Measured cleanup | Battery ADC characterization is initialized once; other speculative cleanup declined |
 
 ## 2026-09-17: Scope narrowed after calibration and diagnostics discussion
 
@@ -25,6 +27,13 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
   sufficient. Keep the existing Diagnostics screen/logging; remove the proposed new log buffer,
   separate active-fault state, recovery history, and duplicate suppression from planned work.
 - Measured efficiency cleanup remains separate. These are planning changes only; firmware unchanged.
+
+## 2026-09-17: Battery ADC setup retained
+
+- ESP battery ADC characterization is initialized once by the UI task and reused for subsequent
+  voltage samples. A lazy guard keeps direct reads safe without repeating characterization.
+- Battery cadence, rounding/truncation changes, buffer or scheduling optimization, and additional
+  operational documentation were declined because they do not currently cause an issue.
 
 ## 2026-09-17: Calibration session unified
 

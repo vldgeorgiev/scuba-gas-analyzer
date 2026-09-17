@@ -379,15 +379,12 @@ callbacks or FreeRTOS scheduling. The separate `native-ui` suite uses real LVGL 
 to test the adapter's navigation, settings, presentation, rendering, and dynamic-screen lifetimes.
 Target debug/release builds use real libraries and generated assets.
 
-Current measured test counts and binary sizes live in progress. Device checks remain required for startup, setting/calibration
-navigation, latency, stack high-water marks, ADC fault behavior, status layout, and heap stability.
+Current measured test counts and binary sizes live in progress. The related firmware behavior and UI
+have passed physical validation.
 
 ## Planned next
 
-- Step 3: physically validate the now-enabled S3 automatic sleep, abort restoration, GPIO14 wake,
-  output holds and calibration preservation. No hardware acceptance is implied by native tests.
-- Step 4: finish field-specific invalid-load handling, calibration-required state, settings UX and
-  reboot/failure acceptance. Do not repeat the ownership refactor already done here.
-- Step 5: tune calibration range/drift thresholds from device traces and complete device acceptance.
-- Step 6: complete regeneration and device acceptance of the active Editor screens.
-- Step 7: measured efficiency cleanup; retain existing diagnostics and reset-to-clear behavior.
+- Steps 3-6 are implemented and physically validated. Revalidate affected behavior after future
+  hardware, calibration-policy, or Editor changes.
+- Step 7: one-time battery ADC characterization is complete. No additional efficiency cleanup is
+  planned without a concrete device issue; retain existing diagnostics and reset-to-clear behavior.

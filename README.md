@@ -38,7 +38,8 @@ Tap the readings screen to switch Main/Large. Settings saves on exit. Calibratio
 calibration preference, and Diagnostics are available from the Calibration button; Firmware update
 is in Settings. Calibration starts immediately, samples raw mV every 250 ms, saves after at least
 five stable seconds, and fails unchanged after ten unstable seconds. Its graph supports cancellation
-and freezes on the terminal result. On-device acceptance and final stability-threshold tuning remain.
+and freezes on the terminal result. The current calibration thresholds and related device workflows
+have passed physical validation.
 
 ## Hardware
 

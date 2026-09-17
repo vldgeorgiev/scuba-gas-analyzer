@@ -80,8 +80,8 @@ Progress: normal-reading batch averaging is removed (step 2a); initialized readi
 guards, checked integer presentation, and cycle error reset are implemented (step 2b).
 Latest-only measurement publication and UI-clock stale suppression are implemented (step 2c).
 ADC polling deadlines and independent readiness/retry are implemented (step 2d). Explicit channel
-state and a temporary status-label adapter are implemented (step 2e). Hardware acceptance, including
-sustained status-rendering performance, remains pending; see [verification details](progress.md).
+state and a temporary status-label adapter are implemented (step 2e). Physical validation is complete;
+see [verification details](progress.md).
 
 Initialize every measurement field. Distinguish disabled, warming, valid, invalid, and unavailable;
 compute staleness in the UI even when acquisition stops. Never replace unknown values with zero
@@ -122,9 +122,7 @@ GUI mutex, separate screen-update task, and arbitrary startup delay are removed.
 Step 3c implements analyzer-owned preparation/resume and the fixed CO startup interval. Step 3d
 adds the persisted timeout, configuration dropdown, and tested activity/debounce policy. Step 3e
 enables S3 automatic entry, display/touch shutdown, abort/resume, and GPIO14 wake with confirmed-wake
-calibration preservation. First-attempt sleep, button wake, restored touch, and another idle sleep
-passed on the device after the touch-reset fix. Ten-cycle endurance, current/pin measurements, and
-the remaining activity/inhibition/abort checks are still pending.
+calibration preservation. Physical sleep/wake validation passed on the device.
 
 The analyzer owns ADCs, sensor-enable GPIOs, calibration, effective RAM settings, and Preferences.
 UI callbacks submit one operation at a time and receive an outcome with effective values and a
@@ -177,7 +175,7 @@ required channels; raw O2/He diagnostics remain available. Step 4c was simplifie
 save on exit, restore effective settings and report failure if rejected, and do not retain failed edits.
 One editing flag prevents asynchronous results overwriting an open editor. No discard controls or
 retained-draft sleep inhibition; only the open editor and pending operations inhibit sleep.
-Device checks for save-on-exit and apply/reset/clear across reboot remain open.
+Save-on-exit and apply/reset/clear behavior have been physically validated.
 Reading labels still use the existing Invalid state when
 calibration is required; finer presentation can be handled with the remaining UI work.
 Check that calibration outcomes cannot overwrite in-progress editable settings drafts, and that
@@ -190,7 +188,7 @@ reported accurately, and no repeated NVS reads during display updates. No new st
 
 Implementation status: manual and enabled cold-boot calibration share one incremental session.
 Spread and drift qualification, cancellation, persistence-gated completion, and legacy averaging
-removal are complete in software. Threshold tuning from device traces and physical acceptance remain.
+removal are complete and physically validated with the current thresholds.
 
 Use one incremental calibration session for manual and enabled cold-boot calibration. Collect fresh
 timestamped millivolt samples into a fixed rolling window. Require minimum sample count/coverage,
@@ -239,7 +237,7 @@ ADC rate or adding another task.
 - [x] Test real LVGL initialization/rendering, navigation, settings rejection and lifetime, sensor
   status formatting, and all existing portable behavior. Compile debug and release firmware.
 - [x] Re-export the renamed logo object in the Editor and verify direct-library builds and host tests.
-- [ ] Verify physical touch, layout, warning readability, Settings save/reboot, brightness, dialogs,
+- [x] Verify physical touch, layout, warning readability, Settings save/reboot, brightness, dialogs,
   keyboard, OTA access, heap/stack headroom, and sleep/wake on the device.
 - [x] Prepare component-based `calibration.xml`, `firmware_update.xml`, and `diagnostics.xml`.
 - [x] Export and verify the new screens, wire their controls, and remove handwritten action dialogs.
@@ -281,7 +279,8 @@ remains the source for generated controls.
 Acceptance: compatible export compiles, regeneration preserves handwritten code, navigation stays
 responsive, and invalid/disabled/warming states are understandable. Consult the LVGL MCP server
 and verify APIs against the selected version before implementation. Export compilation and host
-adapter behavior are verified; physical acceptance and a fresh Editor regeneration remain pending.
+adapter behavior and physical acceptance are verified. A future Editor change should still be
+regenerated and built before delivery.
 
 ## 7. Measured cleanup
 
@@ -289,12 +288,12 @@ Decision 2026-09-17: retain the existing Diagnostics screen and logging behavior
 for short sessions and can be reset to clear errors. A new log buffer, separate active-fault tracking,
 recovery history, and duplicate rate-limiting are not required; do not implement that redesign.
 
-Sample battery less frequently, initialize persistent
-peripheral configuration once, and fix rounding/truncation issues with focused tests.
+Decision 2026-09-17: cache the ESP battery ADC characterization instead of rebuilding it for every
+sample. Battery sampling cadence, rounding/truncation changes, buffer or scheduling optimization,
+and additional operational documentation are not current issues and are not active work.
 
-Measure acquisition duration, UI latency, free heap, stack high-water marks, and sleep current.
-Use measurements to decide whether draw-buffer sizing or other optimizations are worthwhile.
-Update build, UI generation, calibration, sleep, and troubleshooting documentation after delivery.
+The one-time battery ADC initialization is implemented. No further measured cleanup is planned
+unless device behavior identifies a concrete problem.
 
 ## Deferred
 
