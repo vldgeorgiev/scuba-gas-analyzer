@@ -54,6 +54,9 @@ static void presentReadings(const sensorsData& data) {
 }
 
 static void Task_UI(void*) {
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  initializeBatteryVoltage();
+#endif
   displayManager.init();
   syncUiSettings();
   sensorsData latest;
