@@ -11,10 +11,43 @@ Historical documents describe the discarded redesign, not acceptance evidence fo
 | 1. Build/test baseline | Implemented and locally verified; Claude review resolved; hosted CI, device checks, and Editor export pending |
 | 2. Measurement handling and averaging removal | Software increments 2a-2e implemented and locally verified; on-device acceptance and temporary status-adapter performance checks pending |
 | 3. Task ownership and sleep/wake | Software implemented through 3e: automatic S3 sleep/wake enabled; physical acceptance pending |
-| 4. Remaining settings behavior | Ownership/basic validated RAM settings moved into 3b; field-specific fallback, calibration-required state and device acceptance pending |
-| 5. Stability-gated calibration | Not started |
-| 6. Replacement UI | Exported UI active; debug/release and host tests pass; Editor action screens and device acceptance pending |
-| 7. Diagnostics and measured cleanup | Not started |
+| 4. Remaining settings behavior | Field-specific fallback, independent calibration acceptance, and save-on-exit implemented; device acceptance pending |
+| 5. Stability-gated calibration | Manual session, progress, cancellation, persistence-gated Saved state, and graph implemented; cold-boot unification, threshold tuning, and device acceptance pending |
+| 6. Replacement UI | Generated Main/Large/Settings/Calibration/Run/Update/Diagnostics screens active; host/build verification passes; device acceptance pending |
+| 7. Measured cleanup | Not started; diagnostics redesign declined on 2026-09-17 |
+
+## 2026-09-17: Scope narrowed after calibration and diagnostics discussion
+
+- User confirmed drift detection is worth adding to calibration's rolling-range check. Extra
+  sample-gap qualification and stable-dwell changes are not required for now; preserve the
+  five-second earliest completion and ten-second limit. Implementation and trace tuning remain open.
+- User declined diagnostics improvements: short operating sessions and reset-to-clear errors are
+  sufficient. Keep the existing Diagnostics screen/logging; remove the proposed new log buffer,
+  separate active-fault state, recovery history, and duplicate suppression from planned work.
+- Measured efficiency cleanup remains separate. These are planning changes only; firmware unchanged.
+
+## 2026-09-17: Calibration, generated screens, and warm-up presentation
+
+- Replaced handwritten Calibration, Firmware Update, and Diagnostics dialogs with generated Editor
+  screens owned by `UiAdapter`. Calibration starts immediately and opens a generated run screen with
+  a 41-point raw-mV chart, current value, elapsed time, stability phase, Cancel, and Done.
+- Analyzer now owns a 250 ms manual calibration session. A 2 s rolling range may save no earlier than 5 s;
+  an unstable session fails at 10 s. Cancellation, invalid samples, timeout, and persistence failure
+  preserve the prior calibration. Saved is published only after persistence succeeds, and terminal
+  UI state freezes the graph. Stability constants remain code values pending measured trace tuning.
+- Enabled cold-boot calibration still uses the legacy synchronous 100-sample path. Routing it through
+  the timed session and removing the remaining `RunningAverage` dependency are still open.
+- Main uses larger primary readings, groups Bottom/Deco MOD under O2, places battery in the header,
+  and exposes a danger-coloured warning button that opens Diagnostics. Valid displayed CO above zero
+  is highlighted and returns to inherited colour at zero. The obsolete main status subject and
+  Calibration result label were removed.
+- Large O2/He values use the exported 60 px H1 font. Diagnostics navigation is available from Main
+  and Calibration. Transient Cancel/Done flags are application-owned to avoid stale LVGL 9.5 observers.
+- CO is sampled during its first 12 s after power-on. It reports Warming only when ppm is above 10,
+  while retaining raw mV. He reports Warming below 30 C while retaining raw mV. Thresholds live with
+  analyzer timing and sensor classification respectively.
+- Latest verification: 111 native tests and four real-LVGL tests pass; `t-display-s3` builds with
+  LVGL 9.5.0. No device flash or physical acceptance was performed by the assistant.
 
 ## 2026-09-16: Exported UI activated
 

@@ -1,6 +1,6 @@
 # Current firmware architecture
 
-Updated 2026-09-16 after exported UI activation. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-09-17 after calibration, UI, and warm-up improvements. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
@@ -58,16 +58,18 @@ or an acknowledged resume; it does not free ordinary admission on preparation su
 Unknown/duplicate results do not clear another
 operation. Startup has its own result type and is accepted once. IDs skip zero on wrap.
 
-Commands: apply editable settings, calibrate O2-air/O2-pure/He, reset air/He, clear optional
-pure-O2 calibration, PrepareSleep, and Resume. Calibration cancellation/progress are not added yet.
-Every result carries the request type/ID, failure reason, effective settings, measurement generation,
-and calibration value where relevant. Startup also carries the independent ADC initialization report.
+Commands: apply editable settings, calibrate O2-air/O2-pure/He, cancel the active calibration,
+reset air/He, clear optional pure-O2 calibration, PrepareSleep, and Resume. Every result carries the
+request type/ID, failure reason, effective settings, measurement generation, and calibration value
+where relevant. Calibration progress additionally carries raw millivolts, elapsed time, phase, and
+a terminal marker. Startup also carries the independent ADC initialization report.
 
 `Analyzer::service()` first retries its pending result; if delivery remains blocked, it does not
 take another command. The task still calls `measure()` when due. Slow UI consumption cannot discard
 an outcome or stop ordinary measurement publication unless sleep preparation deliberately suspends it.
-Normal calibration temporarily occupies the
-analyzer until its fixed sampling finishes; UI rendering continues. No progress/cancel UI is claimed.
+Calibration temporarily occupies the analyzer while its timed session runs; UI rendering continues.
+Progress is coalesced with `xQueueOverwrite`, while terminal completion remains owner-retained and
+retried. Rendering cadence cannot delay sampling or alter calibration acceptance.
 
 A missing startup or terminal result does not cause UI to clear busy on a timer. Doing that could
 admit another operation while a supposedly timed-out command still owns the hardware. Queue/task
@@ -84,8 +86,8 @@ On PrepareSleep with a nonzero ID, the analyzer records the active sleep ID, adv
 generation, deasserts He/CO sensor power, clears the measurement queue, and only then produces its
 acknowledgement. `measure()` publishes nothing while prepared. Ordinary settings/calibration/reset
 commands are rejected Busy before touching storage or hardware. The one-outstanding UI policy
-prevents submitting preparation while a calibration or settings operation is outstanding; this
-does not preempt the analyzer's synchronous calibration routine.
+prevents submitting preparation while a calibration or settings operation is outstanding.
+An active calibration can be cancelled only by its matching command ID.
 
 Repeated preparation for the active ID is idempotent. Another ID is rejected while prepared.
 Resume must match the active sleep ID before it can restore effective power enables and advance
@@ -239,15 +241,18 @@ Closing starts a fresh inactivity interval, as does completion of an operation. 
 during sleep preparation still requests Resume. No draft persistence or automatic retry is added.
 
 Callbacks no longer calibrate, write NVS, or drive sensor power. They enqueue and return, or show
-busy through the existing message box. Calibration success/failure is displayed when its result is
-drained, not at callback return. Reset/clear outcomes synchronize effective settings; failures show
-an error. Non-calibration errors no longer include meaningless `nan mv` text.
+busy through the existing message box. Starting calibration immediately opens the generated run
+screen; it shows raw mV history, elapsed time, settling/stable state, and Cancel. Saved appears only
+after persistence succeeds. Terminal state freezes the graph until Done. Reset/clear outcomes
+synchronize effective settings; failures show an error. Non-calibration errors no longer include
+meaningless `nan mv` text.
 
 Acquisition continues while settings are open. Calibration alone pauses normal acquisition while
-its fixed 100-sample sequence executes on the analyzer. Existing Wi-Fi scan and OTA callbacks still
+the analyzer samples every 250 ms. Existing Wi-Fi scan and OTA callbacks still
 block the UI and are explicitly outside this ownership change. The UI log is written from the UI
 task (and setup before UI creation), using errors delivered in results or measurement snapshots;
-sensor code only writes serial diagnostics. The old bounded-log/active-fault redesign remains later.
+sensor code only writes serial diagnostics. The user declined the bounded-log/active-fault redesign
+on 2026-09-17: existing diagnostics and reset-to-clear behavior are sufficient for short sessions.
 
 ## Settings and application
 
@@ -305,8 +310,9 @@ exceeds it. Startup and manual calibration use the same owner validation/persist
 ## Measurements and freshness
 
 Sensor classes retain the existing conversion formulas in `src/sensors/conversions.cpp`. Normal
-gas reads use one conversion, not 20-sample averaging. Calibration still uses five batches of 20
-with 100 ms pauses; `RunningAverage` remains only for that calibration path until step 5.
+gas reads use one conversion, not 20-sample averaging. Manual calibration uses individual fresh
+conversions in a fixed rolling window. Enabled cold-boot calibration still calls the legacy
+synchronous 100-sample `RunningAverage` path; unifying it with the timed session remains planned.
 
 `adc_read.h` is one shared function using unmodified Adafruit start/poll/result calls. The elapsed
 deadline is 25 ms at 128 SPS; polls yield with `delay(1)`, and Wire has a 10 ms timeout. Completion
@@ -319,17 +325,19 @@ devices retry no more than once per second when needed; explicit calibration may
 skip remaining channels on that ADC, not the other ADC. Invalid numerical data does not cause device
 reinitialization. The analyzer owns all ADC work and power GPIO writes; retries do not cycle power.
 CO power-start timing is implemented in the analyzer. It records the time only when the CO output
-changes from off to on, including startup, re-enable, and resume after preparation. For 5,000 ms it
-reports Warming and skips CO conversions entirely; raw mV and ppm remain NaN. Other enabled channels
-continue. The first accepted CO read starts after the deadline and must still pass normal checks.
-Warm-up is evaluated before the cycle, so a cycle starting just before expiry may defer CO until
-the next cycle rather than sample early. ADC-only retry or unrelated settings do not restart the
-timer. If only warming CO needs ADC2, no conversion or recovery attempt is made for it until due.
-The five-second value preserves the user's change before step 3e; previous milestone records retain
-their original three-second timing. Tests use `Analyzer::CO_STARTUP_MS` for boundary checks.
+changes from off to on, including startup, re-enable, and resume after preparation. During the first
+12,000 ms, a valid CO sample is classified Warming only when ppm exceeds 10; at or below 10 ppm it is
+Valid. CO is sampled throughout this interval, so raw mV remains available while the primary value
+shows Warming. ADC-only retry and unrelated settings do not restart the timer. Constants are
+`Analyzer::CO_WARMUP_MS` and `SensorManager::CO_WARMUP_PPM`.
+
+He is classified Warming when both its derived reading and temperature are valid and temperature is
+below 30 C. At 30 C or above it is Valid. Invalid/unavailable temperature does not overwrite an
+independent He failure state. Raw He mV remains visible while warming. The threshold is
+`SensorManager::HE_WARMUP_TEMPERATURE_C`.
 
 Every snapshot carries cycle-start timestamp, generation, initialized numeric fields, and channel
-states for O2/CO/He/temperature: Disabled, Valid, Invalid, Unavailable, and Warming (CO).
+states for O2/CO/He/temperature: Disabled, Valid, Invalid, Unavailable, and Warming (CO and He).
 UI derives Stale at 1,800 ms
 using unsigned elapsed arithmetic. Disabled remains distinct. NaN represents unusable numeric fields;
 CO stays float until checked integer display. MOD validates inputs and integer bounds. Raw He mV
@@ -345,10 +353,18 @@ while the UI is progressing. A blocked OTA callback can still delay visible upda
 
 `UiAdapter` publishes formatted text through exported subjects. Invalid, Unavailable, Warming,
 and Stale replace primary numeric readings; disabled channels display Off. Large O2 and He fonts
-shrink for status text and restore for valid values. Raw diagnostics remain visible when available,
-but stale snapshots suppress them. Subject strings are updated only when their content changes.
-CO warnings appear as explicit status text as well as colour; absence of a warning is not proof
-of a safe measurement. The retired generated-tick status adapter and its widget fakes are removed.
+shrink for status text and restore for valid values. Raw mV remains visible for Warming but stale
+snapshots suppress it. Main groups Bottom/Deco MOD with O2 and places battery in the header. A
+danger-coloured warning button appears when the UI log has Warning/Error severity and opens the
+generated Diagnostics screen. A valid displayed CO value above zero uses the danger colour and
+returns to inherited theme colour at zero. The obsolete main status subject is removed.
+
+Large O2/He values use the exported 60 px H1 font; non-valid state text falls back to the body font.
+
+Calibration, Calibration Run, Firmware Update, and Diagnostics are generated Editor screens owned
+by `UiAdapter`; generated C is never edited manually. Transient screens use application-bound
+callbacks and are deleted on exit. Cancel/Done visibility is managed directly on transient objects,
+avoiding global subject observers that could outlive a deleted screen in LVGL 9.5.
 
 ## Verification boundary
 
@@ -371,7 +387,7 @@ navigation, latency, stack high-water marks, ADC fault behavior, status layout, 
   output holds and calibration preservation. No hardware acceptance is implied by native tests.
 - Step 4: finish field-specific invalid-load handling, calibration-required state, settings UX and
   reboot/failure acceptance. Do not repeat the ownership refactor already done here.
-- Step 5: incremental cancellable stability-gated calibration with graph progress and a qualified
-  final window. No general operation scheduler is needed.
-- Step 6: finish Editor action screens, regeneration checks, and device acceptance of the active export.
-- Step 7: bounded chronological log, active faults, and measured efficiency cleanup.
+- Step 5: route enabled cold-boot calibration through the timed session, remove the remaining
+  `RunningAverage` path, tune thresholds from traces, and complete device acceptance.
+- Step 6: complete regeneration and device acceptance of the active Editor screens.
+- Step 7: measured efficiency cleanup; retain existing diagnostics and reset-to-clear behavior.

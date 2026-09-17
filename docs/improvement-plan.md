@@ -1,6 +1,6 @@
 # Current app improvement plan
 
-Updated 2026-09-16. Implementation has started, one small step at a time, from restored `main`
+Updated 2026-09-17. Implementation has started, one small step at a time, from restored `main`
 at `ecde0b9`. See [progress and verification](progress.md) for completed work and pending checks.
 Earlier redesign build/test results describe discarded work, not completion of this plan.
 
@@ -34,14 +34,13 @@ the next change when requested; do not recreate the discarded framework.
   Removing the extra averaging is a deliberate latency/noise tradeoff, not numerical equivalence.
 - The user designs the replacement UI in LVGL Editor. LVGL 9.5.0 was explicitly approved on
   2026-09-16 and the exported C now compiles with the firmware.
-- Decision 2026-09-16: activate the exported UI now; do not retain an EEZ runtime fallback while
-  waiting for all replacement screens. Keep generated sources untouched and application bindings
-  in a handwritten adapter. Existing calibration/reset, logs, and OTA remain accessible through
-  handwritten action dialogs until their Editor screens are ready.
+- Decision 2026-09-16: activate the exported UI now; do not retain an EEZ runtime fallback. Keep
+  generated sources untouched and application bindings in a handwritten adapter. Generated
+  Calibration, Calibration Run, Firmware Update, and Diagnostics screens are now integrated.
 - Calibration must have a live millivolt graph, cancellation, and automatic stability-gated
   completion. These are required improvements, not an indefinite backlog item.
-- Add configurable inactivity sleep and button wake. CO has a fixed 5,000 ms startup interval
-  (user-adjusted from three seconds before step 3e).
+- Add configurable inactivity sleep and button wake. CO uses a 12,000 ms post-power window and is
+  Warming in that window only above 10 ppm; He is Warming below 30 C. Raw mV remains visible.
 - Keep individual Preferences keys, defaults, and one validated RAM settings value. No settings
   blobs, migration, schema versions, CRCs, redundant records, or atomic multi-key guarantees.
 - Preserve existing OTA access. OTA security/protocol redesign and additional product features
@@ -129,8 +128,8 @@ the remaining activity/inhibition/abort checks are still pending.
 
 The analyzer owns ADCs, sensor-enable GPIOs, calibration, effective RAM settings, and Preferences.
 UI callbacks submit one operation at a time and receive an outcome with effective values and a
-measurement generation. Acquisition continues while settings are open. Calibration currently runs
-its fixed sampling sequence on the analyzer, not the UI; incremental cancellation/progress is step 5.
+measurement generation. Acquisition continues while settings are open. Calibration runs as an
+incremental analyzer-owned session with cancellation and bounded progress.
 The UI initializes and updates all graphics objects in one task. Block the unused Arduino loop.
 
 Default timeout: 5 minutes. Options: Off, 1, 2, 5, 10, and 30 minutes; wake on GPIO14/button 2.
@@ -189,10 +188,16 @@ reported accurately, and no repeated NVS reads during display updates. No new st
 
 ## 5. Complete stability-gated calibration
 
+Implementation status: manual calibration is complete in software. Enabled cold-boot calibration
+still uses the synchronous 100-sample path; unification, threshold tuning from device traces, and
+physical acceptance remain.
+
 Use one incremental calibration session for manual and enabled cold-boot calibration. Collect fresh
 timestamped millivolt samples into a fixed rolling window. Require minimum sample count/coverage,
-low spread, low drift, and a continuous stable dwell. Invalid samples, gaps, or instability reset
-qualification. Use an overall timeout; never force acceptance merely because time elapsed.
+low spread and low drift. Decision 2026-09-17: add drift detection to the existing rolling-range
+check; additional sample-gap qualification and continuous stable dwell are not in scope for now.
+Keep existing invalid-sample handling and the five-second minimum/ten-second maximum session.
+Never force acceptance merely because time elapsed.
 
 Feed the window individual fresh conversions, not pre-averaged batches. Replace calibration's
 `RunningAverage` objects with this fixed-capacity history and remove the library dependency once
@@ -205,8 +210,9 @@ calibration. Define late cancellation after successful application as already co
 Publish bounded history/progress independently of screen refresh. Thresholds are code constants
 chosen from recorded traces, not new user-facing settings. No CO calibration workflow is added.
 
-Acceptance: tests for steady input, noise, slow drift, settling, spikes, duplicate/stale samples,
-gaps, timeout, cancellation, and clock wrap. A hidden or slow graph must not change the result.
+Acceptance: tests for steady input, noise, positive/negative slow drift, settling, spikes,
+timeout, cancellation, and clock wrap. Sample-gap and additional dwell changes are deferred.
+A hidden or slow graph must not change the result.
 Keep UI response near 200 ms as a provisional target; measure analyzer response separately.
 The former roughly 477 ms batch-acquisition estimate no longer applies after step 2 removes the
 20-conversion batches. Measure the single-conversion path, including timeouts and task waits,
@@ -221,21 +227,21 @@ ADC rate or adding another task.
 - [x] Exclude EEZ from the active firmware; replace `ui_init`, `ui_tick`, Flow globals, and direct
   EEZ widget references. Keep existing analyzer/UI ownership and message queues.
 - [x] Initialize unavailable readings before loading Main. Bind percentages, mV, He temperature,
-  guarded Bottom/Deco MOD, battery, status, and the existing CO > 0 warning policy.
+  guarded Bottom/Deco MOD, battery, warning-log indicator, and CO danger-colour policy.
 - [x] Wire Main/Large screen taps after all permanent screens exist. Keep Settings/Calibration
   actions separate, create Settings on entry, and delete it after returning to Main.
 - [x] Connect settings subjects to open/save callbacks, index conversion, effective-value rollback,
   brightness preview, sleep policy, and calibration-coefficient protection.
-- [x] Retain calibration/reset/startup preference, diagnostics, and Wi-Fi/OTA entry points through
-  plain action dialogs. These do not replace the planned graph/cancellation backend work.
+- [x] Integrate generated Calibration, Calibration Run, Firmware Update, and Diagnostics screens.
 - [x] Test real LVGL initialization/rendering, navigation, settings rejection and lifetime, sensor
   status formatting, and all existing portable behavior. Compile debug and release firmware.
 - [x] Re-export the renamed logo object in the Editor and verify direct-library builds and host tests.
 - [ ] Verify physical touch, layout, warning readability, Settings save/reboot, brightness, dialogs,
   keyboard, OTA access, heap/stack headroom, and sleep/wake on the device.
 - [x] Prepare component-based `calibration.xml`, `firmware_update.xml`, and `diagnostics.xml`.
-- [ ] Export and verify the new screens, then wire their controls and replace the action dialogs.
-- [ ] Finish calibration graph/progress/cancellation UI and stability-gated calibration (step 5).
+- [x] Export and verify the new screens, wire their controls, and remove handwritten action dialogs.
+- [x] Implement manual calibration graph/progress/cancellation UI and stability gating.
+- [ ] Route enabled cold-boot calibration through the timed session and remove `RunningAverage`.
 - [x] Delete the retired EEZ project, generated runtime/assets, unused widget test fakes, and
   obsolete PlatformIO exclusions. Git history retains the previous implementation.
 
@@ -249,35 +255,38 @@ delete-time cleanup callbacks. This handles permanent-screen creation order and 
 a NULL destination. Keep styles deferred; only safety status presentation and required layout
 behavior are adjusted during integration.
 
-Prepared action screens use a fixed Back button beside a scrolling column, global spacing tokens,
-and existing components without new styles. Calibration exposes the startup preference, all six
-calibration/reset actions, a result label, and Diagnostics navigation. Firmware Update exposes
+Generated action screens use fixed navigation beside scrolling content, global spacing tokens,
+and existing components. Calibration exposes the startup preference, Air/Pure-O2/He calibration,
+Pure-O2 clear, and Diagnostics navigation. Firmware Update exposes
 network selection, scan, a masked password field and keyboard, connection status, and Install.
 Its keyboard takes layout space rather than covering the password; other form controls hide while
 editing. Install starts disabled until the future adapter sets `update_can_install`.
-Diagnostics shows the shared main status and a wrapping `diagnostics_log_text` subject.
-These new subjects are preview-only until wired. In particular, `update_back` intentionally has
+Diagnostics shows a wrapping `diagnostics_log_text` subject. These controls are wired through
+`UiAdapter`. In particular, `update_back` intentionally has
 no screen-create event: integration must return to the existing Settings draft without recreating it.
-The current firmware still uses action dialogs. XML syntax/reference checks are not a substitute
-for a fresh Editor export, rendering, and keyboard/navigation tests.
+XML syntax/reference checks are not a substitute for a fresh Editor export, rendering, and
+keyboard/navigation tests.
 
 Bind the user's actual Editor export through a thin adapter. Preserve normal/large readings, MOD,
 channel settings, calibration/reset, startup calibration preference, brightness, battery, logs,
 fault status, OTA access, and sleep configuration. Add the calibration graph, elapsed time,
 stability status, Cancel, and a retained final result. Do not invent generated filenames in advance.
 
-The retired UI sources and assets are removed. Shared component styling remains unchanged. Action dialogs
-are the explicitly documented interim entry points; replace them with Editor screens as those land.
+The retired UI sources/assets and handwritten action dialogs are removed. Shared component styling
+remains the source for generated controls.
 
 Acceptance: compatible export compiles, regeneration preserves handwritten code, navigation stays
 responsive, and invalid/disabled/warming states are understandable. Consult the LVGL MCP server
 and verify APIs against the selected version before implementation. Export compilation and host
 adapter behavior are verified; physical acceptance and a fresh Editor regeneration remain pending.
 
-## 7. Finish diagnostics and measured cleanup
+## 7. Measured cleanup
 
-Keep one bounded chronological log and separate active-fault flags. Copy log text safely and
-rate-limit duplicates. No logging framework. Sample battery less frequently, initialize persistent
+Decision 2026-09-17: retain the existing Diagnostics screen and logging behavior. The device is used
+for short sessions and can be reset to clear errors. A new log buffer, separate active-fault tracking,
+recovery history, and duplicate rate-limiting are not required; do not implement that redesign.
+
+Sample battery less frequently, initialize persistent
 peripheral configuration once, and fix rounding/truncation issues with focused tests.
 
 Measure acquisition duration, UI latency, free heap, stack high-water marks, and sleep current.

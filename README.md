@@ -36,8 +36,9 @@ pio test -e native -e native-ui
 
 Tap the readings screen to switch Main/Large. Settings saves on exit. Calibration/reset, startup
 calibration preference, and Diagnostics are available from the Calibration button; Firmware update
-is in Settings. These action dialogs will be replaced by Editor screens. Stability-gated calibration,
-graph/cancellation, and on-device acceptance remain pending. No styles redesign is included in this migration.
+is in Settings. Calibration starts immediately, samples raw mV every 250 ms, saves after at least
+five stable seconds, and fails unchanged after ten unstable seconds. Its graph supports cancellation
+and freezes on the terminal result. On-device acceptance and final stability-threshold tuning remain.
 
 ## Hardware
 
@@ -77,7 +78,7 @@ The consumption varies depending on the sensors enabled and display brightness. 
 
 - [x] 100% O2 calibration. How much does it improve accuracy? Most other analyzers don't do it, including brand ones. Check that linear drift in more detail.
 - [ ] Metric/Imperial values - not so important yet
-- [ ] Go to sleep after X minutes
+- [x] Go to sleep after X minutes
 - [ ] Screen flip 180 degrees option
 - [x] Add large digits screen for easier monitoring. Switch from main with touch anywhere.
 - [ ] Remember last screen on startup (where applicable)
@@ -87,7 +88,7 @@ The consumption varies depending on the sensors enabled and display brightness. 
 - [ ] Remove the millivolts from the main screen after testing. Move them to a separate details screen, maybe opened from the Config
 - [x] Log screen to show warnings and errors. To be opened from the main or config screens
 - [x] Indicator icon on the main screen for warnings. To open the log screen
-- [ ] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
+- [x] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
 - [x] OTA updates
 - [x] Brightness control
 - [ ] Translation in other languages
