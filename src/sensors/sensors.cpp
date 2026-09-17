@@ -75,13 +75,12 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
   _heSensor.setCalibrations(_heCalibration100);
 }
 
-SensorError SensorManager::readSensors(bool coWarming) {
+SensorError SensorManager::readSensors(bool coWarmupWindow) {
   sensorsData data;
   data.timestampMs = ::millis();
   data.generation = _generation;
   data.o2State = _isO2Enabled ? ChannelState::Unavailable : ChannelState::Disabled;
-  data.coState = !_isCOEnabled ? ChannelState::Disabled :
-                 coWarming ? ChannelState::Warming : ChannelState::Unavailable;
+  data.coState = _isCOEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
   data.heState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
   data.temperatureState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
   _lastError = SensorError::None;
@@ -91,7 +90,7 @@ SensorError SensorManager::readSensors(bool coWarming) {
     return _lastError;
   }
 
-  const bool coActive = _isCOEnabled && !coWarming;
+  const bool coActive = _isCOEnabled;
   if (_isO2Enabled) recoverDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
   if (coActive || _isHeEnabled) recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
   if ((_isO2Enabled && !_adc1State.ready) ||
@@ -108,6 +107,8 @@ SensorError SensorManager::readSensors(bool coWarming) {
   if (coActive && _adc2State.ready) {
     data.CoLevel = _coSensor.readLevel(&timedOut);
     data.coState = recordRead(_adc2State, timedOut, std::isfinite(data.CoLevel.ppm));
+    if (data.coState == ChannelState::Valid && coWarmupWindow &&
+        data.CoLevel.ppm > CO_WARMUP_PPM) data.coState = ChannelState::Warming;
   }
 
   if (_isHeEnabled && _adc2State.ready) {
@@ -118,6 +119,8 @@ SensorError SensorManager::readSensors(bool coWarming) {
   if (_isHeEnabled && _adc2State.ready) {
     data.HeTemperature = _tempSensor.readLevel(&timedOut);
     data.temperatureState = recordRead(_adc2State, timedOut, std::isfinite(data.HeTemperature));
+    if (data.heState == ChannelState::Valid && data.temperatureState == ChannelState::Valid &&
+        data.HeTemperature < HE_WARMUP_TEMPERATURE_C) data.heState = ChannelState::Warming;
   }
   data.lastError = _lastError;
 

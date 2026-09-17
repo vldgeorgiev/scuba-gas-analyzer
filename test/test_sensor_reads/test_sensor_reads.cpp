@@ -564,7 +564,7 @@ void test_channel_states_distinguish_disabled_invalid_and_unavailable() {
   nowMs += 1000;
   manager.readSensors();
   xQueueReceive(handle, &snapshot, 0);
-  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.heState);
   TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.temperatureState);
 }
 
@@ -614,6 +614,53 @@ void test_disabled_states_survive_stale_presentation_and_zero_co_is_valid() {
   xQueueReceive(handle, &snapshot, 0);
   TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.coState);
   TEST_ASSERT_EQUAL_FLOAT(0, snapshot.CoLevel.ppm);
+}
+
+void test_co_warming_requires_startup_window_and_ppm_above_threshold() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager manager(handle);
+  manager.init();
+  manager.setSensorsConfig(false, true, false, 10, NAN, 621.2f);
+  Adafruit_ADS1115::devices[1]->counts = 7040;
+  manager.readSensors(true);
+  sensorsData snapshot;
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.coState);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 440, snapshot.CoLevel.millivolts);
+  TEST_ASSERT_GREATER_THAN(SensorManager::CO_WARMUP_PPM, snapshot.CoLevel.ppm);
+
+  Adafruit_ADS1115::devices[1]->counts = 6880;
+  manager.readSensors(true);
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.coState);
+
+  Adafruit_ADS1115::devices[1]->counts = 7040;
+  manager.readSensors(false);
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.coState);
+}
+
+void test_he_warming_requires_valid_temperature_below_threshold() {
+  FakeQueue queue(sizeof(sensorsData));
+  QueueHandle_t handle = &queue;
+  SensorManager manager(handle);
+  manager.init();
+  manager.setSensorsConfig(true, false, true, 10, NAN, 621.2f);
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  Adafruit_ADS1115::devices[1]->counts = 4000;
+  manager.readSensors();
+  sensorsData snapshot;
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.heState);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 250, snapshot.HeLevel.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 25, snapshot.HeTemperature);
+
+  Adafruit_ADS1115::devices[1]->counts = 4800;
+  manager.readSensors();
+  xQueueReceive(handle, &snapshot, 0);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.heState);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, SensorManager::HE_WARMUP_TEMPERATURE_C, snapshot.HeTemperature);
 }
 
 void test_temperature_timeout_keeps_completed_he_read_valid() {
@@ -672,6 +719,8 @@ int main(int, char**) {
   RUN_TEST(test_stale_copy_keeps_disabled_distinct_and_leaves_producer_states_unchanged);
   RUN_TEST(test_channel_state_labels_are_distinct);
   RUN_TEST(test_disabled_states_survive_stale_presentation_and_zero_co_is_valid);
+  RUN_TEST(test_co_warming_requires_startup_window_and_ppm_above_threshold);
+  RUN_TEST(test_he_warming_requires_valid_temperature_below_threshold);
   RUN_TEST(test_temperature_timeout_keeps_completed_he_read_valid);
   return UNITY_END();
 }

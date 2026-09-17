@@ -218,6 +218,17 @@ void test_export_readings_and_sensor_states() {
   TEST_ASSERT_TRUE(lv_obj_has_flag(warning, LV_OBJ_FLAG_HIDDEN));
   TEST_ASSERT_FALSE(lv_obj_has_state(coValue, LV_STATE_USER_1));
   TEST_ASSERT_NOT_EQUAL(lv_color_to_u32(COLOR_DANGER), lv_color_to_u32(lv_obj_get_style_text_color(coValue, LV_PART_MAIN)));
+  data.coState = ChannelState::Warming;
+  data.heState = ChannelState::Warming;
+  data.CoLevel.millivolts = 440;
+  data.HeLevel.millivolts = 250;
+  ui::presentReadings(data, effective);
+  TEST_ASSERT_EQUAL_STRING("Warming", lv_subject_get_string(&main_co_text));
+  TEST_ASSERT_EQUAL_STRING("440.0 mV", lv_subject_get_string(&main_co_mv_text));
+  TEST_ASSERT_EQUAL_STRING("Warming", lv_subject_get_string(&main_he_text));
+  TEST_ASSERT_EQUAL_STRING("250.0 mV", lv_subject_get_string(&main_he_mv_text));
+  data.coState = ChannelState::Valid;
+  data.heState = ChannelState::Valid;
   data.o2State = ChannelState::Invalid;
   ui::presentReadings(data, effective);
   TEST_ASSERT_EQUAL_STRING("10.4 mV", lv_subject_get_string(&main_o2_mv_text));

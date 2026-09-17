@@ -151,7 +151,7 @@ struct UiState {
 
 class Analyzer {
 public:
-  static constexpr uint32_t CO_STARTUP_MS = 5000;
+  static constexpr uint32_t CO_WARMUP_MS = 12000;
   static constexpr uint32_t CALIBRATION_SAMPLE_MS = 250;
   static constexpr uint32_t CALIBRATION_STABILITY_WINDOW_MS = 2000;
   static constexpr uint32_t CALIBRATION_MINIMUM_MS = 5000;
@@ -167,7 +167,7 @@ public:
   bool calibrating() const { return _calibrationActive; }
   bool preparedForSleep() const { return _sleepId != 0; }
   bool coWarming() const {
-    return _coPowered && static_cast<uint32_t>(::millis() - _coPoweredAt) < CO_STARTUP_MS;
+    return _coPowered && static_cast<uint32_t>(::millis() - _coPoweredAt) < CO_WARMUP_MS;
   }
   const AnalyzerSettings& effective() const { return _effective; }
 
