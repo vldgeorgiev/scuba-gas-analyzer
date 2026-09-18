@@ -362,8 +362,8 @@ while the UI is progressing. Network work runs outside the UI task, so scan, con
 waits do not delay visible updates.
 
 `UiAdapter` publishes formatted text through exported subjects. Invalid, Unavailable, Warming,
-and Stale replace primary numeric readings; disabled channels display Off. Large O2 and He fonts
-shrink for status text and restore for valid values. Raw mV remains visible for Warming but stale
+and Stale replace primary numeric readings; disabled sensor sections are hidden on Main and Large.
+Large O2 and He fonts shrink for status text and restore for valid values. Raw mV remains visible for Warming but stale
 snapshots suppress it. Main groups Bottom/Deco MOD with O2 and places battery in the header. A
 danger-coloured warning button appears when the UI log has Warning/Error severity and opens the
 generated Diagnostics screen. A valid displayed CO value above zero uses the danger colour and

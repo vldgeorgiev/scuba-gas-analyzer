@@ -24,9 +24,15 @@ lv_obj_t* calibrationCancel = nullptr;
 lv_obj_t* calibrationDone = nullptr;
 lv_obj_t* calibrationStability = nullptr;
 lv_obj_t* mainWarning = nullptr;
+lv_obj_t* mainO2Reading = nullptr;
+lv_obj_t* mainHeReading = nullptr;
+lv_obj_t* mainCoReading = nullptr;
 lv_obj_t* mainO2Value = nullptr;
 lv_obj_t* mainHeValue = nullptr;
 lv_obj_t* mainCoValue = nullptr;
+lv_obj_t* largeO2Row = nullptr;
+lv_obj_t* largeHeRow = nullptr;
+lv_obj_t* largeCoRow = nullptr;
 lv_obj_t* largeO2Value = nullptr;
 lv_obj_t* largeHeValue = nullptr;
 lv_obj_t* largeCoValue = nullptr;
@@ -204,6 +210,10 @@ void setUnit(lv_obj_t* value, const char* unit, bool visible) {
   if (span) lv_spangroup_set_span_text_static(value, span, visible ? unit : "");
 }
 
+void setVisible(lv_obj_t* object, bool visible) {
+  if (object) lv_obj_set_flag(object, LV_OBJ_FLAG_HIDDEN, !visible);
+}
+
 void setRaw(lv_subject_t* subject, float value, ChannelState state) {
   const bool showRaw = std::isfinite(value) && state != ChannelState::Stale &&
                        state != ChannelState::Disabled && state != ChannelState::Unavailable;
@@ -262,12 +272,15 @@ void init() {
   lvgl_ui_project_set_target(LVGL_UI_PROJECT_TARGET_TARGET1);
   lvgl_ui_project_init("");
   mainWarning = lv_obj_find_by_name(mainscr, "open_diagnostics");
-  lv_obj_t* mainO2Reading = lv_obj_find_by_name(mainscr, "main_o2_reading");
+  mainO2Reading = lv_obj_find_by_name(mainscr, "main_o2_reading");
   mainO2Value = mainO2Reading ? lv_obj_find_by_name(mainO2Reading, "primary_value") : nullptr;
-  lv_obj_t* mainHeReading = lv_obj_find_by_name(mainscr, "main_he_reading");
+  mainHeReading = lv_obj_find_by_name(mainscr, "main_he_reading");
   mainHeValue = mainHeReading ? lv_obj_find_by_name(mainHeReading, "primary_value") : nullptr;
-  lv_obj_t* mainCoReading = lv_obj_find_by_name(mainscr, "main_co_reading");
+  mainCoReading = lv_obj_find_by_name(mainscr, "main_co_reading");
   mainCoValue = mainCoReading ? lv_obj_find_by_name(mainCoReading, "primary_value") : nullptr;
+  largeO2Row = lv_obj_find_by_name(largescr, "large_o2_row");
+  largeHeRow = lv_obj_find_by_name(largescr, "large_he_row");
+  largeCoRow = lv_obj_find_by_name(largescr, "large_status");
   largeO2Value = lv_obj_find_by_name(largescr, "large_o2_value");
   largeHeValue = lv_obj_find_by_name(largescr, "large_he_value");
   largeCoValue = lv_obj_find_by_name(largescr, "large_co_value");
@@ -363,6 +376,12 @@ bool readSettings(AnalyzerSettings& settings) {
 void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) {
   const ChannelState oxygen = percentageState(data.O2Level.percentage, data.o2State);
   const ChannelState helium = percentageState(data.HeLevel.percentage, data.heState);
+  setVisible(mainO2Reading, oxygen != ChannelState::Disabled);
+  setVisible(mainHeReading, helium != ChannelState::Disabled);
+  setVisible(mainCoReading, data.coState != ChannelState::Disabled);
+  setVisible(largeO2Row, oxygen != ChannelState::Disabled);
+  setVisible(largeHeRow, helium != ChannelState::Disabled);
+  setVisible(largeCoRow, data.coState != ChannelState::Disabled);
   setReading(&main_o2_text, data.O2Level.percentage, oxygen, "%.1f");
   setReading(&main_he_text, data.HeLevel.percentage, helium, "%.1f");
   int co;

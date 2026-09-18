@@ -305,8 +305,26 @@ void test_export_readings_and_sensor_states() {
   TEST_ASSERT_EQUAL_PTR(font_h1, lv_obj_get_style_text_font(value, LV_PART_MAIN));
   TEST_ASSERT_EQUAL_STRING("%", lv_span_get_text(o2Unit));
   TEST_ASSERT_EQUAL_STRING("Off", lv_subject_get_string(&main_co_text));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(coReading, LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(lv_obj_find_by_name(largescr, "large_status"), LV_OBJ_FLAG_HIDDEN));
+  data.coState = ChannelState::Valid;
+  ui::presentReadings(data, effective);
+  TEST_ASSERT_FALSE(lv_obj_has_flag(coReading, LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_FALSE(lv_obj_has_flag(lv_obj_find_by_name(largescr, "large_status"), LV_OBJ_FLAG_HIDDEN));
   TEST_ASSERT_EQUAL_STRING("Unavailable", lv_subject_get_string(&main_he_temperature_text));
   TEST_ASSERT_EQUAL_STRING("10.5", lv_subject_get_string(&main_he_text));
+  data.o2State = ChannelState::Disabled;
+  data.heState = ChannelState::Disabled;
+  ui::presentReadings(data, effective);
+  TEST_ASSERT_TRUE(lv_obj_has_flag(o2Reading, LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(lv_obj_find_by_name(mainscr, "main_he_reading"), LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(lv_obj_find_by_name(largescr, "large_o2_row"), LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(lv_obj_find_by_name(largescr, "large_he_row"), LV_OBJ_FLAG_HIDDEN));
+  data.o2State = ChannelState::Valid;
+  data.heState = ChannelState::Valid;
+  ui::presentReadings(data, effective);
+  TEST_ASSERT_FALSE(lv_obj_has_flag(o2Reading, LV_OBJ_FLAG_HIDDEN));
+  TEST_ASSERT_FALSE(lv_obj_has_flag(lv_obj_find_by_name(mainscr, "main_he_reading"), LV_OBJ_FLAG_HIDDEN));
   refresh();
 }
 
