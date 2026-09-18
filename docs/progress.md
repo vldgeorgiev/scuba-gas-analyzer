@@ -19,6 +19,18 @@ their pending-validation notes have since been completed.
 | 7. Measured cleanup | Battery ADC characterization is initialized once; other speculative cleanup declined |
 | 8. Versioned release automation | Implemented; hosted workflow and device validation pending |
 
+## 2026-09-18: Responsive firmware update
+
+- Wi-Fi scan, connection, and OTA download now run in a temporary worker instead of the LVGL task.
+  The UI remains responsive and shows coalesced download percentages in the existing status line.
+- A one-entry event queue preserves LVGL ownership in the UI task. Network work continues to inhibit
+  sleep, and duplicate scan/install actions are rejected while one operation is active.
+- Downloads abort after 15 seconds without data and clean up partial `Update` state. Progress logging
+  now uses the intended ten-second microsecond interval and integer timestamp.
+- Scope remains intentionally small: no manifest, downgrade policy, or rollback protocol. TLS still
+  uses `setInsecure()` and remains a separate follow-up.
+- The debug S3 build passes. No upload, OTA, or physical-device validation was performed.
+
 ## 2026-09-18: Release, version, and OTA automation
 
 - Removed automated push CI. The manual release workflow reruns both host suites, builds release

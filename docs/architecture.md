@@ -12,7 +12,7 @@ The Editor-generated `firmware_version` label observes the `firmware_version_tex
 GitHub Release `firmware.bin` asset. The updater still calls `setInsecure()`; TLS trust hardening is
 deliberately a separate follow-up from changing the publication URL.
 
-## Two application tasks
+## Application tasks
 
 ```text
 UI task (core 0)                      Analyzer task (core 1)
@@ -23,15 +23,18 @@ draft settings, effective copy        effective settings, Preferences
                <------ latest measurement queue
 ```
 
-`setup()` creates the three queues and the tasks. The analyzer task creates its own `SettingsStore`,
+`setup()` creates the three analyzer/UI queues and two persistent tasks. The analyzer task creates its own `SettingsStore`,
 `SensorManager`, and concrete `app::Analyzer` locally; UI callbacks cannot access those instances.
 The UI task owns `DisplayManager`, exported LVGL subjects, widget pointers, and its copy of effective settings.
-The Arduino loop blocks indefinitely. There is no extra manager/logger/battery/monitor task.
+The Arduino loop blocks indefinitely. There is no extra manager/logger/battery/monitor task. Wi-Fi
+scan and firmware installation each use one temporary low-priority worker so network waits do not
+block LVGL; a one-entry overwrite queue returns scan results, progress, and completion to the UI task.
 
 | Task | Work and timing | Allocated stack |
 | --- | --- | --- |
 | UI | Initialize display/input/generated UI, drain results/readings, render, delay 5 ms | 10 KB |
 | Analyzer | Load settings, initialize sensors/power, handle commands, measure, delay 10 ms | 4 KB |
+| Network worker | Temporary Wi-Fi scan or firmware download; never calls LVGL | 4 KB scan / 10 KB update |
 
 Normal measurement scheduling waits at least 500 ms from the end of the last cycle; there is no
 catch-up loop. Processing a command makes a fresh cycle due. UI presentation checks run around
@@ -150,9 +153,10 @@ the UI evaluates it after its normal input/render pass. Startup, pending operati
 and an open settings editor inhibit entry. Keeping settings open is deliberately more conservative
 than the original all-screens policy: an unsaved draft is not discarded by sleeping.
 
-Scan/update callbacks use a small scoped network-activity guard which resets inactivity on entry
-and every return. Those callbacks still block the UI, so the sleep pump cannot run during them;
-the guard additionally ensures a full new idle interval after completion/failure. Measurement
+Scan/update callbacks mark network activity and start a temporary worker. The UI task drains its
+one-entry event queue, owns all dropdown/subject updates, and displays coalesced download percentages.
+Network work inhibits sleep and completion/failure starts a fresh idle interval. A download aborts
+after 15 seconds without data and cleans up a partial `Update` session. Measurement
 changes never reset inactivity. Off disables automatic entry. A failed submit resets inactivity
 instead of immediately retrying sleep every UI tick.
 
@@ -358,7 +362,8 @@ UI accepts a snapshot only for its acknowledged generation; a future or old snap
 until a matching result/sample arrives. No measurement numbers are presented before Startup readiness.
 Result handling invalidates cached old-generation readings immediately, including MOD and raw mV.
 Freshness is recomputed even with no new sample, so a stopped analyzer cannot keep old readings current
-while the UI is progressing. A blocked OTA callback can still delay visible updates.
+while the UI is progressing. Network work runs outside the UI task, so scan, connection, and download
+waits do not delay visible updates.
 
 `UiAdapter` publishes formatted text through exported subjects. Invalid, Unavailable, Warming,
 and Stale replace primary numeric readings; disabled channels display Off. Large O2 and He fonts

@@ -386,8 +386,8 @@ hardening has its own acceptance evidence and is not implied by release completi
 
 ## Deferred
 
-- OTA TLS trust hardening and rollback/protocol redesign. TLS hardening is the first separate follow-up
-  after step 8 and must remove `setInsecure()` using a maintainable trust strategy.
+- OTA TLS trust hardening must remove `setInsecure()` using a maintainable trust strategy. This
+  low-risk device does not require a manifest, downgrade policy, or rollback protocol.
 - Rotation, remembered screen, translations, units, calculators, and startup-calibration change warnings.
 - ADC rate changes/interleaving, polynomial optimization, DMA, and display-driver replacement.
 - New gas models, chemistry/hardware research, and additional power modes or wake sources.
