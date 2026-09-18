@@ -32,7 +32,8 @@ pio test -e native -f test_sensor_reads
 
 No command above uploads firmware, flashes a board, performs OTA, or validates physical sensors,
 touch, display layout, power consumption, deep sleep, wake behavior, network progress, or stalled
-download recovery. The S3 build compiles the worker/queue integration but does not execute it.
+download recovery. It also does not prove NTP synchronization, trusted GitHub TLS, or rejection of an
+untrusted certificate. The S3 build compiles the worker/queue integration but does not execute it.
 
 ## PlatformIO test environments
 

@@ -1,16 +1,8 @@
 # Current firmware architecture
 
-Updated 2026-09-17 after calibration, UI, and warm-up improvements. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-09-18 after calibration, UI, warm-up, and firmware-update improvements. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
-
-Release automation and compile-time firmware version presentation are defined in improvement-plan step
-8. The Firmware Update screen displays the application-owned `FIRMWARE_VERSION` compile definition,
-which defaults to `dev` and is injected with CalVer through `PLATFORMIO_BUILD_FLAGS` for release builds.
-The Editor-generated `firmware_version` label observes the `firmware_version_text` string subject;
-`UiAdapter` supplies the compiled value before creating the screen. OTA downloads the stable latest
-GitHub Release `firmware.bin` asset. The updater still calls `setInsecure()`; TLS trust hardening is
-deliberately a separate follow-up from changing the publication URL.
 
 ## Application tasks
 
@@ -260,8 +252,8 @@ synchronize effective settings; failures show an error. Non-calibration errors n
 meaningless `nan mv` text.
 
 Acquisition continues while settings are open. Calibration alone pauses normal acquisition while
-the analyzer samples every 250 ms. Existing Wi-Fi scan and OTA callbacks still
-block the UI and are explicitly outside this ownership change. The UI log is written from the UI
+the analyzer samples every 250 ms. Wi-Fi and OTA work runs in a temporary worker and reports through
+the UI-owned event queue. The UI log is written from the UI
 task (and setup before UI creation), using errors delivered in results or measurement snapshots;
 sensor code only writes serial diagnostics. The user declined the bounded-log/active-fault redesign
 on 2026-09-17: existing diagnostics and reset-to-clear behavior are sufficient for short sessions.
@@ -379,6 +371,17 @@ Calibration, Calibration Run, Firmware Update, and Diagnostics are generated Edi
 by `UiAdapter`; generated C is never edited manually. Transient screens use application-bound
 callbacks and are deleted on exit. Cancel/Done visibility is managed directly on transient objects,
 avoiding global subject observers that could outlive a deleted screen in LVGL 9.5.
+
+## Firmware updates
+
+The update screen shows the application-owned compile-time version, using `dev` locally and the
+release CalVer in published builds. OTA downloads the latest GitHub Release `firmware.bin` in a
+temporary worker and reports progress to the UI task.
+
+Before HTTPS begins, the worker synchronizes UTC with a ten-second bound. `WiFiClientSecure`
+authenticates GitHub and its release-asset redirect using the roots in
+`src/network/TrustedRoots.h`; time or TLS failure cancels the update. Release automation and
+version injection are detailed in improvement-plan step 8.
 
 ## Verification boundary
 

@@ -27,9 +27,11 @@ their pending-validation notes have since been completed.
   sleep, and duplicate scan/install actions are rejected while one operation is active.
 - Downloads abort after 15 seconds without data and clean up partial `Update` state. Progress logging
   now uses the intended ten-second microsecond interval and integer timestamp.
-- Scope remains intentionally small: no manifest, downgrade policy, or rollback protocol. TLS still
-  uses `setInsecure()` and remains a separate follow-up.
-- The debug S3 build passes. No upload, OTA, or physical-device validation was performed.
+- Scope remains intentionally small: no manifest, downgrade policy, or rollback protocol.
+- OTA now synchronizes UTC from three NTP servers with a ten-second bound, then validates GitHub and
+  its release-asset redirect against USERTrust ECC and ISRG Root X1. Time and TLS failures cancel the
+  update with distinct UI messages; there is no insecure fallback. The roots expire in 2038 and 2035.
+- The debug S3 build passes. No upload, OTA, rejected-certificate, or physical-device validation was performed.
 
 ## 2026-09-18: Release, version, and OTA automation
 
@@ -40,8 +42,8 @@ their pending-validation notes have since been completed.
   commit and version.
 - OTA source is the stable latest GitHub Release asset URL:
   `https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin`.
-- Replacing the URL does not address the current `setInsecure()` call. TLS trust hardening is a
-  separate follow-up requiring its own trust/rotation design and device validation.
+- TLS authentication was added in the responsive-update follow-up above. Root rotation and the
+  NTP/TLS failure paths still require device validation.
 - The Editor-generated Firmware Update label binds to `firmware_version_text`; `UiAdapter` supplies
   the compiled value. The release workflow injects CalVer directly with `PLATFORMIO_BUILD_FLAGS`.
   Native-ui tests and an injected-CalVer release build pass locally. No hosted release or OTA/device

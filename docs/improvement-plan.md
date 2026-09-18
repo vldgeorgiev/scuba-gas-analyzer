@@ -45,14 +45,14 @@ the next change when requested; do not recreate the discarded framework.
   blobs, migration, schema versions, CRCs, redundant records, or atomic multi-key guarantees.
 - Preserve existing OTA access while moving release downloads from the fixed DigitalOcean object to
   the stable GitHub Release asset URL. Versioned release automation and an on-screen firmware version
-  are active scope in step 8. TLS trust hardening remains a separate follow-up; do not hide it inside
-  the URL migration or claim HTTPS authenticity while `setInsecure()` remains in use.
+  are active scope in step 8. Authenticate GitHub and its release redirect with maintained root CAs
+  after bounded NTP synchronization; fail closed when time or TLS verification fails.
 - Keep the current README unchanged during planning; update user documentation after implementation.
 
 ## Design limits
 
-- Two application execution contexts: UI and analyzer. No extra manager, logger, battery, or
-  monitoring task. Reuse or block the Arduino loop task as appropriate.
+- Two persistent application execution contexts: UI and analyzer. A temporary worker may perform
+  Wi-Fi scan/update work without calling LVGL. No extra manager, logger, battery, or monitoring task.
 - UI owns widgets and draft settings. Analyzer owns ADCs, sensor power, calibration, effective
   settings, and persistence. Callbacks submit work and return promptly.
 - Use fixed-size messages: latest measurement, a small command queue, reliable completion,
@@ -301,7 +301,7 @@ unless device behavior identifies a concrete problem.
 
 Decision 2026-09-18: automated push CI is removed. The manually dispatched release workflow owns
 host testing, release compilation, packaging, and publication. The GitHub Release OTA URL and the
-on-screen compile-time version are implemented. TLS trust hardening remains deferred separately.
+on-screen compile-time version are implemented. OTA uses CA-validated TLS after bounded NTP setup.
 
 ### Local verification
 
@@ -368,26 +368,26 @@ belongs in the tag, release title, and metadata rather than the OTA asset filena
 redirect following and verify the end-to-end device download because GitHub's `latest` endpoint
 redirects to release asset storage.
 
-### Separate TLS hardening follow-up
+### TLS authentication
 
-The current updater calls `WiFiClientSecure::setInsecure()`, so HTTPS encrypts transport but does not
-authenticate the server. Replacing the URL does not fix that limitation. Treat TLS hardening as a
-separate change after release publication works: choose and validate a maintained trust strategy
-(CA certificate/bundle or pinned public key where supported), account for certificate rotation and
-device time requirements, define failure messaging, and test both trusted and rejected connections.
-Do not silently retain `setInsecure()` while describing OTA as authenticated or secure.
+The update worker synchronizes UTC from three NTP servers with a ten-second timeout before opening
+HTTPS. `WiFiClientSecure::setCACert()` receives concatenated USERTrust ECC and ISRG Root X1 trust
+anchors, covering `github.com` and `release-assets.githubusercontent.com` respectively. Time setup,
+certificate validation, hostname validation, or connection failure cancels the update; there is no
+insecure fallback. Review the redirect chains and replace trust anchors before their 2038 and 2035
+expirations or when GitHub changes its chains. Device tests must cover successful OTA, unavailable
+NTP, and a rejected TLS connection.
 
 Acceptance: a manual release passes both host suites and produces one CalVer used consistently by the
 binary, screen, tag, GitHub Release, and metadata; checksum verification passes; the latest-release
 URL returns that exact binary; local
 builds show `dev`; reruns and same-day releases cannot overwrite or ambiguously reuse a version.
 Device validation must confirm the displayed version and a successful OTA from GitHub. TLS trust
-hardening has its own acceptance evidence and is not implied by release completion.
+authentication is implemented but remains subject to that device evidence.
 
 ## Deferred
 
-- OTA TLS trust hardening must remove `setInsecure()` using a maintainable trust strategy. This
-  low-risk device does not require a manifest, downgrade policy, or rollback protocol.
+- This low-risk device does not require an OTA manifest, downgrade policy, or rollback protocol.
 - Rotation, remembered screen, translations, units, calculators, and startup-calibration change warnings.
 - ADC rate changes/interleaving, polynomial optimization, DMA, and display-driver replacement.
 - New gas models, chemistry/hardware research, and additional power modes or wake sources.

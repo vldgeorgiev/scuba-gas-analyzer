@@ -2,6 +2,7 @@
 #include "display/UiAdapter.h"
 #include "lvgl_ui_project.h"
 #include "main.h"
+#include "network/TrustedRoots.h"
 #include "ui_actions.h"
 #include "ui-log.h"
 #include "pin_config.h"
@@ -16,14 +17,24 @@ namespace {
 constexpr size_t MAX_NETWORKS = 16;
 constexpr size_t MAX_SSID_LENGTH = 32;
 constexpr uint32_t DOWNLOAD_STALL_TIMEOUT_MS = 15000;
+constexpr uint32_t TIME_SYNC_TIMEOUT_MS = 10000;
 
 enum class NetworkEventType : uint8_t {
   ScanComplete,
+  TimeSyncStarted,
   DownloadStarted,
   DownloadProgress,
   UpdateComplete,
   ConnectionFailed,
+  TimeSyncFailed,
+  SecureConnectionFailed,
   UpdateFailed,
+};
+
+enum class DownloadResult : uint8_t {
+  Success,
+  SecureConnectionFailed,
+  Failed,
 };
 
 struct NetworkEvent {
@@ -154,40 +165,41 @@ void action_list_wifi(lv_event_t * e) {
   }
 }
 
-bool updateFromURL(const char* url) {
+DownloadResult updateFromURL(const char* url) {
   WiFiClientSecure client;
-  client.setInsecure();             // ❗ Skip SSL cert verification (insecure, OK for testing)
-  client.setTimeout(15000);         // ⏱ Increase timeout
+  client.setCACert(GITHUB_ROOT_CA_CERTIFICATES);
+  client.setHandshakeTimeout(15);
+  client.setTimeout(15000);
 
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.useHTTP10(false);            // 📡 Enable keep-alive
+  http.useHTTP10(false);
 
   Serial.printf("Connecting to: %s\n", url);
   if (!http.begin(client, url)) {
     Serial.println("HTTPClient.begin() failed.");
-    return false;
+    return DownloadResult::SecureConnectionFailed;
   }
 
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
     Serial.printf("HTTP GET failed: %d\n", httpCode);
     http.end();
-    return false;
+    return httpCode < 0 ? DownloadResult::SecureConnectionFailed : DownloadResult::Failed;
   }
 
   int contentLength = http.getSize();
   if (contentLength <= 0) {
     Serial.println("Invalid content length.");
     http.end();
-    return false;
+    return DownloadResult::Failed;
   }
 
   Serial.printf("Firmware size: %d bytes\n", contentLength);
   if (!Update.begin(contentLength)) {
     Serial.println("Not enough space for OTA update.");
     http.end();
-    return false;
+    return DownloadResult::Failed;
   }
 
   WiFiClient& stream = http.getStream();
@@ -212,7 +224,7 @@ bool updateFromURL(const char* url) {
         Update.printError(Serial);
         Update.abort();
         http.end();
-        return false;
+        return DownloadResult::Failed;
       }
 
       written += readLen;
@@ -239,20 +251,20 @@ bool updateFromURL(const char* url) {
   if (written != contentLength) {
     Serial.printf("Only %d / %d bytes written. OTA failed.\n", (int)written, contentLength);
     Update.abort();
-    return false;
+    return DownloadResult::Failed;
   }
 
   if (!Update.end() || !Update.isFinished()) {
     Serial.printf("Update failed: %s\n", Update.errorString());
     Update.abort();
-    return false;
+    return DownloadResult::Failed;
   }
 
   Serial.println("OTA update successful! Rebooting...");
   publishNetworkEvent(NetworkEventType::UpdateComplete, 100);
   delay(750);
   ESP.restart();
-  return true;
+  return DownloadResult::Success;
 }
 
 namespace {
@@ -276,8 +288,22 @@ void updateNetworkTask(void* parameter) {
   }
 
   log_i("Connected to WiFi");
+  publishNetworkEvent(NetworkEventType::TimeSyncStarted);
+  configTime(0, 0, "time.cloudflare.com", "pool.ntp.org", "time.google.com");
+  struct tm timeInfo;
+  if (!getLocalTime(&timeInfo, TIME_SYNC_TIMEOUT_MS)) {
+    log_i("Failed to synchronize time");
+    publishNetworkEvent(NetworkEventType::TimeSyncFailed);
+    vTaskDelete(nullptr);
+    return;
+  }
+
   publishNetworkEvent(NetworkEventType::DownloadStarted);
-  if (!updateFromURL("https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin")) {
+  const DownloadResult result =
+      updateFromURL("https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin");
+  if (result == DownloadResult::SecureConnectionFailed) {
+    publishNetworkEvent(NetworkEventType::SecureConnectionFailed);
+  } else if (result == DownloadResult::Failed) {
     publishNetworkEvent(NetworkEventType::UpdateFailed);
   }
   vTaskDelete(nullptr);
@@ -350,12 +376,15 @@ void serviceNetworkActions() {
       finishNetworkOperation();
       break;
     }
+    case NetworkEventType::TimeSyncStarted:
+      lv_subject_copy_string(&update_status_text, "Setting device time...");
+      break;
     case NetworkEventType::DownloadStarted:
       lv_subject_copy_string(&update_status_text, "Downloading firmware... 0%");
       break;
     case NetworkEventType::DownloadProgress: {
       char status[40];
-      snprintf(status, sizeof(status), "Downloading firmware... %u%%", event.progress);
+      snprintf(status, sizeof(status), "Downloading... %u%%", event.progress);
       lv_subject_copy_string(&update_status_text, status);
       break;
     }
@@ -367,6 +396,18 @@ void serviceNetworkActions() {
       lv_subject_set_int(&update_can_install, 1);
       finishNetworkOperation();
       messageBox("Wi-Fi connection failed", NAN);
+      break;
+    case NetworkEventType::TimeSyncFailed:
+      lv_subject_copy_string(&update_status_text, "Could not set time - update cancelled");
+      lv_subject_set_int(&update_can_install, 1);
+      finishNetworkOperation();
+      messageBox("Could not set device time", NAN);
+      break;
+    case NetworkEventType::SecureConnectionFailed:
+      lv_subject_copy_string(&update_status_text, "Secure connection failed");
+      lv_subject_set_int(&update_can_install, 1);
+      finishNetworkOperation();
+      messageBox("Secure connection failed", NAN);
       break;
     case NetworkEventType::UpdateFailed:
       lv_subject_copy_string(&update_status_text, "Firmware update failed");
