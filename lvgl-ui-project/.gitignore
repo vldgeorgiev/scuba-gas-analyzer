@@ -2,6 +2,4 @@ preview-build
 preview-bin
 build
 .cache.json
-*_gen.c
-*_gen.h
 *_gen.cmake
