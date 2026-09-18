@@ -34,6 +34,11 @@ pio run -e t-display-s3-release
 pio test -e native -e native-ui
 ```
 
+Hosted CI runs the native suite and both firmware builds. Run `native-ui` locally when UI exports or
+bindings change. Neither host tests nor target compilation flash the device or replace physical checks.
+See [testing and CI](docs/testing.md) for the maintained suite inventory, coverage boundaries, focused
+commands, and workflow details.
+
 Tap the readings screen to switch Main/Large. Settings saves on exit. Calibration/reset, startup
 calibration preference, and Diagnostics are available from the Calibration button; Firmware update
 is in Settings. Calibration starts immediately, samples raw mV every 250 ms, saves after at least
