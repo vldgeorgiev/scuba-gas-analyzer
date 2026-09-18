@@ -38,7 +38,7 @@ void test_apply_settings_acknowledges_live_state_and_generation() {
   TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
   TEST_ASSERT_FALSE(result.effective.coEnabled);
   TEST_ASSERT_EQUAL_FLOAT(10, result.effective.o2Air);
-  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_CO_ENABLE]);
   rig.analyzer.measure();
   sensorsData sample;
   xQueueReceive(rig.handle, &sample, 0);
@@ -695,7 +695,9 @@ void test_co_reenable_restarts_warmup_across_clock_wrap() {
   app::Command command;
   command.settings = rig.analyzer.effective();
   command.settings.coEnabled = false;
+  command.settings.heEnabled = false;
   rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
   TEST_ASSERT_FALSE(rig.analyzer.coWarming());
   nowMs = UINT32_MAX - 1000;
   command.settings.coEnabled = true;
@@ -706,6 +708,19 @@ void test_co_reenable_restarts_warmup_across_clock_wrap() {
   rig.analyzer.execute(command);
   TEST_ASSERT_TRUE(rig.analyzer.coWarming());
   nowMs += 1;
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+}
+
+void test_helium_keeps_temperature_powered_when_co_is_disabled() {
+  Rig rig;
+  app::Command command;
+  command.settings = rig.analyzer.effective();
+  command.settings.coEnabled = false;
+  const auto result = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+  TEST_ASSERT_TRUE(result.effective.heEnabled);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_CO_ENABLE]);
   TEST_ASSERT_FALSE(rig.analyzer.coWarming());
 }
 
@@ -1292,6 +1307,7 @@ int main(int, char**) {
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);
   RUN_TEST(test_co_warmup_samples_raw_value_and_ends_at_configured_deadline);
   RUN_TEST(test_co_reenable_restarts_warmup_across_clock_wrap);
+  RUN_TEST(test_helium_keeps_temperature_powered_when_co_is_disabled);
   RUN_TEST(test_adc_recovery_does_not_restart_co_warmup);
   RUN_TEST(test_prepare_stops_publication_and_resume_restores_power_with_fresh_generation);
   RUN_TEST(test_prepare_timeout_resume_ignores_late_ack_and_survives_full_command_queue);

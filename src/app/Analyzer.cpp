@@ -5,7 +5,7 @@ namespace app {
 
 void Analyzer::apply() {
   digitalWrite(PIN_HE_ENABLE, _effective.heEnabled && !preparedForSleep() ? HIGH : LOW);
-  const bool coPower = _effective.coEnabled && !preparedForSleep();
+  const bool coPower = (_effective.coEnabled || _effective.heEnabled) && !preparedForSleep();
   if (coPower != _coPowered) {
     digitalWrite(PIN_CO_ENABLE, coPower ? HIGH : LOW);
     _coPowered = coPower;

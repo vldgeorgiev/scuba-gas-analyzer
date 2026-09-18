@@ -331,12 +331,14 @@ SensorManager tracks readiness and retry time per ADC. Both initialize independe
 devices retry no more than once per second when needed; explicit calibration may retry too. Timeouts
 skip remaining channels on that ADC, not the other ADC. Invalid numerical data does not cause device
 reinitialization. The analyzer owns all ADC work and power GPIO writes; retries do not cycle power.
-CO power-start timing is implemented in the analyzer. It records the time only when the CO output
-changes from off to on, including startup, re-enable, and resume after preparation. During the first
-14,000 ms, a valid CO sample is classified Warming only when ppm exceeds zero; at zero ppm it is
-Valid. CO is sampled throughout this interval, so raw mV remains available while the primary value
-shows Warming. ADC-only retry and unrelated settings do not restart the timer. Constants are
-centralized with calibration policy in `src/app/AnalyzerPolicy.h`.
+GPIO10 controls the shared 5 V rail for the CO sensor and the LM35 helium-temperature sensor. The
+analyzer keeps this rail on when either CO or He is enabled. It records the power-start time only
+when the rail changes from off to on, including startup, true re-enable, and resume after preparation.
+During the first 14,000 ms, an enabled valid CO sample is classified Warming only when ppm exceeds
+zero; at zero ppm it is Valid. CO is sampled throughout this interval, so raw mV remains available
+while the primary value shows Warming. Disabling CO while He remains enabled does not power-cycle the
+rail or restart the timer. Constants are centralized with calibration policy in
+`src/app/AnalyzerPolicy.h`.
 
 He is classified Warming when both its derived reading and temperature are valid and temperature is
 below 30 C. At 30 C or above it is Valid. Invalid/unavailable temperature does not overwrite an

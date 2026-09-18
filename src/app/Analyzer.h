@@ -160,7 +160,8 @@ public:
   bool calibrating() const { return _calibrationActive; }
   bool preparedForSleep() const { return _sleepId != 0; }
   bool coWarming() const {
-    return _coPowered && static_cast<uint32_t>(::millis() - _coPoweredAt) < policy::CO_WARMUP_MS;
+    return _effective.coEnabled && _coPowered &&
+        static_cast<uint32_t>(::millis() - _coPoweredAt) < policy::CO_WARMUP_MS;
   }
   const AnalyzerSettings& effective() const { return _effective; }
 
