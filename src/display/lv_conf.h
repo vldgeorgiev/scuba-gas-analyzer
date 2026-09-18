@@ -47,7 +47,7 @@
 
 #if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
     /*Size of the memory available for `lv_malloc()` in bytes (>= 2kB)*/
-    #define LV_MEM_SIZE (64 * 1024U)          /*[bytes]*/
+    #define LV_MEM_SIZE (72 * 1024U)          /*[bytes]*/
 
     /*Size of the memory expand for `lv_malloc()` in bytes*/
     #define LV_MEM_POOL_EXPAND_SIZE 0
@@ -901,7 +901,9 @@
 #define LV_USE_LINUX_DRM        0
 
 /*Interface for TFT_eSPI*/
+#ifndef LV_USE_TFT_ESPI
 #define LV_USE_TFT_ESPI         1
+#endif
 
 /*Driver for evdev input devices*/
 #define LV_USE_EVDEV    0

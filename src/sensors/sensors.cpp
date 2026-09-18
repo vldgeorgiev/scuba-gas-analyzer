@@ -4,38 +4,62 @@
 #include "HESensor.h"
 #include "TempSensor.h"
 #include "pin_config.h"
+#include <cmath>
 
 SensorManager::SensorManager(QueueHandle_t& dataQueue) :
   _adc1(),
   _adc2(),
+  _dataQueue(dataQueue),
   _o2Sensor(_adc1),
-  _heSensor(_adc2), // He sensor is on the same ADC as CO and Temp, but uses different channels
   _coSensor(ADC2_CHANNEL_CO, _adc2),
-  _tempSensor(ADC2_CHANNEL_TEMP, _adc2),
-  _dataQueue(dataQueue)
+  _heSensor(_adc2), // He sensor is on the same ADC as CO and Temp, but uses different channels
+  _tempSensor(ADC2_CHANNEL_TEMP, _adc2)
 {}
 
 SensorError SensorManager::init() {
   _lastError = SensorError::None;
 
   Wire1.begin(PIN_I2C_SDA, PIN_I2C_SCL);
-  _adc1.setGain(ADC1_GAIN);
-  _adc2.setGain(ADC2_GAIN);
-
-  if (!_adc1.begin(ADC1_ADDRESS, &Wire1)) {
-    log_e("Failed to initialize ADC1");
+  Wire1.setTimeOut(10);
+  const bool adc1Ready = initializeDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
+  const bool adc2Ready = initializeDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
+  if (!adc1Ready || !adc2Ready) {
     _lastError = SensorError::ADC_Init_Failed;
-    return _lastError;
   }
+  return _lastError;
+}
 
-  if (!_adc2.begin(ADC2_ADDRESS, &Wire1)) {
-    log_e("Failed to initialize ADC2");
-    _lastError = SensorError::ADC_Init_Failed;
-    return _lastError;
+bool SensorManager::initializeDevice(Adafruit_ADS1115& adc, DeviceState& state,
+                                     uint8_t address, adsGain_t gain) {
+  state.ready = adc.begin(address, &Wire1);
+  state.lastAttemptMs = ::millis();
+  if (state.ready) {
+    adc.setGain(gain);
+    adc.setDataRate(RATE_ADS1115_128SPS);
+    log_i("ADC 0x%02x ready", address);
+  } else {
+    log_w("ADC 0x%02x unavailable", address);
   }
+  return state.ready;
+}
 
-  log_i("Sensors initialized successfully");
-  return SensorError::None;
+void SensorManager::recoverDevice(Adafruit_ADS1115& adc, DeviceState& state,
+                                  uint8_t address, adsGain_t gain) {
+  if (!state.ready && static_cast<uint32_t>(::millis() - state.lastAttemptMs) >= ADC_RETRY_MS) {
+    initializeDevice(adc, state, address, gain);
+  }
+}
+
+ChannelState SensorManager::recordRead(DeviceState& state, bool timedOut, bool valid) {
+  if (timedOut) {
+    state.ready = false;
+    state.lastAttemptMs = ::millis();
+    _lastError = SensorError::ADC_Timeout;
+    return ChannelState::Unavailable;
+  } else if (!valid && _lastError == SensorError::None) {
+    _lastError = SensorError::Invalid_Reading;
+  }
+  return valid ? ChannelState::Valid : ChannelState::Invalid;
 }
 
 void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100) {
@@ -51,79 +75,82 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
   _heSensor.setCalibrations(_heCalibration100);
 }
 
-SensorError SensorManager::readSensors() {
+SensorError SensorManager::readSensors(bool coWarmupWindow) {
   sensorsData data;
-  data.O2Level.millivolts = NAN;
-  data.O2Level.percentage = NAN;
-  data.CoLevel.millivolts = NAN;
-  data.HeLevel.millivolts = NAN;
-  data.HeLevel.percentage = NAN;
-  data.lastError = SensorError::None;
+  data.timestampMs = ::millis();
+  data.generation = _generation;
+  data.o2State = _isO2Enabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  data.coState = _isCOEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  data.heState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  data.temperatureState = _isHeEnabled ? ChannelState::Unavailable : ChannelState::Disabled;
+  _lastError = SensorError::None;
 
   if (!_isO2Enabled && !_isCOEnabled && !_isHeEnabled) {
-    _lastError = SensorError::Sensor_Not_Enabled;
-    data.lastError = _lastError;
-    xQueueSend(_dataQueue, &data, portMAX_DELAY);
+    xQueueOverwrite(_dataQueue, &data);
     return _lastError;
   }
 
-  // Read sensors with basic validation
-  if (_isO2Enabled) {
-    data.O2Level = _o2Sensor.readLevel();
-    if (isnan(data.O2Level.millivolts) || data.O2Level.millivolts < 0) {
-      log_w("Invalid O2 reading: %.2f mV", data.O2Level.millivolts);
-      _lastError = SensorError::Invalid_Reading;
-    }
+  const bool coActive = _isCOEnabled;
+  if (_isO2Enabled) recoverDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
+  if (coActive || _isHeEnabled) recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
+  if ((_isO2Enabled && !_adc1State.ready) ||
+      ((coActive || _isHeEnabled) && !_adc2State.ready)) {
+    _lastError = SensorError::ADC_Init_Failed;
   }
 
-  if (_isCOEnabled) {
-    data.CoLevel = _coSensor.readLevel();
-    if (isnan(data.CoLevel.millivolts) || data.CoLevel.millivolts < 0) {
-      log_w("Invalid CO reading: %.2f mV", data.CoLevel.millivolts);
-      _lastError = SensorError::Invalid_Reading;
-    }
+  bool timedOut = false;
+  if (_isO2Enabled && _adc1State.ready) {
+    data.O2Level = _o2Sensor.readLevel(&timedOut);
+    data.o2State = recordRead(_adc1State, timedOut, std::isfinite(data.O2Level.percentage));
   }
 
-  if (_isHeEnabled) {
-    data.HeLevel = _heSensor.readLevel(data.O2Level.percentage);
-    if (isnan(data.HeLevel.millivolts) || data.HeLevel.millivolts < 0) {
-      log_w("Invalid He reading: %.2f mV", data.HeLevel.millivolts);
-      _lastError = SensorError::Invalid_Reading;
-    }
+  if (coActive && _adc2State.ready) {
+    data.CoLevel = _coSensor.readLevel(&timedOut);
+    data.coState = recordRead(_adc2State, timedOut, std::isfinite(data.CoLevel.ppm));
+    if (data.coState == ChannelState::Valid && coWarmupWindow &&
+      data.CoLevel.ppm > app::policy::CO_WARMUP_PPM) data.coState = ChannelState::Warming;
   }
 
-  data.HeTemperature = _tempSensor.readLevel();
+  if (_isHeEnabled && _adc2State.ready) {
+    data.HeLevel = _heSensor.readLevel(data.O2Level.percentage, &timedOut);
+    data.heState = recordRead(_adc2State, timedOut, std::isfinite(data.HeLevel.percentage));
+  }
+
+  if (_isHeEnabled && _adc2State.ready) {
+    data.HeTemperature = _tempSensor.readLevel(&timedOut);
+    data.temperatureState = recordRead(_adc2State, timedOut, std::isfinite(data.HeTemperature));
+    if (data.heState == ChannelState::Valid && data.temperatureState == ChannelState::Valid &&
+      data.HeTemperature < app::policy::HE_WARMUP_TEMPERATURE_C) data.heState = ChannelState::Warming;
+  }
   data.lastError = _lastError;
 
-  xQueueSend(_dataQueue, &data, portMAX_DELAY);
+  xQueueOverwrite(_dataQueue, &data);
   return _lastError;
 }
 
-float SensorManager::calibrateO2_21() {
-  log_d("Calibrating O2 sensor for 21%% O2...");
-  _o2Calibration21 = _o2Sensor.calibrate();
-  _o2Sensor.setCalibrations(_o2Calibration21, _o2Calibration100);
-  return _o2Calibration21;
+float SensorManager::readO2CalibrationSample() {
+  recoverDevice(_adc1, _adc1State, ADC1_ADDRESS, ADC1_GAIN);
+  if (!_adc1State.ready) return NAN;
+  bool timedOut = false;
+  const float sample = _o2Sensor.readLevel(&timedOut).millivolts;
+  recordRead(_adc1State, timedOut, std::isfinite(sample));
+  return sample;
 }
 
-float SensorManager::calibrateO2_100() {
-  log_d("Calibrating O2 sensor for 100%% O2...");
-  _o2Calibration100 = _o2Sensor.calibrate();
-  _o2Sensor.setCalibrations(_o2Calibration21, _o2Calibration100);
-  return _o2Calibration100;
+float SensorManager::readHeCalibrationSample() {
+  recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
+  if (!_adc2State.ready) return NAN;
+  bool timedOut = false;
+  const float sample = _heSensor.readLevel(0, &timedOut).millivolts;
+  recordRead(_adc2State, timedOut, std::isfinite(sample));
+  return sample;
 }
 
-float SensorManager::calibrateHe_100() {
-  log_d("Calibrating He sensor for 100%% He...");
-  _heCalibration100 = _heSensor.calibrate();
-  _heSensor.setCalibrations(_heCalibration100);
-  return _heCalibration100;
-}
-
-const char* SensorManager::getErrorString(SensorError error) const {
+const char* SensorManager::getErrorString(SensorError error) {
   switch (error) {
     case SensorError::None: return "No error";
-    case SensorError::ADC_Init_Failed: return "ADC initialization failed";
+    case SensorError::ADC_Init_Failed: return "ADC unavailable";
+    case SensorError::ADC_Timeout: return "ADC conversion timed out";
     case SensorError::I2C_Communication_Failed: return "I2C communication failed";
     case SensorError::Sensor_Not_Enabled: return "No sensors enabled";
     case SensorError::Calibration_Failed: return "Calibration failed";

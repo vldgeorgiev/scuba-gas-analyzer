@@ -1,16 +1,16 @@
 #pragma once
 
-#include <atomic>
-#include "config.h"
+#include "app/Analyzer.h"
 #include "display/DisplayManager.h"
-#include "sensors/sensors.h"
 
-extern Config config;
 extern DisplayManager displayManager;
 
-extern QueueHandle_t sensorDataQueue;
-extern SemaphoreHandle_t gui_mutex;
-
-extern SensorManager sensors;
-
-extern std::atomic<bool> configOpen;
+bool submitAnalyzerCommand(app::Command command);
+bool cancelAnalyzerCalibration();
+const AnalyzerSettings& uiSettings();
+void syncUiSettings();
+void openUiSettings();
+bool closeUiSettings(const AnalyzerSettings& draft);
+void showAnalyzerResult(const app::Result& result);
+void setNetworkOperationActive(bool active);
+void messageBox(const char* title, float value);

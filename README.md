@@ -16,7 +16,36 @@ Libraries used:
 
 - [TFT eSPI](https://github.com/Bodmer/TFT_eSPI) MCU graphics library and driver
 - [LVGL UI library](https://github.com/lvgl/lvgl) lightweight GUI library for ESP32 and Arduino
-- [EEZ Studio](https://github.com/eez-open/studio) for generating the LVGL UI and for some UI automation
+- [LVGL Pro Editor](https://lvgl.io/docs/pro) for the exported C UI, using LVGL 9.5.0
+
+### UI build and checks
+
+The active UI is in [lvgl-ui-project](lvgl-ui-project/README.md). Export changes in the Editor before
+building; PlatformIO compiles exported C, fonts, and images, not XML. Application bindings live in
+[UiAdapter.cpp](src/display/UiAdapter.cpp), outside generated files. Only the LVGL Editor export is used.
+
+PlatformIO links the export directly via `gas-analyzer-ui=symlink://lvgl-ui-project`.
+[library.json](lvgl-ui-project/library.json) selects the source directories and declares the LVGL
+dependency. No Python build hook, staging copy, or generated-source rewriting is used.
+
+```sh
+pio run -e t-display-s3
+pio run -e t-display-s3-release
+pio test -e native -e native-ui
+```
+
+The manually dispatched release workflow reruns both host suites before building and publishing release
+firmware. Run `native-ui` locally when UI exports or bindings change. Neither host tests nor target
+compilation flash the device or replace physical checks.
+See [testing and releases](docs/testing.md) for the maintained suite inventory, coverage boundaries, focused
+commands, and workflow details.
+
+Tap the readings screen to switch Main/Large. Settings saves on exit. Calibration/reset, startup
+calibration preference, and Diagnostics are available from the Calibration button; Firmware update
+is in Settings. Calibration starts immediately, samples raw mV every 250 ms, saves after at least
+five stable seconds, and fails unchanged after ten unstable seconds. Its graph supports cancellation
+and freezes on the terminal result. The current calibration thresholds and related device workflows
+have passed physical validation.
 
 ## Hardware
 
@@ -56,7 +85,7 @@ The consumption varies depending on the sensors enabled and display brightness. 
 
 - [x] 100% O2 calibration. How much does it improve accuracy? Most other analyzers don't do it, including brand ones. Check that linear drift in more detail.
 - [ ] Metric/Imperial values - not so important yet
-- [ ] Go to sleep after X minutes
+- [x] Go to sleep after X minutes
 - [ ] Screen flip 180 degrees option
 - [x] Add large digits screen for easier monitoring. Switch from main with touch anywhere.
 - [ ] Remember last screen on startup (where applicable)
@@ -66,7 +95,7 @@ The consumption varies depending on the sensors enabled and display brightness. 
 - [ ] Remove the millivolts from the main screen after testing. Move them to a separate details screen, maybe opened from the Config
 - [x] Log screen to show warnings and errors. To be opened from the main or config screens
 - [x] Indicator icon on the main screen for warnings. To open the log screen
-- [ ] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
+- [x] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
 - [x] OTA updates
 - [x] Brightness control
 - [ ] Translation in other languages

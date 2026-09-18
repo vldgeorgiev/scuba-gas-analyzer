@@ -1,0 +1,41 @@
+<screen>
+	<view extends="lv_obj" scrollable="false">
+		<subject_set_int_event subject="update_keyboard_visible" trigger="screen_loaded" value="0" />
+		<column width="100%" height="100%" gap="#space_sm" pad="#space_sm">
+			<row width="100%" grow="1">
+				<button name="update_back" text="" icon="icon_arrow_left" />
+				<column name="update_form" grow="1" height="100%" pad="#space_md" gap="#space_md" scrollable="true">
+					<row width="100%" gap="#space_sm" vertical_align="center">
+						<bind_flag_if_eq flag="hidden" subject="update_keyboard_visible" ref_value="1" />
+						<dropdown
+							name="wifi_names"
+							options="No networks"
+							subject="update_network_index"
+							width="0"
+							flex_grow="1"
+						/>
+						<button name="scan_wifi" text="" icon="icon_refresh" />
+					</row>
+					<text_input name="wifi_password" placeholder="Wi-Fi password" password="true" width="100%">
+						<subject_set_int_event subject="update_keyboard_visible" trigger="clicked" value="1" />
+					</text_input>
+					<text name="update_status" bind_text="update_status_text" width="100%" long_mode="wrap">
+						<bind_flag_if_eq flag="hidden" subject="update_keyboard_visible" ref_value="1" />
+					</text>
+					<button name="install_firmware" text="Install firmware" icon="icon_download" width="100%">
+						<bind_flag_if_eq flag="hidden" subject="update_keyboard_visible" ref_value="1" />
+						<bind_state_if_eq state="disabled" subject="update_can_install" ref_value="0" />
+					</button>
+					<text name="firmware_version" bind_text="firmware_version_text" width="100%">
+						<bind_flag_if_eq flag="hidden" subject="update_keyboard_visible" ref_value="1" />
+					</text>
+				</column>
+			</row>
+			<keyboard name="update_keyboard" textarea="wifi_password" width="100%" height="120">
+				<bind_flag_if_eq flag="hidden" subject="update_keyboard_visible" ref_value="0" />
+				<subject_set_int_event subject="update_keyboard_visible" trigger="ready" value="0" />
+				<subject_set_int_event subject="update_keyboard_visible" trigger="cancel" value="0" />
+			</keyboard>
+		</column>
+	</view>
+</screen>

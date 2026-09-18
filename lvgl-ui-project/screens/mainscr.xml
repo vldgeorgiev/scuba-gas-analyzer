@@ -1,0 +1,72 @@
+<screen permanent="true">
+	<view extends="lv_obj" scrollable="false" clickable="true">
+		<screen_create_event screen="largescr" trigger="clicked" />
+		<column width="100%" height="100%" pad="#space_sm" gap="#space_xs" event_bubble="true">
+			<row width="100%" horizontal_align="space_between" vertical_align="center" event_bubble="true">
+				<image name="logo_image" src="phony_divers_logo" />
+				<row gap="#space_sm" vertical_align="center" event_bubble="true">
+					<row gap="#space_xs" vertical_align="center" event_bubble="true">
+						<monoicon src="icon_battery" />
+						<lv_label bind_text="main_battery_text" />
+					</row>
+					<button
+						name="open_diagnostics"
+						text=""
+						icon="icon_bell"
+						bg_color="#color_danger"
+						hidden="true"
+						event_bubble="false"
+					/>
+					<button name="open_calibration" text="" icon="icon_refresh" event_bubble="false" />
+					<button name="open_settings" text="" icon="icon_settings" event_bubble="false">
+						<screen_create_event screen="settings" trigger="clicked" />
+					</button>
+				</row>
+			</row>
+
+			<row name="readings" width="100%" grow="1" gap="#space_md" clickable="true" event_bubble="true">
+				<measurement_reading
+					name="main_o2_reading"
+					label="O2"
+					subject="main_o2_text"
+					unit="%"
+					secondary_subject="main_o2_mv_text"
+					grow="14"
+					event_bubble="true"
+				>
+					<row>
+						<text bind_text="main_mod_bottom_text" long_mode="dots" style_text_align="center" />
+						<text text=", " />
+						<text bind_text="main_mod_deco_text" long_mode="dots" style_text_align="center" />
+					</row>
+				</measurement_reading>
+				<measurement_reading
+					name="main_he_reading"
+					label="He"
+					subject="main_he_text"
+					unit="%"
+					secondary_subject="main_he_mv_text"
+					grow="10"
+					event_bubble="true"
+				>
+					<lv_label
+						name="he_temperature"
+						width="100%"
+						long_mode="dots"
+						bind_text="main_he_temperature_text"
+						style_text_align="center"
+					/>
+				</measurement_reading>
+				<measurement_reading
+					name="main_co_reading"
+					label="CO"
+					subject="main_co_text"
+					unit=" ppm"
+					secondary_subject="main_co_mv_text"
+					grow="10"
+					event_bubble="true"
+				/>
+			</row>
+		</column>
+	</view>
+</screen>

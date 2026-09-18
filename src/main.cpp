@@ -1,178 +1,202 @@
-#include <atomic>
-#include "display/DisplayManager.h"
-#include "ui.h"
-#include "vars.h"
-#include "structs.h"
-#include "sensors/sensors.h"
-#include "config.h"
 #include "main.h"
+#include "display/UiAdapter.h"
 #include "ui-log.h"
-#include "pin_config.h"
 #include "utils.h"
+#include "app/SleepPolicy.h"
+#include "app/DeviceSleep.h"
 
-Config config;
 DisplayManager displayManager;
 
-QueueHandle_t sensorDataQueue;
-SemaphoreHandle_t gui_mutex;
+static QueueHandle_t measurementQueue;
+static QueueHandle_t commandQueue;
+static QueueHandle_t resultQueue;
+static app::UiState uiState;
+static bool networkOperationActive = false;
+static bool applicationWake = false;
 
-SensorManager sensors(sensorDataQueue);
+void setNetworkOperationActive(bool active) {
+  networkOperationActive = active;
+  displayManager.resetInactivity();
+}
 
-std::atomic<bool> configOpen;
+const AnalyzerSettings& uiSettings() { return uiState.effective; }
 
-void Task_LVGL(void *pvParameters) {
+void openUiSettings() {
+  if (uiState.settingsEditing) return;
+  uiState.settingsEditing = true;
+  syncUiSettings();
+}
+
+bool closeUiSettings(const AnalyzerSettings& draft) {
+  if (!uiState.settingsEditing) return true;
+  const bool submitted = uiState.closeSettings(draft, commandQueue);
+  syncUiSettings();
+  displayManager.resetInactivity();
+  return submitted;
+}
+
+bool submitAnalyzerCommand(app::Command command) {
+  return uiState.submit(command, commandQueue);
+}
+
+bool cancelAnalyzerCalibration() {
+  return uiState.cancelCalibration(commandQueue);
+}
+
+void syncUiSettings() {
+  const AnalyzerSettings& settings = uiSettings();
+  ui::syncSettings(settings);
+  displayManager.setBrightness(settings.brightness);
+}
+
+static void presentReadings(const sensorsData& data) {
+  ui::presentReadings(data, uiSettings());
+}
+
+static void Task_UI(void*) {
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  initializeBatteryVoltage();
+#endif
   displayManager.init();
-  displayManager.setBrightness(config.getBrightness());
-  while (1) {
-    if (xSemaphoreTake(gui_mutex, portMAX_DELAY) == pdTRUE) {
-      displayManager.tick();
-      xSemaphoreGive(gui_mutex);
+  syncUiSettings();
+  sensorsData latest;
+  sensorsData displayed;
+  presentReadings(displayed);
+  bool pendingReading = true;
+  bool presentedFresh = false;
+  uint32_t lastPresentation = 0;
+  SensorError previousError = SensorError::None;
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+  pinMode(PIN_BUTTON_2, INPUT_PULLUP);
+  app::WakeButton wakeButton;
+  pinMode(PIN_BUTTON_1, INPUT_PULLUP);
+  uint32_t idleAtPreparation = 0;
+#endif
+
+  for (;;) {
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+    if (wakeButton.update(digitalRead(PIN_BUTTON_2) == LOW, ::millis())) displayManager.resetInactivity();
+    if (digitalRead(PIN_BUTTON_1) == LOW) displayManager.resetInactivity();
+    if ((uiState.sleepPhase == app::SleepPhase::Preparing || uiState.sleepPhase == app::SleepPhase::Prepared) &&
+        (uiState.settingsEditing ||
+         app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),
+                                    wakeButton.released(), displayManager.touchActive()))) {
+      uiState.requestResume(commandQueue);
     }
+#endif
+    if (uiState.preparationExpired(::millis())) {
+      uiState.requestResume(commandQueue);
+      logUi("Sleep preparation timed out; resuming", UiLogLevel::Error);
+      messageBox("Sleep preparation timed out - staying awake", NAN);
+    }
+    if (uiState.sleepPhase == app::SleepPhase::Resuming && !uiState.resumeQueued) {
+      uiState.requestResume(commandQueue);
+    }
+    app::Result result;
+    if (xQueueReceive(resultQueue, &result, 0) == pdPASS && uiState.accept(result)) {
+      if (!uiState.busy()) displayManager.resetInactivity();
+      if (uiState.shouldSyncSettings(result)) syncUiSettings();
+      displayed = latest.forDisplay(::millis(), uiState.generation);
+      presentReadings(displayed);
+      pendingReading = true;
+      ui::presentCalibration(result);
+      showAnalyzerResult(result);
+    }
+    sensorsData incoming;
+    if (xQueueReceive(measurementQueue, &incoming, 0) == pdPASS) {
+      latest = incoming;
+      pendingReading = true;
+      if (incoming.lastError != SensorError::None && incoming.lastError != previousError) {
+        logUi(SensorManager::getErrorString(incoming.lastError), UiLogLevel::Warning);
+      }
+      previousError = incoming.lastError;
+    }
+    const uint32_t now = ::millis();
+    if (static_cast<uint32_t>(now - lastPresentation) >= 100) {
+      const bool fresh = latest.isFresh(now);
+      if (pendingReading || fresh != presentedFresh) {
+        displayed = uiState.ready ? latest.forDisplay(now, uiState.generation) : sensorsData{};
+        presentReadings(displayed);
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+        if (pendingReading) {
+          ui::presentBattery(getBatteryVoltage());
+        }
+#endif
+        pendingReading = false;
+        presentedFresh = fresh;
+      }
+      ui::presentStatus(displayed, uiState.busy(), uiState.ready);
+      lastPresentation = now;
+    }
+    displayManager.tick();
+#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
+    if (uiState.sleepPhase == app::SleepPhase::Prepared) {
+      if (uiState.settingsEditing || app::preparationInterrupted(idleAtPreparation, displayManager.inactiveTime(),
+                       wakeButton.released() && digitalRead(PIN_BUTTON_2) != LOW,
+                       displayManager.touchActive())) {
+        uiState.requestResume(commandQueue);
+      } else {
+        const char* sleepFailure = app::enterDeviceSleep(displayManager);
+        log_e("Sleep aborted: %s", sleepFailure);
+        const bool restored = displayManager.restoreAfterSleepAbort(uiSettings().brightness);
+        uiState.requestResume(commandQueue);
+        logUi(sleepFailure, UiLogLevel::Error);
+        if (!restored) logUi("Touch restoration failed", UiLogLevel::Error);
+        messageBox(restored ? sleepFailure : "Sleep aborted - touch unavailable", NAN);
+      }
+    } else if (uiState.sleepPhase == app::SleepPhase::Awake &&
+               app::sleepDue(uiSettings().sleepMinutes, displayManager.inactiveTime(),
+                             uiState.busy() || networkOperationActive || uiState.settingsEditing,
+                             wakeButton.released())) {
+      app::Command prepare;
+      prepare.type = app::CommandType::PrepareSleep;
+      idleAtPreparation = displayManager.inactiveTime();
+      if (!uiState.submit(prepare, commandQueue)) displayManager.resetInactivity();
+    }
+#endif
     vTaskDelay(pdMS_TO_TICKS(5));
   }
 }
 
-void Task_Screen_Update(void *pvParameters) {
-  delay(1000); // TODO why the EEZ flow crashes without this delay? 300 for esp32dev, 1000 for lilygo
-  if (xSemaphoreTake(gui_mutex, portMAX_DELAY) == pdTRUE) {
-    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED, config.getO2Enabled());
-    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED, config.getCOEnabled());
-    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED, config.getHeEnabled());
-    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM, FloatValue(config.getPO2Bottom()));
-    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO, FloatValue(config.getPO2Deco()));
-    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START, config.getCalibrateOnStart());
-    flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS, IntegerValue(config.getBrightness()));
-    xSemaphoreGive(gui_mutex);
-  }
+static void Task_Analyzer(void*) {
+  SettingsStore settingsStore;
+  SensorManager sensors(measurementQueue);
+  app::Analyzer analyzer(settingsStore, sensors);
+  analyzer.begin(applicationWake);
+  uint32_t lastMeasurement = ::millis() - 500;
 
-  while (true) {
-    // log_d("[Task_Screen_Update] running on core: %d, Free stack space: %d", xPortGetCoreID(), uxTaskGetStackHighWaterMark(NULL));
-    sensorsData data;
-    if (xQueueReceive(sensorDataQueue, &data, portMAX_DELAY) == pdPASS) {
-      if (xSemaphoreTake(gui_mutex, portMAX_DELAY) == pdTRUE) {
-        int maxDepthBottomO2 = config.getPO2Bottom() / data.O2Level.percentage * 1000 - 10;
-        int maxDepthDecoO2 = config.getPO2Deco() / data.O2Level.percentage * 1000 - 10;
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_VALUE, FloatValue(data.O2Level.percentage));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_MILLIVOLTS, FloatValue(data.O2Level.millivolts));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_BOTTOM, IntegerValue(maxDepthBottomO2));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_MOD_PO2_DECO, IntegerValue(maxDepthDecoO2));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_VALUE, IntegerValue(data.CoLevel.ppm));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_MILLIVOLTS, FloatValue(data.CoLevel.millivolts));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_VALUE, FloatValue(data.HeLevel.percentage));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_MILLIVOLTS, FloatValue(data.HeLevel.millivolts));
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_TEMPERATURE, FloatValue(data.HeTemperature));
-
-        switch (UiLog::getInstance().getLevel()) {
-          case UiLogLevel::None:
-            flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_None);
-            break;
-          case UiLogLevel::Warning:
-            flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Warning);
-            break;
-          case UiLogLevel::Error:
-            flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_UI_LOG_LEVEL, logLevel_Error);
-            break;
-        }
-
-#ifdef ARDUINO_LILYGO_T_DISPLAY_S3
-        // TODO Should be battery reading be here? No need to check so often. Better place in its own task together with other utility checks
-        float voltage = getBatteryVoltage();
-        flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_BATT_VOLTAGE, FloatValue(voltage));
-#endif
-
-        xSemaphoreGive(gui_mutex);
-      }
+  for (;;) {
+    if (analyzer.service(commandQueue, resultQueue)) {
+      lastMeasurement = ::millis() - 500;
     }
-    vTaskDelay(pdMS_TO_TICKS(100));
-  }
-}
-
-void Task_Sensors(void *pvParameters) {
-  if (config.getCalibrateOnStart()) {
-    float o2CalibrationAir = sensors.calibrateO2_21();
-    config.setO2Calibration21(o2CalibrationAir);
-  }
-  sensors.setSensorsConfig(config.getO2Enabled(), config.getCOEnabled(), config.getHeEnabled(), config.getO2Calibration21(), config.getO2Calibration100(), config.getHeCalibration100());
-
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  uint32_t errorCount = 0;
-
-  while (true)
-  {
-    if (!configOpen) {
-      SensorError error = sensors.readSensors();
-      if (error != SensorError::None) {
-        errorCount++;
-        // Log error but don't stop - ESP32 should be resilient
-        log_w("Sensor error: %s (count: %lu)", sensors.getErrorString(error), errorCount);
-        logUi(sensors.getErrorString(error), UiLogLevel::Warning);
-
-        // If too many consecutive errors, try to reinitialize
-        if (errorCount > 10) {
-          log_e("Too many sensor errors, attempting reinit");
-          sensors.init();
-          errorCount = 0;
-        }
-      } else {
-        errorCount = 0; // Reset error count on successful read
-      }
+    if (!analyzer.calibrating() && static_cast<uint32_t>(::millis() - lastMeasurement) >= 500) {
+      analyzer.measure();
+      lastMeasurement = ::millis();
     }
-
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(500));
-  }
-}
-
-// Optional: Performance monitoring task (can be disabled to save resources)
-void Task_Performance_Monitor(void *pvParameters) {
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-
-  while (true) {
-    // Log memory usage every 30 seconds
-    log_d("Free heap: %lu bytes, Min free: %lu bytes", getFreeHeap(), getMinFreeHeap());
-
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(30000));
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
 void setup() {
   Serial.begin(115200);
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
-  Serial.setDebugOutput(true); // To catch logs over the USB https://thingpulse.com/usb-settings-for-logging-with-the-esp32-s3-in-platformio
+  Serial.setDebugOutput(true);
+  applicationWake = app::consumeDeviceWake();
 #endif
-
-  gui_mutex = xSemaphoreCreateMutex();
-  if (gui_mutex == NULL) {
-    log_e("GUI mutex creation failed");
-    logUi("GUI mutex creation failed", UiLogLevel::Error);
+  measurementQueue = xQueueCreate(1, sizeof(sensorsData));
+  commandQueue = xQueueCreate(1, sizeof(app::Command));
+  resultQueue = xQueueCreate(1, sizeof(app::Result));
+  if (!measurementQueue || !commandQueue || !resultQueue) {
+    log_e("Application queue allocation failed");
+    return;
   }
-
-  sensorDataQueue = xQueueCreate(5, sizeof(sensorsData));
-  if (sensorDataQueue == NULL) {
-    log_e("Failed to create sensor data queue");
-    logUi("Failed to create sensor data queue", UiLogLevel::Error);
+  if (xTaskCreatePinnedToCore(Task_Analyzer, "Analyzer", 1024 * 4, nullptr, 1, nullptr, 1) != pdPASS) {
+    log_e("Analyzer task creation failed");
+    logUi("Analyzer unavailable", UiLogLevel::Error);
   }
-
-  config.begin();
-  SensorError initError = sensors.init();
-  if (initError != SensorError::None) {
-    log_e("Failed to initialize sensors: %s", sensors.getErrorString(initError));
-    logUi("Sensor init failed", UiLogLevel::Error);
-    // Continue anyway - some sensors might still work
+  if (xTaskCreatePinnedToCore(Task_UI, "UI", 1024 * 10, nullptr, 3, nullptr, 0) != pdPASS) {
+    log_e("UI task creation failed");
   }
-
-  pinMode(PIN_HE_ENABLE, OUTPUT);
-  pinMode(PIN_CO_ENABLE, OUTPUT);
-  digitalWrite(PIN_HE_ENABLE, config.getHeEnabled());
-  digitalWrite(PIN_CO_ENABLE, config.getCOEnabled());
-
-  xTaskCreatePinnedToCore(Task_LVGL, "Task_LVGL", 1024 * 10, NULL, 3, NULL, 0);
-  xTaskCreatePinnedToCore(Task_Screen_Update, "Task_Screen_Update", 1024 * 3, NULL, 2, NULL, 0);
-  xTaskCreatePinnedToCore(Task_Sensors, "Task_Sensors", 1024 * 3, NULL, 1, NULL, 1);
-
-  // Optional performance monitoring (comment out to save resources)
-  #ifdef DEBUG
-  xTaskCreatePinnedToCore(Task_Performance_Monitor, "Task_Perf", 1024 * 2, NULL, 0, NULL, 1);
-  #endif
 }
 
-void loop() {} // All work is done in the tasks
+void loop() { vTaskDelay(portMAX_DELAY); }

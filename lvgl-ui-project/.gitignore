@@ -1,0 +1,5 @@
+preview-build
+preview-bin
+build
+.cache.json
+*_gen.cmake

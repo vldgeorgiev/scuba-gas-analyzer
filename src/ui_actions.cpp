@@ -1,18 +1,23 @@
 #include <lvgl.h>
-#include "structs.h"
-#include "actions.h"
-#include "vars.h"
+#include "display/UiAdapter.h"
+#include "lvgl_ui_project.h"
 #include "main.h"
+#include "ui_actions.h"
 #include "ui-log.h"
 #include "pin_config.h"
 #include "updater.h"
-#include "screens.h"
 #include <HTTPClient.h>
 #include <Update.h>
 
+class NetworkOperation {
+public:
+  NetworkOperation() { setNetworkOperationActive(true); }
+  ~NetworkOperation() { setNetworkOperationActive(false); }
+};
+
 void messageBox(const char * title, float value) {
-  char text[32];
-  snprintf(text, sizeof(text), "%.2f mv", value);
+  char text[32] = "";
+  if (std::isfinite(value)) snprintf(text, sizeof(text), "%.2f mv", value);
 
   lv_obj_t * mbox = lv_msgbox_create(NULL);
   lv_msgbox_add_close_button(mbox);
@@ -21,109 +26,72 @@ void messageBox(const char * title, float value) {
   lv_obj_set_size(mbox, LV_PCT(70), LV_SIZE_CONTENT);
 }
 
-void action_calibrate_o2_21(lv_event_t * e) {
-  float value = sensors.calibrateO2_21();
-  if (!isnan(value) && value > 5.0f && value < 50.0f) {
-    config.setO2Calibration21(value);
-    messageBox("O2 Air Calibrated", value);
-    logUi("O2 air calibration successful", UiLogLevel::None);
-  } else {
-    log_e("O2 air calibration failed: %.2f mV", value);
-    logUi("O2 air calibration failed", UiLogLevel::Error);
-    messageBox("O2 Air Cal Failed", value);
-  }
-}
-
-void action_calibrate_o2_100(lv_event_t * e) {
-  float value = sensors.calibrateO2_100();
-  float airCal = config.getO2Calibration21();
-  if (!isnan(value) && value > airCal && value < 100.0f) {
-    config.setO2Calibration100(value);
-    messageBox("O2 100% Calibrated", value);
-    logUi("O2 100% calibration successful", UiLogLevel::None);
-  } else {
-    log_e("O2 100%% calibration failed: %.2f mV (air: %.2f mV)", value, airCal);
-    logUi("O2 100% calibration failed", UiLogLevel::Error);
-    messageBox("O2 100% Cal Failed", value);
-  }
-}
-
-void action_calibrate_he(lv_event_t * e) {
-  float value = sensors.calibrateHe_100();
-  if (!isnan(value) && value > 0.0f) {
-    config.setHeCalibration100(value);
-    messageBox("He 100% Calibrated", value);
-    logUi("He calibration successful", UiLogLevel::None);
-  } else {
-    log_e("He calibration failed: %.2f mV", value);
-    logUi("He calibration failed", UiLogLevel::Error);
-    messageBox("He Cal Failed", value);
-  }
-}
-
-void action_reset_o2_21(lv_event_t * e) {
-  log_i("Resetting O2 21 calibration");
-  config.setO2Calibration21(config.O2_CALIBRATION_21_DEFAULT);
-}
-
 void action_reset_o2_100(lv_event_t * e) {
-  log_i("Resetting O2 100 calibration");
-  config.setO2Calibration100(config.O2_CALIBRATION_100_DEFAULT);
+  app::Command command;
+  command.type = app::CommandType::ClearPure;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
 }
 
-void action_reset_he(lv_event_t * e) {
-  log_i("Resetting He calibration");
-  config.setHeCalibration100(config.HE_CALIBRATION_100_DEFAULT);
-}
-
-void action_open_config(lv_event_t * e) {
-  log_i("Opening config");
-  configOpen = true;
-}
-
-void action_close_config(lv_event_t * e) {
-  log_i("Closing config");
-  config.setO2Enabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_O2_ENABLED).getBoolean());
-  config.setCOEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CO_ENABLED).getBoolean());
-  config.setHeEnabled(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_HE_ENABLED).getBoolean());
-
-  config.setPO2Bottom(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_BOTTOM).getFloat());
-  config.setPO2Deco(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_PO2_MAX_DECO).getFloat());
-
-  config.setCalibrateOnStart(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_CALIBRATE_ON_START).getBoolean());
-  config.setBrightness(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8());
-
-  digitalWrite(PIN_HE_ENABLE, config.getHeEnabled());
-  digitalWrite(PIN_CO_ENABLE, config.getCOEnabled());
-
-  configOpen = false;
-}
-
-const char *get_var_ui_log() {
-  return UiLog::getInstance().getLogAsCString();
-}
-
-void set_var_ui_log(const char *value) {
-  // ui_log is read only
-}
-
-void action_brightness_change(lv_event_t * e) {
-  log_i("Brightness change");
-  displayManager.setBrightness(flow::getGlobalVariable(FLOW_GLOBAL_VARIABLE_BRIGHTNESS).getUInt8());
+void showAnalyzerResult(const app::Result& result) {
+  if (result.sensorError != SensorError::None) {
+    logUi(SensorManager::getErrorString(result.sensorError), UiLogLevel::Warning);
+  }
+  if (result.calibrationPhase != app::CalibrationPhase::None && !result.complete) return;
+  const char* title = nullptr;
+  const char* required = result.calibrationRequiredMessage();
+  if (required && result.failure != app::Failure::CalibrationRequired &&
+      result.type != app::CommandType::PrepareSleep && result.type != app::CommandType::Resume) {
+    logUi(required, UiLogLevel::Warning);
+  }
+  if (result.failure != app::Failure::None) {
+    switch (result.failure) {
+      case app::Failure::Invalid: title = "Invalid settings or calibration"; break;
+      case app::Failure::Storage: title = "Settings could not be saved"; break;
+      case app::Failure::Sampling: title = "Calibration read failed"; break;
+      case app::Failure::LoadedDefaults: title = "Invalid saved settings - defaults loaded"; break;
+      case app::Failure::Busy: title = "Analyzer is preparing for sleep"; break;
+      case app::Failure::CalibrationRequired:
+        title = result.calibrationRequiredMessage();
+        if (!title) title = "O2 calibration required";
+        break;
+      case app::Failure::Cancelled: break;
+      default: title = "Operation failed"; break;
+    }
+    logUi(title, UiLogLevel::Error);
+  } else {
+    switch (result.type) {
+      case app::CommandType::CalibrateAir: title = "O2 Air Calibrated"; break;
+      case app::CommandType::CalibratePure: title = "O2 100% Calibrated"; break;
+      case app::CommandType::CalibrateHe: title = "He 100% Calibrated"; break;
+      case app::CommandType::ClearPure: title = "Pure O2 calibration cleared"; break;
+      default: break;
+    }
+  }
+  if (!title && required && result.type == app::CommandType::ApplySettings) title = required;
+  if (title && result.calibrationPhase == app::CalibrationPhase::None) messageBox(title, result.calibration);
 }
 
 void action_list_wifi(lv_event_t * e) {
+  lv_obj_t* wifiNames = lv_obj_find_by_name(lv_screen_active(), "wifi_names");
+  if (!wifiNames) return;
+  NetworkOperation operation;
+  lv_subject_copy_string(&update_status_text, "Scanning Wi-Fi...");
+  lv_subject_set_int(&update_can_install, 0);
   log_i("Listing WiFi networks");
   std::vector<String> ssidList = scanWifiNetworks();
   for (const auto &ssid : ssidList) {
     log_i("Found WiFi network: %s", ssid.c_str());
   }
 
-  std::string wifiListStr;
+  lv_dropdown_clear_options(wifiNames);
   for (const auto &ssid : ssidList) {
-    wifiListStr += std::string(ssid.c_str()) + "\n";
+    lv_dropdown_add_option(wifiNames, ssid.c_str(), LV_DROPDOWN_POS_LAST);
   }
-  flow::setGlobalVariable(FLOW_GLOBAL_VARIABLE_WIFI_LIST, StringValue(wifiListStr.c_str()));
+  lv_dropdown_set_text(wifiNames, ssidList.empty() ? "No networks found" : nullptr);
+  lv_subject_set_int(&update_network_index, 0);
+  lv_subject_set_int(&update_can_install, !ssidList.empty());
+  lv_subject_copy_string(&update_status_text, ssidList.empty() ? "No networks found" : "Select a network and enter its password");
+  WiFi.scanDelete();
 }
 
 // bool updateFromURL(const char* url) {
@@ -264,14 +232,22 @@ bool updateFromURL(const char* url) {
 }
 
 void action_update_firmware(lv_event_t * e) {
+  lv_obj_t* screen = lv_screen_active();
+  lv_obj_t* wifiNames = lv_obj_find_by_name(screen, "wifi_names");
+  lv_obj_t* wifiPassword = lv_obj_find_by_name(screen, "wifi_password");
+  if (!wifiNames || !wifiPassword || lv_dropdown_get_option_count(wifiNames) == 0) {
+    messageBox("Select a Wi-Fi network first", NAN);
+    return;
+  }
+  NetworkOperation operation;
   log_i("Updating firmware");
   log_i("Free heap before OTA: %d", ESP.getFreeHeap());
   char selectedSSID[64];
-  lv_dropdown_get_selected_str(objects.wifi_name, selectedSSID, sizeof(selectedSSID));
+  lv_dropdown_get_selected_str(wifiNames, selectedSSID, sizeof(selectedSSID));
 
-  const char* password = lv_textarea_get_text(objects.wifi_pass);
+  const char* password = lv_textarea_get_text(wifiPassword);
+  lv_subject_copy_string(&update_status_text, "Connecting to Wi-Fi...");
   log_i("Selected SSID: %s", selectedSSID);
-  log_i("Password: %s", password);
   WiFi.begin(selectedSSID, password);
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 10) {
@@ -281,11 +257,18 @@ void action_update_firmware(lv_event_t * e) {
   }
   if (WiFi.status() == WL_CONNECTED) {
     log_i("Connected to WiFi");
+    lv_subject_copy_string(&update_status_text, "Downloading firmware...");
     // Start the OTA update process
   }
   else {
     log_i("Failed to connect to WiFi");
+    lv_subject_copy_string(&update_status_text, "Wi-Fi connection failed");
+    messageBox("Wi-Fi connection failed", NAN);
+    return;
   }
 
-  updateFromURL("https://vld.ams3.digitaloceanspaces.com/firmware.bin");
+  if (!updateFromURL("https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin")) {
+    lv_subject_copy_string(&update_status_text, "Firmware update failed");
+    messageBox("Firmware update failed", NAN);
+  }
 }

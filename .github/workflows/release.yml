@@ -1,0 +1,86 @@
+name: Firmware release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit SHA or branch to release
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: firmware-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Verify release commit
+        run: |
+          release_sha=$(git rev-parse HEAD)
+          git fetch origin "$DEFAULT_BRANCH"
+          git merge-base --is-ancestor "$release_sha" "origin/$DEFAULT_BRANCH"
+          printf 'RELEASE_SHA=%s\n' "$release_sha" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+
+      - name: Calculate release version
+        id: version
+        shell: bash
+        run: |
+          prefix="v$(date -u +%Y.%m.%d)"
+          latest=$(git tag --list "${prefix}.*" --sort=-v:refname | head -n 1)
+          sequence=1
+          if [[ -n "$latest" ]]; then
+            sequence=$(( ${latest##*.} + 1 ))
+          fi
+          version="${prefix}.${sequence}"
+          if git rev-parse -q --verify "refs/tags/${version}"; then
+            echo "Release tag already exists: ${version}" >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Host tests
+        run: pio test -e native -e native-ui
+
+      - name: Build release firmware
+        env:
+          PLATFORMIO_BUILD_FLAGS: '-D FIRMWARE_VERSION=\"${{ steps.version.outputs.version }}\"'
+        run: pio run -e t-display-s3-release
+
+      - name: Package release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir release
+          cp .pio/build/t-display-s3-release/firmware.bin release/firmware.bin
+          sha256sum release/firmware.bin > release/SHA256SUMS
+          printf 'version=%s\ncommit=%s\n' "$VERSION" "$RELEASE_SHA" > release/metadata.txt
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$VERSION" release/firmware.bin release/SHA256SUMS release/metadata.txt \
+            --target "$RELEASE_SHA" \
+            --title "$VERSION" \
+            --generate-notes

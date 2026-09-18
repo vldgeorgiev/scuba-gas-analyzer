@@ -1,0 +1,27 @@
+<screen>
+	<view extends="lv_obj" scrollable="false">
+		<row width="100%" height="100%" gap="#space_sm" pad="#space_sm">
+			<column gap="#space_sm">
+				<button name="calibration_back" text="" icon="icon_arrow_left">
+					<screen_load_event screen="mainscr" trigger="clicked" />
+				</button>
+				<button name="open_diagnostics" text="" icon="icon_info">
+					<screen_create_event screen="diagnostics" trigger="clicked" />
+				</button>
+			</column>
+			<column name="calibration_list" grow="1" gap="#space_sm" scrollable="true">
+				<h5 text="Calibration" />
+				<row width="100%" horizontal_align="space_between" vertical_align="center">
+					<text text="Calibrate air on start" />
+					<switch name="startup_calibration" subject="calibration_on_start" />
+				</row>
+				<button name="calibrate_air" text="Air (20.9%)" icon="icon_refresh" width="100%" />
+				<row width="100%" horizontal_align="space_between">
+					<button name="calibrate_o2" text="O2 (100%)" icon="icon_refresh" width="49%" />
+					<button name="clear_o2" text="Clear O2" icon="icon_trash" width="49%" />
+				</row>
+				<button name="calibrate_he" text="He (100%)" icon="icon_refresh" width="100%" />
+			</column>
+		</row>
+	</view>
+</screen>
