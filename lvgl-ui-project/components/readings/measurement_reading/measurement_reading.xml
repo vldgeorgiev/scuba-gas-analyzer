@@ -13,13 +13,14 @@
 	<view extends="column" width="0" height="100%" grow="$grow" gap="#space_sm" horizontal_align="center">
 		<h5 text="$label" />
 		<lv_spangroup
+			event_bubble="true"
 			name="primary_value"
 			width="100%"
 			height="content"
 			overflow="ellipsis"
 			max_lines="1"
 			style_text_align="center"
-			style_text_font="font_h3"
+			style_text_font="font_h2"
 		>
 			<lv_spangroup-span bind_text="$subject" />
 			<lv_spangroup-span text="$unit" style="style_primary_unit" />

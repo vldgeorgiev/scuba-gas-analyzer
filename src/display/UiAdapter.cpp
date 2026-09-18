@@ -315,10 +315,13 @@ void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) 
   setReading(&main_co_text, validCo ? static_cast<float>(co) : NAN, data.coState, "%.0f");
   setUnit(mainO2Value, "%", oxygen == ChannelState::Valid);
   setUnit(mainHeValue, "%", helium == ChannelState::Valid);
-  setUnit(mainCoValue, " ppm", validCo);
+  setUnit(mainCoValue, "ppm", validCo);
   setUnit(largeO2Value, "%", oxygen == ChannelState::Valid);
   setUnit(largeHeValue, "%", helium == ChannelState::Valid);
-  setUnit(largeCoValue, " ppm", validCo);
+  setUnit(largeCoValue, "ppm", validCo);
+  if (mainO2Value) lv_obj_set_style_text_font(mainO2Value, oxygen == ChannelState::Valid ? font_h2 : font_h4, 0);
+  if (mainHeValue) lv_obj_set_style_text_font(mainHeValue, helium == ChannelState::Valid ? font_h2 : font_h4, 0);
+  if (mainCoValue) lv_obj_set_style_text_font(mainCoValue, validCo ? font_h2 : font_h4, 0);
   setRaw(&main_o2_mv_text, data.O2Level.millivolts, data.o2State);
   setRaw(&main_he_mv_text, data.HeLevel.millivolts, data.heState);
   setRaw(&main_co_mv_text, data.CoLevel.millivolts, data.coState);

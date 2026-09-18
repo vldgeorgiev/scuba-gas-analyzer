@@ -146,11 +146,11 @@ void test_ui_formats_states_and_mod() {
   ui::formatValue(text, sizeof(text), NAN, ChannelState::Valid, "%.1f%%");
   TEST_ASSERT_EQUAL_STRING("Invalid", text);
   ui::formatMod(text, sizeof(text), "B", 1.4f, 20.9f, ChannelState::Valid);
-  TEST_ASSERT_EQUAL_STRING("B 56 m", text);
+  TEST_ASSERT_EQUAL_STRING("B 56m", text);
   ui::formatMod(text, sizeof(text), "D", 1.6f, 0, ChannelState::Valid);
-  TEST_ASSERT_EQUAL_STRING("D -- m", text);
+  TEST_ASSERT_EQUAL_STRING("D --m", text);
   ui::formatMod(text, sizeof(text), "B", 1.4f, 20.9f, ChannelState::Stale);
-  TEST_ASSERT_EQUAL_STRING("B -- m", text);
+  TEST_ASSERT_EQUAL_STRING("B --m", text);
 }
 
 void test_ui_settings_indices_preserve_calibration() {

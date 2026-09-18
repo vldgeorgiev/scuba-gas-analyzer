@@ -52,7 +52,7 @@ lv_obj_t * mainscr_create(void)
         lv_obj_set_flag(lv_obj_0, LV_OBJ_FLAG_CLICKABLE, true);
 
         lv_obj_add_screen_create_event(lv_obj_0, LV_EVENT_CLICKED, largescr_create, LV_SCREEN_LOAD_ANIM_NONE, 0, 0);
-        lv_obj_t * column_0 = column_create(lv_obj_0, SPACE_SM, SPACE_XS, 0, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+        lv_obj_t * column_0 = column_create(lv_obj_0, SPACE_XS, SPACE_XS, 0, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_width(column_0, lv_pct(100));
         lv_obj_set_height(column_0, lv_pct(100));
         lv_obj_set_flag(column_0, LV_OBJ_FLAG_EVENT_BUBBLE, true);
@@ -85,15 +85,17 @@ lv_obj_t * mainscr_create(void)
         lv_obj_set_flag(open_settings, LV_OBJ_FLAG_EVENT_BUBBLE, false);
         lv_obj_add_screen_create_event(open_settings, LV_EVENT_CLICKED, settings_create, LV_SCREEN_LOAD_ANIM_NONE, 0, 0);
 
-        lv_obj_t * readings = row_create(column_0, 0, SPACE_MD, 1, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+        lv_obj_t * readings = row_create(column_0, 0, 0, 1, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_name(readings, "readings");
         lv_obj_set_width(readings, lv_pct(100));
         lv_obj_set_flag(readings, LV_OBJ_FLAG_CLICKABLE, true);
         lv_obj_set_flag(readings, LV_OBJ_FLAG_EVENT_BUBBLE, true);
-        lv_obj_t * main_o2_reading = measurement_reading_create(readings, "O2", &main_o2_text, "%", &main_o2_mv_text, 14);
+        lv_obj_t * main_o2_reading = measurement_reading_create(readings, "O2", &main_o2_text, "%", &main_o2_mv_text, 12);
         lv_obj_set_name(main_o2_reading, "main_o2_reading");
         lv_obj_set_flag(main_o2_reading, LV_OBJ_FLAG_EVENT_BUBBLE, true);
         lv_obj_t * row_3 = row_create(main_o2_reading, 0, 0, 0, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+        lv_obj_set_scrollbar_mode(row_3, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_set_width(row_3, lv_pct(100));
         lv_obj_t * text_0 = text_create(row_3, "Body text");
         lv_label_bind_text(text_0, &main_mod_bottom_text, NULL);
         lv_label_set_long_mode(text_0, LV_LABEL_LONG_MODE_DOTS);
@@ -116,7 +118,7 @@ lv_obj_t * mainscr_create(void)
         lv_label_bind_text(he_temperature, &main_he_temperature_text, NULL);
         lv_obj_set_style_text_align(he_temperature, LV_TEXT_ALIGN_CENTER, 0);
 
-        lv_obj_t * main_co_reading = measurement_reading_create(readings, "CO", &main_co_text, " ppm", &main_co_mv_text, 10);
+        lv_obj_t * main_co_reading = measurement_reading_create(readings, "CO", &main_co_text, "ppm", &main_co_mv_text, 11);
         lv_obj_set_name(main_co_reading, "main_co_reading");
         lv_obj_set_flag(main_co_reading, LV_OBJ_FLAG_EVENT_BUBBLE, true);
 

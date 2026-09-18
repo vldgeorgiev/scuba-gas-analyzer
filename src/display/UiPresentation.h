@@ -22,9 +22,9 @@ inline void formatMod(char* text, size_t size, const char* prefix, float po2,
   int depth;
   if (state != ChannelState::Valid ||
       !conversions::toInt(conversions::maximumOperatingDepth(po2, oxygen), depth) || depth < 0) {
-    std::snprintf(text, size, "%s -- m", prefix);
+    std::snprintf(text, size, "%s --m", prefix);
   } else {
-    std::snprintf(text, size, "%s %d m", prefix, depth);
+    std::snprintf(text, size, "%s %dm", prefix, depth);
   }
 }
 

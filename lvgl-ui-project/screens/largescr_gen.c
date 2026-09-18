@@ -132,7 +132,7 @@ lv_obj_t * largescr_create(void)
         lv_span_t * lv_spangroup_span_4 = lv_spangroup_add_span(large_co_value);
         lv_spangroup_bind_span_text(large_co_value, lv_spangroup_span_4, &main_co_text, NULL);
         lv_span_t * lv_spangroup_span_5 = lv_spangroup_add_span(large_co_value);
-        lv_spangroup_set_span_text(large_co_value, lv_spangroup_span_5, " ppm");
+        lv_spangroup_set_span_text(large_co_value, lv_spangroup_span_5, "ppm");
         lv_spangroup_set_span_style(large_co_value, lv_spangroup_span_5, &style_large_ppm);
 
         the_root = lv_obj_0;

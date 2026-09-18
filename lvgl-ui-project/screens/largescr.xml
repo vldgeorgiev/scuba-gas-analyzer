@@ -24,7 +24,7 @@
 				<h4 text="CO" width="60" />
 				<lv_spangroup name="large_co_value" height="content" overflow="ellipsis" max_lines="1" style_text_font="font_h4" event_bubble="true">
 					<lv_spangroup-span bind_text="main_co_text" />
-					<lv_spangroup-span text=" ppm" style="style_large_ppm" />
+					<lv_spangroup-span text="ppm" style="style_large_ppm" />
 				</lv_spangroup>
 			</row>
 		</column>

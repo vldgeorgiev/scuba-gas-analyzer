@@ -574,7 +574,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
                            main_o2_text_buf,
                            main_o2_text_prev_buf,
                            UI_SUBJECT_STRING_LENGTH,
-                           "20.9"
+                           "18.9"
                           );
     static char main_o2_mv_text_buf[UI_SUBJECT_STRING_LENGTH];
     static char main_o2_mv_text_prev_buf[UI_SUBJECT_STRING_LENGTH];
@@ -590,7 +590,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
                            main_he_text_buf,
                            main_he_text_prev_buf,
                            UI_SUBJECT_STRING_LENGTH,
-                           "0.0"
+                           "45.0"
                           );
     static char main_he_mv_text_buf[UI_SUBJECT_STRING_LENGTH];
     static char main_he_mv_text_prev_buf[UI_SUBJECT_STRING_LENGTH];
@@ -598,7 +598,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
                            main_he_mv_text_buf,
                            main_he_mv_text_prev_buf,
                            UI_SUBJECT_STRING_LENGTH,
-                           "0.0 mV"
+                           "200.0 mV"
                           );
     static char main_he_temperature_text_buf[UI_SUBJECT_STRING_LENGTH];
     static char main_he_temperature_text_prev_buf[UI_SUBJECT_STRING_LENGTH];
@@ -614,7 +614,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
                            main_co_text_buf,
                            main_co_text_prev_buf,
                            UI_SUBJECT_STRING_LENGTH,
-                           "0"
+                           "40"
                           );
     static char main_co_mv_text_buf[UI_SUBJECT_STRING_LENGTH];
     static char main_co_mv_text_prev_buf[UI_SUBJECT_STRING_LENGTH];
@@ -630,7 +630,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
                            main_mod_bottom_text_buf,
                            main_mod_bottom_text_prev_buf,
                            UI_SUBJECT_STRING_LENGTH,
-                           "B 57 m"
+                           "B 57m"
                           );
     static char main_mod_deco_text_buf[UI_SUBJECT_STRING_LENGTH];
     static char main_mod_deco_text_prev_buf[UI_SUBJECT_STRING_LENGTH];
@@ -638,7 +638,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
                            main_mod_deco_text_buf,
                            main_mod_deco_text_prev_buf,
                            UI_SUBJECT_STRING_LENGTH,
-                           "D 67 m"
+                           "D 67m"
                           );
     static char main_battery_text_buf[UI_SUBJECT_STRING_LENGTH];
     static char main_battery_text_prev_buf[UI_SUBJECT_STRING_LENGTH];

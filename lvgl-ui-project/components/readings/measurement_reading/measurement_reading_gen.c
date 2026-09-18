@@ -60,13 +60,14 @@ lv_obj_t * measurement_reading_create(lv_obj_t * parent, const char * label, lv_
         h5_create(column_0, label, "");
 
         lv_obj_t * primary_value = lv_spangroup_create(column_0);
+        lv_obj_set_flag(primary_value, LV_OBJ_FLAG_EVENT_BUBBLE, true);
         lv_obj_set_name(primary_value, "primary_value");
         lv_obj_set_width(primary_value, lv_pct(100));
         lv_obj_set_height(primary_value, LV_SIZE_CONTENT);
         lv_spangroup_set_overflow(primary_value, LV_SPAN_OVERFLOW_ELLIPSIS);
         lv_spangroup_set_max_lines(primary_value, 1);
         lv_obj_set_style_text_align(primary_value, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_font(primary_value, font_h3, 0);
+        lv_obj_set_style_text_font(primary_value, font_h2, 0);
         lv_span_t * lv_spangroup_span_0 = lv_spangroup_add_span(primary_value);
         lv_spangroup_bind_span_text(primary_value, lv_spangroup_span_0, subject, NULL);
         lv_span_t * lv_spangroup_span_1 = lv_spangroup_add_span(primary_value);

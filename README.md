@@ -90,9 +90,7 @@ The consumption varies depending on the sensors enabled and display brightness. 
 - [x] Add large digits screen for easier monitoring. Switch from main with touch anywhere.
 - [ ] Remember last screen on startup (where applicable)
 - [x] Battery level and charging indicator
-- [ ] After initial testing limit the displayed values: e.g. O2 max 100%, CO 0-500, etc.
 - [ ] Show a warning if the initial O2 sensor's voltage is much different from the previous startup. E.g. when a sensor is replaced. Reset the 100% O2 calibration and remind user
-- [ ] Remove the millivolts from the main screen after testing. Move them to a separate details screen, maybe opened from the Config
 - [x] Log screen to show warnings and errors. To be opened from the main or config screens
 - [x] Indicator icon on the main screen for warnings. To open the log screen
 - [x] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
@@ -100,3 +98,5 @@ The consumption varies depending on the sensors enabled and display brightness. 
 - [x] Brightness control
 - [ ] Translation in other languages
 - [ ] Gas calculator, best mix, etc...
+- [ ] Implement the external plugin O2 sensor detection and reading. Turn off CO and He in that case
+- [ ] Improve battery charge and level display
