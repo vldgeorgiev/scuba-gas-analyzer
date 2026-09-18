@@ -112,7 +112,8 @@ SensorError SensorManager::readSensors(bool coWarmupWindow) {
   }
 
   if (_isHeEnabled && _adc2State.ready) {
-    data.HeLevel = _heSensor.readLevel(data.O2Level.percentage, &timedOut);
+    const float heCorrectionOxygen = _isO2Enabled ? data.O2Level.percentage : 0.0f;
+    data.HeLevel = _heSensor.readLevel(heCorrectionOxygen, &timedOut);
     data.heState = recordRead(_adc2State, timedOut, std::isfinite(data.HeLevel.percentage));
   }
 

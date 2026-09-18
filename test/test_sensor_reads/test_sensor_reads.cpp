@@ -178,17 +178,18 @@ void test_cycle_clears_invalid_error_and_skips_unneeded_temperature() {
   TEST_ASSERT_EQUAL_UINT8(3, Adafruit_ADS1115::devices[1]->lastChannel);
 }
 
-void test_he_only_is_unavailable_but_retains_raw_and_temperature() {
+void test_he_only_uses_uncorrected_reading_and_temperature() {
   FakeQueue queue(sizeof(sensorsData));
   QueueHandle_t handle = &queue;
   SensorManager manager(handle);
   manager.init();
   manager.setSensorsConfig(false, false, true, 10, NAN, 621.2f);
   Adafruit_ADS1115::devices[1]->counts = 1600;
-  TEST_ASSERT_EQUAL(SensorError::Invalid_Reading, manager.readSensors());
+  TEST_ASSERT_EQUAL(SensorError::None, manager.readSensors());
   sensorsData snapshot;
   std::memcpy(&snapshot, queue.data.data(), sizeof(snapshot));
-  TEST_ASSERT_TRUE(std::isnan(snapshot.HeLevel.percentage));
+  TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.heState);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 14.3614f, snapshot.HeLevel.percentage);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 100, snapshot.HeLevel.millivolts);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, snapshot.HeTemperature);
   TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[1]->differential01Reads);
@@ -585,15 +586,15 @@ void test_he_warming_requires_valid_temperature_below_threshold() {
   manager.init();
   manager.setSensorsConfig(true, false, true, 10, NAN, 621.2f);
   Adafruit_ADS1115::devices[0]->counts = 320;
-  Adafruit_ADS1115::devices[1]->counts = 4000;
+  Adafruit_ADS1115::devices[1]->counts = 3840;
   manager.readSensors();
   sensorsData snapshot;
   xQueueReceive(handle, &snapshot, 0);
   TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.heState);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 250, snapshot.HeLevel.millivolts);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 25, snapshot.HeTemperature);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 240, snapshot.HeLevel.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 24, snapshot.HeTemperature);
 
-  Adafruit_ADS1115::devices[1]->counts = 4800;
+  Adafruit_ADS1115::devices[1]->counts = 4000;
   manager.readSensors();
   xQueueReceive(handle, &snapshot, 0);
   TEST_ASSERT_EQUAL(ChannelState::Valid, snapshot.heState);
@@ -632,7 +633,7 @@ int main(int, char**) {
   RUN_TEST(test_invalid_co_remains_unavailable_without_integer_cast);
   RUN_TEST(test_all_disabled_publishes_complete_snapshot_without_reading);
   RUN_TEST(test_cycle_clears_invalid_error_and_skips_unneeded_temperature);
-  RUN_TEST(test_he_only_is_unavailable_but_retains_raw_and_temperature);
+  RUN_TEST(test_he_only_uses_uncorrected_reading_and_temperature);
   RUN_TEST(test_slow_consumer_receives_only_latest_measurement);
   RUN_TEST(test_stopped_producer_blanks_all_numbers_without_new_sample);
   RUN_TEST(test_freshness_survives_clock_wrap_and_new_sample_restores_display);

@@ -350,8 +350,9 @@ states for O2/CO/He/temperature: Disabled, Valid, Invalid, Unavailable, and Warm
 UI derives Stale at 1,800 ms
 using unsigned elapsed arithmetic. Disabled remains distinct. NaN represents unusable numeric fields;
 CO stays float until checked integer display. MOD validates inputs and integer bounds. Raw He mV
-is preserved separately from its corrected value; He derivation requires usable O2. Temperature is
-sampled only when He is enabled. Existing finite O2 clamping/CO formula behavior remains unchanged.
+is preserved separately from its corrected value. He applies the O2 correction when O2 is enabled
+and valid; when O2 is disabled, it uses the uncorrected baseline. Temperature is sampled only when
+He is enabled. Existing finite O2 clamping/CO formula behavior remains unchanged.
 
 The generation increments only for applied measurement-semantic changes, skipping zero on wrap.
 UI accepts a snapshot only for its acknowledged generation; a future or old snapshot shows unavailable

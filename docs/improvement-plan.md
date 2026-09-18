@@ -89,7 +89,8 @@ see [verification details](progress.md).
 Initialize every measurement field. Distinguish disabled, warming, valid, invalid, and unavailable;
 compute staleness in the UI even when acquisition stops. Never replace unknown values with zero
 or show the last good value as current. Guard MOD, denominators, non-finite values, and integer
-conversions. Require usable O2 for the existing He correction; preserve raw diagnostics.
+conversions. Apply the existing He correction when O2 is enabled and usable; use the uncorrected
+baseline when O2 is disabled. Preserve raw diagnostics.
 
 Use stock Adafruit conversion start/poll/result calls with a timeout. Initialize ADCs independently,
 retry failed initialization or observed timeouts with simple backoff, and read temperature only
