@@ -16,7 +16,7 @@
 						/>
 						<button name="scan_wifi" text="" icon="icon_refresh" />
 					</row>
-					<text_input name="wifi_password" placeholder="Wi-Fi password" password="true" width="100%">
+					<text_input name="wifi_password" placeholder="Wi-Fi password" width="100%">
 						<subject_set_int_event subject="update_keyboard_visible" trigger="clicked" value="1" />
 					</text_input>
 					<text name="update_status" bind_text="update_status_text" width="100%" long_mode="wrap">

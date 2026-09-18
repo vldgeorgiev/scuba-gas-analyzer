@@ -82,7 +82,7 @@ void test_export_boot_and_navigation() {
   TEST_ASSERT_TRUE(renderedPixels);
   click(lv_obj_find_by_name(mainscr, "readings"));
   TEST_ASSERT_EQUAL_PTR(largescr, lv_screen_active());
-  click(lv_obj_find_by_name(largescr, "large_he_row"));
+  click(lv_obj_find_by_name(largescr, "large_he_value"));
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
   click(lv_obj_find_by_name(mainscr, "open_calibration"));
   TEST_ASSERT_NOT_EQUAL(mainscr, lv_screen_active());

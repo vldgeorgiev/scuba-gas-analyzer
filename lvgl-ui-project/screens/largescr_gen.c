@@ -87,6 +87,7 @@ lv_obj_t * largescr_create(void)
         lv_spangroup_set_overflow(large_o2_value, LV_SPAN_OVERFLOW_ELLIPSIS);
         lv_spangroup_set_max_lines(large_o2_value, 1);
         lv_obj_set_style_text_font(large_o2_value, font_h1, 0);
+        lv_obj_set_flag(large_o2_value, LV_OBJ_FLAG_EVENT_BUBBLE, true);
         lv_span_t * lv_spangroup_span_0 = lv_spangroup_add_span(large_o2_value);
         lv_spangroup_bind_span_text(large_o2_value, lv_spangroup_span_0, &main_o2_text, NULL);
         lv_span_t * lv_spangroup_span_1 = lv_spangroup_add_span(large_o2_value);
@@ -107,6 +108,7 @@ lv_obj_t * largescr_create(void)
         lv_spangroup_set_overflow(large_he_value, LV_SPAN_OVERFLOW_ELLIPSIS);
         lv_spangroup_set_max_lines(large_he_value, 1);
         lv_obj_set_style_text_font(large_he_value, font_h1, 0);
+        lv_obj_set_flag(large_he_value, LV_OBJ_FLAG_EVENT_BUBBLE, true);
         lv_span_t * lv_spangroup_span_2 = lv_spangroup_add_span(large_he_value);
         lv_spangroup_bind_span_text(large_he_value, lv_spangroup_span_2, &main_he_text, NULL);
         lv_span_t * lv_spangroup_span_3 = lv_spangroup_add_span(large_he_value);
@@ -126,6 +128,7 @@ lv_obj_t * largescr_create(void)
         lv_spangroup_set_overflow(large_co_value, LV_SPAN_OVERFLOW_ELLIPSIS);
         lv_spangroup_set_max_lines(large_co_value, 1);
         lv_obj_set_style_text_font(large_co_value, font_h4, 0);
+        lv_obj_set_flag(large_co_value, LV_OBJ_FLAG_EVENT_BUBBLE, true);
         lv_span_t * lv_spangroup_span_4 = lv_spangroup_add_span(large_co_value);
         lv_spangroup_bind_span_text(large_co_value, lv_spangroup_span_4, &main_co_text, NULL);
         lv_span_t * lv_spangroup_span_5 = lv_spangroup_add_span(large_co_value);

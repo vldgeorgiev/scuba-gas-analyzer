@@ -67,7 +67,7 @@ lv_obj_t * firmware_update_create(void)
         lv_obj_t * scan_wifi = button_create(row_1, "", icon_refresh, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(scan_wifi, "scan_wifi");
 
-        lv_obj_t * wifi_password = text_input_create(update_form, "", "Wi-Fi password", true);
+        lv_obj_t * wifi_password = text_input_create(update_form, "", "Wi-Fi password", false);
         lv_obj_set_name(wifi_password, "wifi_password");
         lv_obj_set_width(wifi_password, lv_pct(100));
         lv_obj_add_subject_set_int_event(wifi_password, &update_keyboard_visible, LV_EVENT_CLICKED, 1);
