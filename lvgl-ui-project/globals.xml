@@ -105,7 +105,7 @@
 		/>
 		<bin
 			name="font_h1"
-			size="60"
+			size="70"
 			src_path="fonts/Montserrat-Bold.ttf"
 			bpp="4"
 			range="0x20-0x7F"

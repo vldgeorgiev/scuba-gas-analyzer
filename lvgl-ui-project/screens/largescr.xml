@@ -5,28 +5,63 @@
 	</styles>
 	<view extends="lv_obj" scrollable="false" clickable="true" style_pad_all="0">
 		<screen_load_event screen="mainscr" trigger="clicked" />
-		<column width="100%" height="100%" pad="#space_sm" gap="#space_sm" event_bubble="true">
-			<row name="large_o2_row" width="100%" vertical_align="center" event_bubble="true">
-				<h3 text="O2" width="60" />
-				<lv_spangroup name="large_o2_value" flex_grow="1" height="content" overflow="ellipsis" max_lines="1" style_text_font="font_h1" event_bubble="true">
-					<lv_spangroup-span bind_text="main_o2_text" />
-					<lv_spangroup-span text="%" style="style_large_percent" />
-				</lv_spangroup>
-			</row>
-			<row name="large_he_row" width="100%" vertical_align="center" event_bubble="true">
-				<h3 text="He" width="60" />
-				<lv_spangroup name="large_he_value" flex_grow="1" height="content" overflow="ellipsis" max_lines="1" style_text_font="font_h1" event_bubble="true">
-					<lv_spangroup-span bind_text="main_he_text" />
-					<lv_spangroup-span text="%" style="style_large_percent" />
-				</lv_spangroup>
-			</row>
-			<row name="large_status" width="100%" vertical_align="center" event_bubble="true">
-				<h4 text="CO" width="60" />
-				<lv_spangroup name="large_co_value" height="content" overflow="ellipsis" max_lines="1" style_text_font="font_h4" event_bubble="true">
+		<row width="100%" height="100%" pad="#space_sm" event_bubble="true">
+			<column name="large_gases" grow="1" height="100%" vertical_align="space_evenly" event_bubble="true">
+				<row name="large_o2_row" width="100%" vertical_align="center" event_bubble="true">
+					<h3 text="O2" width="58" />
+					<lv_spangroup
+						name="large_o2_value"
+						flex_grow="1"
+						height="content"
+						overflow="ellipsis"
+						max_lines="1"
+						style_text_font="font_h1"
+						event_bubble="true"
+					>
+						<lv_spangroup-span bind_text="main_o2_text" />
+						<lv_spangroup-span text="%" style="style_large_percent" />
+					</lv_spangroup>
+				</row>
+				<row name="large_he_row" width="100%" vertical_align="center" event_bubble="true">
+					<h3 text="He" width="58" />
+					<lv_spangroup
+						name="large_he_value"
+						flex_grow="1"
+						height="content"
+						overflow="ellipsis"
+						max_lines="1"
+						style_text_font="font_h1"
+						event_bubble="true"
+					>
+						<lv_spangroup-span bind_text="main_he_text" />
+						<lv_spangroup-span text="%" style="style_large_percent" />
+					</lv_spangroup>
+				</row>
+			</column>
+			<column
+				name="large_status"
+				width="72"
+				height="100%"
+				gap="#space_sm"
+				horizontal_align="center"
+				vertical_align="center"
+				event_bubble="true"
+			>
+				<h4 name="large_co_title" text="CO" />
+				<lv_spangroup
+					name="large_co_value"
+					width="100%"
+					height="content"
+					overflow="ellipsis"
+					max_lines="1"
+					style_text_align="center"
+					style_text_font="font_h4"
+					event_bubble="true"
+				>
 					<lv_spangroup-span bind_text="main_co_text" />
-					<lv_spangroup-span text="ppm" style="style_large_ppm" />
 				</lv_spangroup>
-			</row>
-		</column>
+				<h5 name="large_co_unit" text="ppm" />
+			</column>
+		</row>
 	</view>
 </screen>

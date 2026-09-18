@@ -36,6 +36,7 @@ lv_obj_t* largeCoRow = nullptr;
 lv_obj_t* largeO2Value = nullptr;
 lv_obj_t* largeHeValue = nullptr;
 lv_obj_t* largeCoValue = nullptr;
+lv_obj_t* largeCoUnit = nullptr;
 float calibrationGraphMinimum = NAN;
 float calibrationGraphMaximum = NAN;
 uint32_t calibrationGraphElapsedMs = UINT32_MAX;
@@ -284,6 +285,7 @@ void init() {
   largeO2Value = lv_obj_find_by_name(largescr, "large_o2_value");
   largeHeValue = lv_obj_find_by_name(largescr, "large_he_value");
   largeCoValue = lv_obj_find_by_name(largescr, "large_co_value");
+  largeCoUnit = lv_obj_find_by_name(largescr, "large_co_unit");
   if (mainCoValue) lv_obj_set_style_text_color(mainCoValue, COLOR_DANGER, LV_PART_MAIN | LV_STATE_USER_1);
   if (largeCoValue) lv_obj_set_style_text_color(largeCoValue, COLOR_DANGER, LV_PART_MAIN | LV_STATE_USER_1);
   bindClick(mainscr, switchReadings);
@@ -392,7 +394,7 @@ void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) 
   setUnit(mainCoValue, "ppm", validCo);
   setUnit(largeO2Value, "%", oxygen == ChannelState::Valid);
   setUnit(largeHeValue, "%", helium == ChannelState::Valid);
-  setUnit(largeCoValue, "ppm", validCo);
+  setVisible(largeCoUnit, validCo);
   if (mainO2Value) lv_obj_set_style_text_font(mainO2Value, oxygen == ChannelState::Valid ? font_h2 : font_h4, 0);
   if (mainHeValue) lv_obj_set_style_text_font(mainHeValue, helium == ChannelState::Valid ? font_h2 : font_h4, 0);
   if (mainCoValue) lv_obj_set_style_text_font(mainCoValue, validCo ? font_h2 : font_h4, 0);

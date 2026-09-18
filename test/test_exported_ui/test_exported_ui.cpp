@@ -252,7 +252,18 @@ void test_export_readings_and_sensor_states() {
   lv_span_t* coUnit = lv_spangroup_get_child(coValue, 1);
   TEST_ASSERT_NOT_NULL(coValue);
   TEST_ASSERT_EQUAL_PTR(font_h2, lv_obj_get_style_text_font(coValue, LV_PART_MAIN));
-  TEST_ASSERT_NOT_NULL(coUnit);
+  TEST_ASSERT_NULL(coUnit);
+  lv_obj_t* largeCoUnit = lv_obj_find_by_name(largescr, "large_co_unit");
+  TEST_ASSERT_NOT_NULL(largeCoUnit);
+  TEST_ASSERT_EQUAL_STRING("ppm", lv_label_get_text(largeCoUnit));
+  lv_obj_t* largeO2Row = lv_obj_find_by_name(largescr, "large_o2_row");
+  lv_obj_t* largeHeRow = lv_obj_find_by_name(largescr, "large_he_row");
+  lv_obj_t* largeCoTitle = lv_obj_find_by_name(largescr, "large_co_title");
+  refresh();
+  TEST_ASSERT_GREATER_THAN(lv_obj_get_x2(largeO2Row), lv_obj_get_x(largeCoTitle));
+  TEST_ASSERT_GREATER_THAN(lv_obj_get_x2(largeHeRow), lv_obj_get_x(largeCoTitle));
+  TEST_ASSERT_LESS_THAN(lv_obj_get_y(coValue), lv_obj_get_y(largeCoTitle));
+  TEST_ASSERT_LESS_THAN(lv_obj_get_y(largeCoUnit), lv_obj_get_y(coValue));
   TEST_ASSERT_TRUE(lv_obj_has_state(coValue, LV_STATE_USER_1));
   TEST_ASSERT_EQUAL_UINT32(lv_color_to_u32(COLOR_DANGER), lv_color_to_u32(lv_obj_get_style_text_color(coValue, LV_PART_MAIN)));
   lv_obj_t* warning = lv_obj_find_by_name(mainscr, "open_diagnostics");
@@ -280,7 +291,7 @@ void test_export_readings_and_sensor_states() {
   ui::presentReadings(data, effective);
   TEST_ASSERT_EQUAL_STRING("Warming", lv_subject_get_string(&main_co_text));
   TEST_ASSERT_EQUAL_PTR(font_h4, lv_obj_get_style_text_font(coValue, LV_PART_MAIN));
-  TEST_ASSERT_EQUAL_STRING("", lv_span_get_text(coUnit));
+  TEST_ASSERT_TRUE(lv_obj_has_flag(largeCoUnit, LV_OBJ_FLAG_HIDDEN));
   TEST_ASSERT_EQUAL_STRING("440.0 mV", lv_subject_get_string(&main_co_mv_text));
   TEST_ASSERT_EQUAL_STRING("Warming", lv_subject_get_string(&main_he_text));
   TEST_ASSERT_EQUAL_STRING("250.0 mV", lv_subject_get_string(&main_he_mv_text));
@@ -288,6 +299,7 @@ void test_export_readings_and_sensor_states() {
   data.heState = ChannelState::Valid;
   data.o2State = ChannelState::Invalid;
   ui::presentReadings(data, effective);
+  TEST_ASSERT_FALSE(lv_obj_has_flag(largeCoUnit, LV_OBJ_FLAG_HIDDEN));
   TEST_ASSERT_EQUAL_STRING("10.4 mV", lv_subject_get_string(&main_o2_mv_text));
   TEST_ASSERT_EQUAL_STRING("B --m", lv_subject_get_string(&main_mod_bottom_text));
   ui::presentReadings(data.forDisplay(sensorsData::FRESHNESS_MS), effective);
