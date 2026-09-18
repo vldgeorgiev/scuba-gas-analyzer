@@ -55,8 +55,9 @@ their pending-validation notes have since been completed.
 
 - Removed automated push CI. The manual release workflow reruns both host suites, builds release
   firmware, and publishes the exact binary as a GitHub Release asset.
-- Releases use UTC CalVer `vYYYY.MM.DD.N`, consistently injected into the firmware and shown on the
-  Firmware Update screen. The tag, release metadata, checksum, and binary identify the same
+- Releases use UTC CalVer `vYYYY.MM.DD`, adding `.2`, `.3`, and so on only for additional releases
+  on the same date. The version is consistently injected into the firmware and shown on the Firmware
+  Update screen. The tag, release metadata, checksum, and binary identify the same
   commit and version.
 - OTA source is the stable latest GitHub Release asset URL:
   `https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin`.

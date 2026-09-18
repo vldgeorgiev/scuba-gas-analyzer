@@ -46,12 +46,23 @@ jobs:
         shell: bash
         run: |
           prefix="v$(date -u +%Y.%m.%d)"
-          latest=$(git tag --list "${prefix}.*" --sort=-v:refname | head -n 1)
-          sequence=1
-          if [[ -n "$latest" ]]; then
-            sequence=$(( ${latest##*.} + 1 ))
+          version="$prefix"
+          next_sequence=1
+          if git rev-parse -q --verify "refs/tags/${prefix}" >/dev/null; then
+            next_sequence=2
           fi
-          version="${prefix}.${sequence}"
+          while IFS= read -r tag; do
+            suffix=${tag#"${prefix}."}
+            if [[ "$suffix" =~ ^[1-9][0-9]*$ ]]; then
+              suffix_value=$((10#$suffix))
+              if (( suffix_value >= next_sequence )); then
+                next_sequence=$((suffix_value + 1))
+              fi
+            fi
+          done < <(git tag --list "${prefix}.*")
+          if (( next_sequence > 1 )); then
+            version="${prefix}.${next_sequence}"
+          fi
           if git rev-parse -q --verify "refs/tags/${version}"; then
             echo "Release tag already exists: ${version}" >&2
             exit 1

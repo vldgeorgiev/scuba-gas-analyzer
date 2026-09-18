@@ -325,11 +325,11 @@ uses a concurrency group to prevent two releases allocating the same version, an
 `contents: write`. Restrict release commits to the default branch unless an intentional override is
 designed later.
 
-Use UTC CalVer tags in the form `vYYYY.MM.DD.N`, where `N` starts at 1 and increments when more than
-one release is made on the same date. Derive the next value from existing matching repository tags;
-do not use run number as the public version. Existing non-CalVer tags such as `proto-board-1` do not
-participate. The same calculated value must identify the Git tag, GitHub Release, metadata, and
-compiled firmware.
+Use UTC CalVer tags in the form `vYYYY.MM.DD` for the first release of a day. Additional releases on
+the same date use `.2`, `.3`, and so on. Derive the next value from existing matching repository tags;
+legacy `.1` tags count as the first daily release. Do not use run number as the public version.
+Existing non-CalVer tags such as `proto-board-1` do not participate. The same calculated value must
+identify the Git tag, GitHub Release, metadata, and compiled firmware.
 
 The release workflow must:
 
