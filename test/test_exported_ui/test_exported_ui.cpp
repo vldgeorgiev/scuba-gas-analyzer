@@ -2,7 +2,9 @@
 #include "FirmwareVersion.h"
 #include "lvgl_ui_project.h"
 #include "display/UiAdapter.h"
+#include "display/UiFeedback.h"
 #include "main.h"
+#include "network/FirmwareUpdate.h"
 #include "ui-log.h"
 
 DisplayManager displayManager;
@@ -28,6 +30,7 @@ bool submitAnalyzerCommand(app::Command command) {
   return true;
 }
 bool cancelAnalyzerCalibration() { ++calibrationCancels; return true; }
+void setNetworkOperationActive(bool) {}
 void openUiSettings() { settingsOpen = true; ui::syncSettings(effective); }
 bool closeUiSettings(const AnalyzerSettings& draft) {
   settingsOpen = false;
@@ -36,9 +39,11 @@ bool closeUiSettings(const AnalyzerSettings& draft) {
   return allowSubmit;
 }
 void messageBox(const char*, float) { ++errors; }
-void action_reset_o2_100(lv_event_t*) {}
-void action_list_wifi(lv_event_t*) { ++wifiScanActions; }
-void action_update_firmware(lv_event_t*) {}
+bool firmwareUpdateBusy() { return false; }
+bool startWifiScan() { ++wifiScanActions; return true; }
+bool startFirmwareUpdate(const char*, const char*) { return true; }
+bool pollFirmwareUpdateEvent(FirmwareUpdateEvent&) { return false; }
+void finishFirmwareUpdate() {}
 
 static void flush(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {
   ++flushes;

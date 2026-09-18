@@ -14,6 +14,7 @@ void presentReadings(const sensorsData& data, const AnalyzerSettings& settings);
 void presentBattery(float voltage);
 void presentStatus(const sensorsData& data, bool busy, bool ready);
 void presentCalibration(const app::Result& result);
+void serviceFirmwareUpdate();
 void openCalibration(lv_event_t* event);
 void openUpdates(lv_event_t* event);
 void openLogs(lv_event_t* event);

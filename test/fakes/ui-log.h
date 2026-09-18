@@ -9,13 +9,15 @@
 enum class UiLogLevel { None, Warning, Error, Unchanged };
 class UiLog {
 public:
+	static constexpr size_t kLogSnapshotSize = 500;
+
 	static UiLog& getInstance() { static UiLog instance; return instance; }
 	void addLogEntry(const char*, UiLogLevel newLevel) {
 		if (newLevel != UiLogLevel::Unchanged) level = newLevel;
 	}
 	void clearLog() { level = UiLogLevel::None; }
 	UiLogLevel getLevel() const { return level; }
-	const char* getLogAsCString() const { return ""; }
+	void copyLogTo(char (&out)[kLogSnapshotSize]) const { out[0] = '\0'; }
 
 private:
 	UiLogLevel level = UiLogLevel::None;

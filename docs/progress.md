@@ -19,6 +19,24 @@ their pending-validation notes have since been completed.
 | 7. Measured cleanup | Battery ADC characterization is initialized once; other speculative cleanup declined |
 | 8. Versioned release automation | Implemented; hosted workflow and device validation pending |
 
+## 2026-09-18: Source ownership cleanup
+
+- Moved Wi-Fi scan, NTP/TLS, and OTA worker mechanics into `src/network/FirmwareUpdate.cpp` behind
+  a fixed-size, LVGL-free event API. `UiAdapter` now owns all firmware-update widget callbacks,
+  subject updates, dialogs, and event presentation; the one-entry worker queue and sleep inhibition
+  behavior are unchanged.
+- Replaced the mixed-purpose `ui_actions.*` files with `src/display/UiFeedback.*` for analyzer-result
+  logging and dialogs. The Clear Pure callback now lives beside the other calibration bindings in
+  `UiAdapter`.
+- Replaced `UiLog`'s returned pointer into mutable shared storage with a caller-owned fixed-size
+  snapshot copied while holding the existing mutex. Logging capacity and reset-to-clear behavior
+  are unchanged.
+- Moved cached battery ADC characterization and sampling from `utils.h` into
+  `src/display/Battery.*`; removed unused heap and task-diagnostic wrappers.
+- Restored the shared He warm-up policy threshold to the documented 30 C boundary. The focused
+  sensor suite passes 34 tests, the complete native and native-ui suites pass, and both S3 debug and
+  release profiles build. No upload, OTA, or new physical-device validation was performed.
+
 ## 2026-09-18: Responsive firmware update
 
 - Wi-Fi scan, connection, and OTA download now run in a temporary worker instead of the LVGL task.

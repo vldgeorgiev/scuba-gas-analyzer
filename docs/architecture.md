@@ -21,6 +21,8 @@ The UI task owns `DisplayManager`, exported LVGL subjects, widget pointers, and 
 The Arduino loop blocks indefinitely. There is no extra manager/logger/battery/monitor task. Wi-Fi
 scan and firmware installation each use one temporary low-priority worker so network waits do not
 block LVGL; a one-entry overwrite queue returns scan results, progress, and completion to the UI task.
+`src/network/FirmwareUpdate.cpp` owns the worker, fixed-size event contract, and OTA transport.
+`UiAdapter` owns all LVGL callbacks and presentation of those events; workers never call LVGL.
 
 | Task | Work and timing | Allocated stack |
 | --- | --- | --- |
@@ -365,6 +367,11 @@ danger-coloured warning button appears when the UI log has Warning/Error severit
 generated Diagnostics screen. A valid displayed CO value above zero uses the danger colour and
 returns to inherited theme colour at zero. The obsolete main status subject is removed.
 
+`src/display/UiFeedback.cpp` translates analyzer results into UI log entries and message boxes.
+`UiLog` keeps its fixed-capacity circular buffer behind a mutex and copies diagnostics into a
+caller-owned fixed-size snapshot while locked; it does not return pointers into mutable shared storage.
+`src/display/Battery.cpp` owns the cached ADC characterization and voltage sampling used by the UI task.
+
 Large O2/He values use the exported 60 px H1 font; non-valid state text falls back to the body font.
 
 Calibration, Calibration Run, Firmware Update, and Diagnostics are generated Editor screens owned
@@ -376,7 +383,8 @@ avoiding global subject observers that could outlive a deleted screen in LVGL 9.
 
 The update screen shows the application-owned compile-time version, using `dev` locally and the
 release CalVer in published builds. OTA downloads the latest GitHub Release `firmware.bin` in a
-temporary worker and reports progress to the UI task.
+temporary worker in `src/network/FirmwareUpdate.cpp` and reports fixed-size progress events to the
+UI task. `UiAdapter` alone reads update widgets and writes exported update subjects.
 
 Before HTTPS begins, the worker synchronizes UTC with a ten-second bound. `WiFiClientSecure`
 authenticates GitHub and its release-asset redirect using the roots in

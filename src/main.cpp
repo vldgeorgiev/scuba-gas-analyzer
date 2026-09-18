@@ -1,8 +1,8 @@
 #include "main.h"
 #include "display/UiAdapter.h"
-#include "ui_actions.h"
+#include "display/Battery.h"
+#include "display/UiFeedback.h"
 #include "ui-log.h"
-#include "utils.h"
 #include "app/SleepPolicy.h"
 #include "app/DeviceSleep.h"
 
@@ -129,7 +129,7 @@ static void Task_UI(void*) {
       ui::presentStatus(displayed, uiState.busy(), uiState.ready);
       lastPresentation = now;
     }
-    serviceNetworkActions();
+    ui::serviceFirmwareUpdate();
     displayManager.tick();
 #ifdef ARDUINO_LILYGO_T_DISPLAY_S3
     if (uiState.sleepPhase == app::SleepPhase::Prepared) {

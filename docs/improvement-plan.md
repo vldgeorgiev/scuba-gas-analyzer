@@ -294,8 +294,10 @@ Decision 2026-09-17: cache the ESP battery ADC characterization instead of rebui
 sample. Battery sampling cadence, rounding/truncation changes, buffer or scheduling optimization,
 and additional operational documentation are not current issues and are not active work.
 
-The one-time battery ADC initialization is implemented. No further measured cleanup is planned
-unless device behavior identifies a concrete problem.
+The one-time battery ADC initialization is implemented in the display-owned battery module. The
+fixed-capacity UI log now copies a caller-owned snapshot while locked rather than returning mutable
+shared storage; its visible behavior is unchanged. No further measured cleanup is planned unless
+device behavior identifies a concrete problem.
 
 ## 8. Automate tested, versioned releases
 

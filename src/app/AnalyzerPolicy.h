@@ -25,7 +25,7 @@ constexpr float HE_CALIBRATION_DEFAULT_MV = 620.0f;
 
 constexpr uint32_t CO_WARMUP_MS = 14000;
 constexpr float CO_WARMUP_PPM = 0.0f;
-constexpr float HE_WARMUP_TEMPERATURE_C = 25.0f;
+constexpr float HE_WARMUP_TEMPERATURE_C = 30.0f;
 
 }
 

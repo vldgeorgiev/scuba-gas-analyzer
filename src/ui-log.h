@@ -18,6 +18,8 @@ enum class UiLogLevel {
 // TODO the buffer is slow combined with the UI and a bit buggy, improve it later
 class UiLog {
 public:
+  static constexpr size_t kLogSnapshotSize = 500;
+
   static UiLog& getInstance() {
     static UiLog instance;
     return instance;
@@ -69,21 +71,17 @@ public:
     }
   }
 
-  const char* getLogAsCString() const {
-    if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-      uint16_t lengthToEnd = bufferSize - bufferPointer;
-      if (lengthToEnd > 0 && logBuffer[bufferPointer] == '\x00') {
-        xSemaphoreGive(mutex);
-        return logBuffer; // Buffer hasn't wrapped yet
-      } else {
-        // Buffer wrapped around, needs to concatenate parts
-        static char concatenatedBuffer[bufferSize];
-        snprintf(concatenatedBuffer, bufferSize, "%s%s", logBuffer + bufferPointer, logBuffer);
-        xSemaphoreGive(mutex);
-        return concatenatedBuffer;
-      }
+  void copyLogTo(char (&out)[kLogSnapshotSize]) const {
+    out[0] = '\0';
+    if (xSemaphoreTake(mutex, portMAX_DELAY) != pdTRUE) return;
+    const uint16_t lengthToEnd = bufferSize - bufferPointer;
+    if (lengthToEnd > 0 && logBuffer[bufferPointer] == '\0') {
+      strncpy(out, logBuffer, bufferSize - 1);
+      out[bufferSize - 1] = '\0';
+    } else {
+      snprintf(out, bufferSize, "%s%s", logBuffer + bufferPointer, logBuffer);
     }
-    return nullptr;
+    xSemaphoreGive(mutex);
   }
 
   UiLogLevel getLevel() const {
@@ -121,7 +119,7 @@ private:
     level = UiLogLevel::None;
   }
 
-  static const uint16_t bufferSize = 500;
+  static const uint16_t bufferSize = kLogSnapshotSize;
   char logBuffer[bufferSize];
   uint16_t bufferPointer = 0;
   mutable SemaphoreHandle_t mutex;

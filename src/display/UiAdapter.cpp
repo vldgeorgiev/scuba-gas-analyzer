@@ -1,9 +1,10 @@
 #include "UiAdapter.h"
+#include "UiFeedback.h"
 #include "UiPresentation.h"
 #include "FirmwareVersion.h"
 #include "lvgl_ui_project.h"
 #include "main.h"
-#include "ui_actions.h"
+#include "network/FirmwareUpdate.h"
 #include "ui-log.h"
 #include "app/SleepPolicy.h"
 #include <algorithm>
@@ -165,6 +166,12 @@ void startHeliumCalibration(lv_event_t*) {
   openCalibrationRun(app::CommandType::CalibrateHe, "Helium calibration");
 }
 
+void clearPureCalibration(lv_event_t*) {
+  app::Command command;
+  command.type = app::CommandType::ClearPure;
+  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - try again", NAN);
+}
+
 void openSettings(lv_event_t*) {
   if (settingsScreen) return;
   openUiSettings();
@@ -201,6 +208,53 @@ void setRaw(lv_subject_t* subject, float value, ChannelState state) {
   const bool showRaw = std::isfinite(value) && state != ChannelState::Stale &&
                        state != ChannelState::Disabled && state != ChannelState::Unavailable;
   setReading(subject, value, showRaw ? ChannelState::Valid : state, "%.1f mV");
+}
+
+void finishFirmwareUpdateOperation() {
+  finishFirmwareUpdate();
+  setNetworkOperationActive(false);
+}
+
+void scanWifi(lv_event_t*) {
+  if (firmwareUpdateBusy()) {
+    messageBox("Network operation in progress", NAN);
+    return;
+  }
+  if (!lv_obj_find_by_name(lv_screen_active(), "wifi_names")) return;
+  if (!startWifiScan()) {
+    messageBox("Could not start Wi-Fi scan", NAN);
+    return;
+  }
+  setNetworkOperationActive(true);
+  copyText(&update_status_text, "Scanning Wi-Fi...");
+  lv_subject_set_int(&update_can_install, 0);
+  log_i("Listing WiFi networks");
+}
+
+void updateFirmware(lv_event_t*) {
+  if (firmwareUpdateBusy()) {
+    messageBox("Network operation in progress", NAN);
+    return;
+  }
+  lv_obj_t* screen = lv_screen_active();
+  lv_obj_t* wifiNames = lv_obj_find_by_name(screen, "wifi_names");
+  lv_obj_t* wifiPassword = lv_obj_find_by_name(screen, "wifi_password");
+  if (!wifiNames || !wifiPassword || lv_dropdown_get_option_count(wifiNames) == 0) {
+    messageBox("Select a Wi-Fi network first", NAN);
+    return;
+  }
+  char selectedSSID[FIRMWARE_UPDATE_MAX_SSID_LENGTH + 1];
+  lv_dropdown_get_selected_str(wifiNames, selectedSSID, sizeof(selectedSSID));
+  if (!startFirmwareUpdate(selectedSSID, lv_textarea_get_text(wifiPassword))) {
+    messageBox("Could not start firmware update", NAN);
+    return;
+  }
+  log_i("Updating firmware");
+  log_i("Free heap before OTA: %d", ESP.getFreeHeap());
+  log_i("Selected SSID: %s", selectedSSID);
+  setNetworkOperationActive(true);
+  lv_subject_set_int(&update_can_install, 0);
+  copyText(&update_status_text, "Connecting to Wi-Fi...");
 }
 }
 
@@ -256,7 +310,7 @@ void openCalibration(lv_event_t*) {
   bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_air"), startAirCalibration);
   bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_o2"), startPureCalibration);
   bindClick(lv_obj_find_by_name(calibrationScreen, "calibrate_he"), startHeliumCalibration);
-  bindClick(lv_obj_find_by_name(calibrationScreen, "clear_o2"), action_reset_o2_100);
+  bindClick(lv_obj_find_by_name(calibrationScreen, "clear_o2"), clearPureCalibration);
   bindClick(lv_obj_find_by_name(calibrationScreen, "open_diagnostics"), openLogs);
   lv_obj_t* startup = lv_obj_find_by_name(calibrationScreen, "startup_calibration");
   if (startup) lv_obj_add_event_cb(startup, changeStartupCalibration, LV_EVENT_VALUE_CHANGED, nullptr);
@@ -275,15 +329,16 @@ void openUpdates(lv_event_t*) {
     return;
   }
   bindClick(lv_obj_find_by_name(updateScreen, "update_back"), closeUpdates);
-  bindClick(lv_obj_find_by_name(updateScreen, "scan_wifi"), action_list_wifi);
-  bindClick(lv_obj_find_by_name(updateScreen, "install_firmware"), action_update_firmware);
+  bindClick(lv_obj_find_by_name(updateScreen, "scan_wifi"), scanWifi);
+  bindClick(lv_obj_find_by_name(updateScreen, "install_firmware"), updateFirmware);
   lv_screen_load(updateScreen);
 }
 
 void openLogs(lv_event_t*) {
   if (diagnosticsScreen) return;
-  const char* log = UiLog::getInstance().getLogAsCString();
-  copyText(&diagnostics_log_text, log && *log ? log : "No log entries");
+  char log[UiLog::kLogSnapshotSize];
+  UiLog::getInstance().copyLogTo(log);
+  copyText(&diagnostics_log_text, log[0] ? log : "No log entries");
   diagnosticsScreen = diagnostics_create();
   if (!diagnosticsScreen) {
     messageBox("Could not open diagnostics", NAN);
@@ -408,6 +463,70 @@ void presentCalibration(const app::Result& result) {
     calibrationGraphFrozen = true;
     if (calibrationCancel) lv_obj_add_flag(calibrationCancel, LV_OBJ_FLAG_HIDDEN);
     if (calibrationDone) lv_obj_remove_flag(calibrationDone, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+void serviceFirmwareUpdate() {
+  FirmwareUpdateEvent event;
+  if (!pollFirmwareUpdateEvent(event)) return;
+
+  switch (event.type) {
+    case FirmwareUpdateEventType::ScanComplete: {
+      lv_obj_t* wifiNames = lv_obj_find_by_name(lv_screen_active(), "wifi_names");
+      if (wifiNames) {
+        lv_dropdown_clear_options(wifiNames);
+        for (uint8_t index = 0; index < event.networkCount; ++index) {
+          log_i("Found WiFi network: %s", event.networks[index]);
+          lv_dropdown_add_option(wifiNames, event.networks[index], LV_DROPDOWN_POS_LAST);
+        }
+        lv_dropdown_set_text(wifiNames, event.networkCount ? nullptr : "No networks found");
+      }
+      lv_subject_set_int(&update_network_index, 0);
+      lv_subject_set_int(&update_can_install, event.networkCount > 0);
+      copyText(&update_status_text,
+               event.networkCount ? "Select a network and enter its password" : "No networks found");
+      finishFirmwareUpdateOperation();
+      break;
+    }
+    case FirmwareUpdateEventType::TimeSyncStarted:
+      copyText(&update_status_text, "Setting device time...");
+      break;
+    case FirmwareUpdateEventType::DownloadStarted:
+      copyText(&update_status_text, "Downloading firmware... 0%");
+      break;
+    case FirmwareUpdateEventType::DownloadProgress: {
+      char status[40];
+      std::snprintf(status, sizeof(status), "Downloading... %u%%", event.progress);
+      copyText(&update_status_text, status);
+      break;
+    }
+    case FirmwareUpdateEventType::UpdateComplete:
+      copyText(&update_status_text, "Update complete - restarting...");
+      break;
+    case FirmwareUpdateEventType::ConnectionFailed:
+      copyText(&update_status_text, "Wi-Fi connection failed");
+      lv_subject_set_int(&update_can_install, 1);
+      finishFirmwareUpdateOperation();
+      messageBox("Wi-Fi connection failed", NAN);
+      break;
+    case FirmwareUpdateEventType::TimeSyncFailed:
+      copyText(&update_status_text, "Could not set time - update cancelled");
+      lv_subject_set_int(&update_can_install, 1);
+      finishFirmwareUpdateOperation();
+      messageBox("Could not set device time", NAN);
+      break;
+    case FirmwareUpdateEventType::SecureConnectionFailed:
+      copyText(&update_status_text, "Secure connection failed");
+      lv_subject_set_int(&update_can_install, 1);
+      finishFirmwareUpdateOperation();
+      messageBox("Secure connection failed", NAN);
+      break;
+    case FirmwareUpdateEventType::UpdateFailed:
+      copyText(&update_status_text, "Firmware update failed");
+      lv_subject_set_int(&update_can_install, 1);
+      finishFirmwareUpdateOperation();
+      messageBox("Firmware update failed", NAN);
+      break;
   }
 }
 }
