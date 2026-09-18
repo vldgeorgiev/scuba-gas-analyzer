@@ -225,13 +225,23 @@ void test_export_readings_and_sensor_states() {
   data.HeTemperature = 25;
   ui::presentReadings(data, effective);
   ui::presentStatus(data, false, true);
-  TEST_ASSERT_EQUAL_STRING("20.9%", lv_subject_get_string(&main_o2_text));
+  TEST_ASSERT_EQUAL_STRING("20.9", lv_subject_get_string(&main_o2_text));
+  lv_obj_t* o2Reading = lv_obj_find_by_name(mainscr, "main_o2_reading");
+  lv_obj_t* o2Value = lv_obj_find_by_name(o2Reading, "primary_value");
+  lv_span_t* o2Unit = lv_spangroup_get_child(o2Value, 1);
+  lv_style_value_t unitFont;
+  TEST_ASSERT_NOT_NULL(o2Unit);
+  TEST_ASSERT_TRUE(lv_style_get_prop(lv_span_get_style(o2Unit), LV_STYLE_TEXT_FONT, &unitFont));
+  TEST_ASSERT_EQUAL_PTR(font_h5, unitFont.ptr);
+  TEST_ASSERT_EQUAL_STRING("%", lv_span_get_text(o2Unit));
   TEST_ASSERT_EQUAL_STRING("10.4 mV", lv_subject_get_string(&main_o2_mv_text));
   TEST_ASSERT_EQUAL_STRING("B 56 m", lv_subject_get_string(&main_mod_bottom_text));
   lv_obj_t* coReading = lv_obj_find_by_name(mainscr, "main_co_reading");
   TEST_ASSERT_NOT_NULL(coReading);
   lv_obj_t* coValue = lv_obj_find_by_name(coReading, "primary_value");
+  lv_span_t* coUnit = lv_spangroup_get_child(coValue, 1);
   TEST_ASSERT_NOT_NULL(coValue);
+  TEST_ASSERT_NOT_NULL(coUnit);
   TEST_ASSERT_TRUE(lv_obj_has_state(coValue, LV_STATE_USER_1));
   TEST_ASSERT_EQUAL_UINT32(lv_color_to_u32(COLOR_DANGER), lv_color_to_u32(lv_obj_get_style_text_color(coValue, LV_PART_MAIN)));
   lv_obj_t* warning = lv_obj_find_by_name(mainscr, "open_diagnostics");
@@ -248,7 +258,7 @@ void test_export_readings_and_sensor_states() {
   data.CoLevel.ppm = 0.9f;
   ui::presentReadings(data, effective);
   ui::presentStatus(data, false, true);
-  TEST_ASSERT_EQUAL_STRING("0 ppm", lv_subject_get_string(&main_co_text));
+  TEST_ASSERT_EQUAL_STRING("0", lv_subject_get_string(&main_co_text));
   TEST_ASSERT_TRUE(lv_obj_has_flag(warning, LV_OBJ_FLAG_HIDDEN));
   TEST_ASSERT_FALSE(lv_obj_has_state(coValue, LV_STATE_USER_1));
   TEST_ASSERT_NOT_EQUAL(lv_color_to_u32(COLOR_DANGER), lv_color_to_u32(lv_obj_get_style_text_color(coValue, LV_PART_MAIN)));
@@ -258,6 +268,7 @@ void test_export_readings_and_sensor_states() {
   data.HeLevel.millivolts = 250;
   ui::presentReadings(data, effective);
   TEST_ASSERT_EQUAL_STRING("Warming", lv_subject_get_string(&main_co_text));
+  TEST_ASSERT_EQUAL_STRING("", lv_span_get_text(coUnit));
   TEST_ASSERT_EQUAL_STRING("440.0 mV", lv_subject_get_string(&main_co_mv_text));
   TEST_ASSERT_EQUAL_STRING("Warming", lv_subject_get_string(&main_he_text));
   TEST_ASSERT_EQUAL_STRING("250.0 mV", lv_subject_get_string(&main_he_mv_text));
@@ -272,14 +283,16 @@ void test_export_readings_and_sensor_states() {
   TEST_ASSERT_EQUAL_STRING("Stale", lv_subject_get_string(&main_o2_mv_text));
   lv_obj_t* value = lv_obj_find_by_name(largescr, "large_o2_value");
   TEST_ASSERT_EQUAL_PTR(font_body, lv_obj_get_style_text_font(value, LV_PART_MAIN));
+  TEST_ASSERT_EQUAL_STRING("", lv_span_get_text(o2Unit));
   data.o2State = ChannelState::Valid;
   data.coState = ChannelState::Disabled;
   data.temperatureState = ChannelState::Unavailable;
   ui::presentReadings(data, effective);
   TEST_ASSERT_EQUAL_PTR(font_h1, lv_obj_get_style_text_font(value, LV_PART_MAIN));
+  TEST_ASSERT_EQUAL_STRING("%", lv_span_get_text(o2Unit));
   TEST_ASSERT_EQUAL_STRING("Off", lv_subject_get_string(&main_co_text));
   TEST_ASSERT_EQUAL_STRING("Unavailable", lv_subject_get_string(&main_he_temperature_text));
-  TEST_ASSERT_EQUAL_STRING("10.5%", lv_subject_get_string(&main_he_text));
+  TEST_ASSERT_EQUAL_STRING("10.5", lv_subject_get_string(&main_he_text));
   refresh();
 }
 

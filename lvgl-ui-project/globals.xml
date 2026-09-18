@@ -151,16 +151,16 @@
 			max_value="5"
 			help="Sleep option index; 3 = 5 minutes"
 		/>
-		<string name="main_o2_text" value="20.9%" />
+		<string name="main_o2_text" value="20.9" />
 		<string name="main_o2_mv_text" value="10.4 mV" />
-		<string name="main_he_text" value="0.0%" />
+		<string name="main_he_text" value="0.0" />
 		<string name="main_he_mv_text" value="0.0 mV" />
 		<string
 			name="main_he_temperature_text"
 			value="25.0 °C"
 			help="He sensor temperature; preview value until firmware integration"
 		/>
-		<string name="main_co_text" value="0 ppm" />
+		<string name="main_co_text" value="0" />
 		<string name="main_co_mv_text" value="0.0 mV" />
 		<string name="main_mod_bottom_text" value="B 57 m" help="Bottom pO2 MOD" />
 		<string name="main_mod_deco_text" value="D 67 m" help="Deco pO2 MOD" />

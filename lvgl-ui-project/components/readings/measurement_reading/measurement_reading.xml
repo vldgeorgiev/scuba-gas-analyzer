@@ -2,20 +2,28 @@
 	<api>
 		<prop name="label" type="string" default="Reading" />
 		<prop name="subject" type="subject" />
+		<prop name="unit" type="string" default="" />
 		<prop name="secondary_subject" type="subject" />
 		<prop name="grow" type="int" default="0" />
 	</api>
+	<styles>
+		<style name="style_primary_unit" text_font="font_h5" />
+	</styles>
 
 	<view extends="column" width="0" height="100%" grow="$grow" gap="#space_sm" horizontal_align="center">
 		<h5 text="$label" />
-		<lv_label
+		<lv_spangroup
 			name="primary_value"
 			width="100%"
-			long_mode="dots"
-			bind_text="$subject"
+			height="content"
+			overflow="ellipsis"
+			max_lines="1"
 			style_text_align="center"
 			style_text_font="font_h3"
-		/>
+		>
+			<lv_spangroup-span bind_text="$subject" />
+			<lv_spangroup-span text="$unit" style="style_primary_unit" />
+		</lv_spangroup>
 		<lv_label width="100%" long_mode="dots" bind_text="$secondary_subject" style_text_align="center" />
 	</view>
 </component>

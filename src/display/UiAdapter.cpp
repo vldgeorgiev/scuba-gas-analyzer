@@ -22,7 +22,11 @@ lv_obj_t* calibrationCancel = nullptr;
 lv_obj_t* calibrationDone = nullptr;
 lv_obj_t* calibrationStability = nullptr;
 lv_obj_t* mainWarning = nullptr;
+lv_obj_t* mainO2Value = nullptr;
+lv_obj_t* mainHeValue = nullptr;
 lv_obj_t* mainCoValue = nullptr;
+lv_obj_t* largeO2Value = nullptr;
+lv_obj_t* largeHeValue = nullptr;
 lv_obj_t* largeCoValue = nullptr;
 float calibrationGraphMinimum = NAN;
 float calibrationGraphMaximum = NAN;
@@ -187,6 +191,11 @@ void setReading(lv_subject_t* subject, float value, ChannelState state, const ch
   copyText(subject, text);
 }
 
+void setUnit(lv_obj_t* value, const char* unit, bool visible) {
+  lv_span_t* span = value ? lv_spangroup_get_child(value, 1) : nullptr;
+  if (span) lv_spangroup_set_span_text_static(value, span, visible ? unit : "");
+}
+
 void setRaw(lv_subject_t* subject, float value, ChannelState state) {
   const bool showRaw = std::isfinite(value) && state != ChannelState::Stale &&
                        state != ChannelState::Disabled && state != ChannelState::Unavailable;
@@ -198,8 +207,14 @@ void init() {
   lvgl_ui_project_set_target(LVGL_UI_PROJECT_TARGET_TARGET1);
   lvgl_ui_project_init("");
   mainWarning = lv_obj_find_by_name(mainscr, "open_diagnostics");
+  lv_obj_t* mainO2Reading = lv_obj_find_by_name(mainscr, "main_o2_reading");
+  mainO2Value = mainO2Reading ? lv_obj_find_by_name(mainO2Reading, "primary_value") : nullptr;
+  lv_obj_t* mainHeReading = lv_obj_find_by_name(mainscr, "main_he_reading");
+  mainHeValue = mainHeReading ? lv_obj_find_by_name(mainHeReading, "primary_value") : nullptr;
   lv_obj_t* mainCoReading = lv_obj_find_by_name(mainscr, "main_co_reading");
   mainCoValue = mainCoReading ? lv_obj_find_by_name(mainCoReading, "primary_value") : nullptr;
+  largeO2Value = lv_obj_find_by_name(largescr, "large_o2_value");
+  largeHeValue = lv_obj_find_by_name(largescr, "large_he_value");
   largeCoValue = lv_obj_find_by_name(largescr, "large_co_value");
   if (mainCoValue) lv_obj_set_style_text_color(mainCoValue, COLOR_DANGER, LV_PART_MAIN | LV_STATE_USER_1);
   if (largeCoValue) lv_obj_set_style_text_color(largeCoValue, COLOR_DANGER, LV_PART_MAIN | LV_STATE_USER_1);
@@ -291,11 +306,17 @@ bool readSettings(AnalyzerSettings& settings) {
 void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) {
   const ChannelState oxygen = percentageState(data.O2Level.percentage, data.o2State);
   const ChannelState helium = percentageState(data.HeLevel.percentage, data.heState);
-  setReading(&main_o2_text, data.O2Level.percentage, oxygen, "%.1f%%");
-  setReading(&main_he_text, data.HeLevel.percentage, helium, "%.1f%%");
+  setReading(&main_o2_text, data.O2Level.percentage, oxygen, "%.1f");
+  setReading(&main_he_text, data.HeLevel.percentage, helium, "%.1f");
   int co;
   const bool validCo = data.coState == ChannelState::Valid && conversions::toInt(data.CoLevel.ppm, co);
-  setReading(&main_co_text, validCo ? static_cast<float>(co) : NAN, data.coState, "%.0f ppm");
+  setReading(&main_co_text, validCo ? static_cast<float>(co) : NAN, data.coState, "%.0f");
+  setUnit(mainO2Value, "%", oxygen == ChannelState::Valid);
+  setUnit(mainHeValue, "%", helium == ChannelState::Valid);
+  setUnit(mainCoValue, " ppm", validCo);
+  setUnit(largeO2Value, "%", oxygen == ChannelState::Valid);
+  setUnit(largeHeValue, "%", helium == ChannelState::Valid);
+  setUnit(largeCoValue, " ppm", validCo);
   setRaw(&main_o2_mv_text, data.O2Level.millivolts, data.o2State);
   setRaw(&main_he_mv_text, data.HeLevel.millivolts, data.heState);
   setRaw(&main_co_mv_text, data.CoLevel.millivolts, data.coState);
@@ -305,10 +326,8 @@ void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) 
   copyText(&main_mod_bottom_text, text);
   formatMod(text, sizeof(text), "D", settings.po2Deco, data.O2Level.percentage, oxygen);
   copyText(&main_mod_deco_text, text);
-  lv_obj_t* oxygenLabel = lv_obj_find_by_name(largescr, "large_o2_value");
-  lv_obj_t* heliumLabel = lv_obj_find_by_name(largescr, "large_he_value");
-  if (oxygenLabel) lv_obj_set_style_text_font(oxygenLabel, oxygen == ChannelState::Valid ? font_h1 : font_body, 0);
-  if (heliumLabel) lv_obj_set_style_text_font(heliumLabel, helium == ChannelState::Valid ? font_h1 : font_body, 0);
+  if (largeO2Value) lv_obj_set_style_text_font(largeO2Value, oxygen == ChannelState::Valid ? font_h1 : font_body, 0);
+  if (largeHeValue) lv_obj_set_style_text_font(largeHeValue, helium == ChannelState::Valid ? font_h1 : font_body, 0);
 }
 
 void presentBattery(float voltage) {

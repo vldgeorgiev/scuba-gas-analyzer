@@ -29,23 +29,24 @@
 					name="main_o2_reading"
 					label="O2"
 					subject="main_o2_text"
+					unit="%"
 					secondary_subject="main_o2_mv_text"
-					grow="1"
+					grow="14"
 					event_bubble="true"
 				>
-					<lv_label
-						bind_text="main_mod_bottom_text"
-						width="100%"
-						long_mode="dots"
-						style_text_align="center"
-					/>
-					<lv_label bind_text="main_mod_deco_text" width="100%" long_mode="dots" style_text_align="center" />
+					<row>
+						<text bind_text="main_mod_bottom_text" long_mode="dots" style_text_align="center" />
+						<text text=", " />
+						<text bind_text="main_mod_deco_text" long_mode="dots" style_text_align="center" />
+					</row>
 				</measurement_reading>
 				<measurement_reading
+					name="main_he_reading"
 					label="He"
 					subject="main_he_text"
+					unit="%"
 					secondary_subject="main_he_mv_text"
-					grow="1"
+					grow="10"
 					event_bubble="true"
 				>
 					<lv_label
@@ -60,8 +61,9 @@
 					name="main_co_reading"
 					label="CO"
 					subject="main_co_text"
+					unit=" ppm"
 					secondary_subject="main_co_mv_text"
-					grow="1"
+					grow="10"
 					event_bubble="true"
 				/>
 			</row>
