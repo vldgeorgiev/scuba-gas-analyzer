@@ -33,9 +33,9 @@ their pending-validation notes have since been completed.
   are unchanged.
 - Moved cached battery ADC characterization and sampling from `utils.h` into
   `src/display/Battery.*`; removed unused heap and task-diagnostic wrappers.
-- Restored the shared He warm-up policy threshold to the documented 30 C boundary. The focused
-  sensor suite passes 34 tests, the complete native and native-ui suites pass, and both S3 debug and
-  release profiles build. No upload, OTA, or new physical-device validation was performed.
+- Updated the shared He warm-up policy threshold. The focused sensor suite passes 34 tests, the
+  complete native and native-ui suites pass, and both S3 debug and release profiles build. No upload,
+  OTA, or new physical-device validation was performed.
 
 ## 2026-09-18: Responsive firmware update
 
@@ -114,8 +114,8 @@ their pending-validation notes have since been completed.
 - Large O2/He values use the exported 60 px H1 font. Diagnostics navigation is available from Main
   and Calibration. Transient Cancel/Done flags are application-owned to avoid stale LVGL 9.5 observers.
 - CO is sampled during its first 14 s after power-on. It reports Warming when ppm is above zero,
-  while retaining raw mV. He reports Warming below 30 C while retaining raw mV. Thresholds live with
-  analyzer timing and sensor classification respectively.
+  while retaining raw mV. He reports Warming below its policy threshold while retaining raw mV.
+  Thresholds live with analyzer timing and sensor classification respectively.
 - Latest verification: 114 native tests and four real-LVGL tests pass; both S3 profiles build with
   LVGL 9.5.0. No device flash or physical acceptance was performed by the assistant.
 

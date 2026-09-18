@@ -40,7 +40,8 @@ the next change when requested; do not recreate the discarded framework.
 - Calibration must have a live millivolt graph, cancellation, and automatic stability-gated
   completion. These are required improvements, not an indefinite backlog item.
 - Add configurable inactivity sleep and button wake. CO uses a 14,000 ms post-power window and is
-  Warming in that window above zero ppm; He is Warming below 30 C. Raw mV remains visible.
+  Warming in that window above zero ppm; He is Warming below its policy temperature threshold. Raw mV
+  remains visible.
 - Keep individual Preferences keys, defaults, and one validated RAM settings value. No settings
   blobs, migration, schema versions, CRCs, redundant records, or atomic multi-key guarantees.
 - Preserve existing OTA access while moving release downloads from the fixed DigitalOcean object to

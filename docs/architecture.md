@@ -341,8 +341,8 @@ rail or restart the timer. Constants are centralized with calibration policy in
 `src/app/AnalyzerPolicy.h`.
 
 He is classified Warming when both its derived reading and temperature are valid and temperature is
-below 30 C. At 30 C or above it is Valid. Invalid/unavailable temperature does not overwrite an
-independent He failure state. Raw He mV remains visible while warming. Its threshold is also in
+below the policy threshold. Invalid/unavailable temperature does not overwrite an independent He
+failure state. Raw He mV remains visible while warming. The threshold is in
 `src/app/AnalyzerPolicy.h`.
 
 Every snapshot carries cycle-start timestamp, generation, initialized numeric fields, and channel
