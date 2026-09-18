@@ -153,6 +153,22 @@ void test_ui_formats_states_and_mod() {
   TEST_ASSERT_EQUAL_STRING("B --m", text);
 }
 
+void test_ui_formats_invalid_sensor_details() {
+  char text[160];
+  sensorsData data;
+  data.o2State = ChannelState::Invalid;
+  data.O2Level.millivolts = 10.4f;
+  data.heState = ChannelState::Invalid;
+  data.HeLevel.millivolts = 250.0f;
+  ui::formatMeasurementError(text, sizeof(text), data);
+  TEST_ASSERT_EQUAL_STRING("O2 invalid: 10.4 mV; He invalid: 250.0 mV", text);
+
+  data = sensorsData{};
+  data.temperatureState = ChannelState::Invalid;
+  ui::formatMeasurementError(text, sizeof(text), data);
+  TEST_ASSERT_EQUAL_STRING("He temperature invalid: unavailable", text);
+}
+
 void test_ui_settings_indices_preserve_calibration() {
   AnalyzerSettings candidate;
   candidate.o2Air = 12;
@@ -189,6 +205,7 @@ int main(int, char**) {
   RUN_TEST(test_integer_conversion_checks_range_before_casting);
   RUN_TEST(test_mod_requires_positive_finite_inputs);
   RUN_TEST(test_ui_formats_states_and_mod);
+  RUN_TEST(test_ui_formats_invalid_sensor_details);
   RUN_TEST(test_ui_settings_indices_preserve_calibration);
   return UNITY_END();
 }

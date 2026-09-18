@@ -54,7 +54,7 @@ They are behavioral fakes, not hardware or scheduler emulation.
 
 ## Portable native suites
 
-Current inventory: **116 tests**. The registration lists at the bottom of each suite source are the
+Current inventory: **117 tests**. The registration lists at the bottom of each suite source are the
 authoritative individual test names.
 
 | Suite | Tests | Coverage | Primary implementation references |
@@ -62,7 +62,7 @@ authoritative individual test names.
 | [`test_analyzer`](../test/test_analyzer/test_analyzer.cpp) | 52 | Command/result admission, effective settings, Preferences reconciliation, calibration acceptance and stability, startup behavior, measurement generations, shared sensor power, CO warm-up, sleep prepare/resume, queue pressure, and settings editor acknowledgement | [`src/app/Analyzer.cpp`](../src/app/Analyzer.cpp), [`src/app/Analyzer.h`](../src/app/Analyzer.h), [`src/app/AnalyzerPolicy.h`](../src/app/AnalyzerPolicy.h), [`src/settings/SettingsStore.h`](../src/settings/SettingsStore.h) |
 | [`test_sensor_reads`](../test/test_sensor_reads/test_sensor_reads.cpp) | 34 | One-conversion sensor reads, raw/derived values, O2-independent He baseline, ADC initialization and timeout handling, per-device recovery, channel states, latest-value queue semantics, freshness, clock wrap, calibration acquisition, and warm-up classification | [`src/sensors`](../src/sensors), [`src/sensors/sensors.cpp`](../src/sensors), [`src/sensors/conversions.cpp`](../src/sensors/conversions.cpp) |
 | [`test_sleep`](../test/test_sleep/test_sleep.cpp) | 16 | Timeout persistence, inactivity policy, wake-button debounce, retained wake marker classification, prepare/resume interruption, and calibration behavior across cold boot and application wake | [`src/app/SleepPolicy.h`](../src/app/SleepPolicy.h), [`src/app/Analyzer.cpp`](../src/app/Analyzer.cpp), [`src/settings/SettingsStore.h`](../src/settings/SettingsStore.h) |
-| [`test_conversions`](../test/test_conversions/test_conversions.cpp) | 14 | O2, He, CO, temperature, MOD and integer conversions; finite/range guards; presentation formatting; settings selection mapping | [`src/sensors/conversions.cpp`](../src/sensors/conversions.cpp), [`src/display/UiPresentation.h`](../src/display/UiPresentation.h) |
+| [`test_conversions`](../test/test_conversions/test_conversions.cpp) | 15 | O2, He, CO, temperature, MOD and integer conversions; finite/range guards; presentation and diagnostic formatting; settings selection mapping | [`src/sensors/conversions.cpp`](../src/sensors/conversions.cpp), [`src/display/UiPresentation.h`](../src/display/UiPresentation.h) |
 
 These suites compile selected production sources with the platform fakes. They do not compile the
 entire firmware or the generated LVGL UI.

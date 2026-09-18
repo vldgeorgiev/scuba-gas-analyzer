@@ -28,6 +28,27 @@ inline void formatMod(char* text, size_t size, const char* prefix, float po2,
   }
 }
 
+inline void formatMeasurementError(char* text, size_t size, const sensorsData& data) {
+  text[0] = '\0';
+  size_t used = 0;
+  const auto appendInvalid = [&](const char* sensor, float value, const char* unit) {
+    if (used >= size) return;
+    const int written = std::isfinite(value)
+        ? std::snprintf(text + used, size - used, "%s%s invalid: %.1f %s",
+                        used ? "; " : "", sensor, static_cast<double>(value), unit)
+        : std::snprintf(text + used, size - used, "%s%s invalid: unavailable",
+                        used ? "; " : "", sensor);
+    if (written > 0) used += static_cast<size_t>(written);
+  };
+  if (data.o2State == ChannelState::Invalid) appendInvalid("O2", data.O2Level.millivolts, "mV");
+  if (data.coState == ChannelState::Invalid) appendInvalid("CO", data.CoLevel.millivolts, "mV");
+  if (data.heState == ChannelState::Invalid) appendInvalid("He", data.HeLevel.millivolts, "mV");
+  if (data.temperatureState == ChannelState::Invalid) {
+    appendInvalid("He temperature", data.HeTemperature, "C");
+  }
+  if (!used) std::snprintf(text, size, "Invalid sensor reading");
+}
+
 inline int po2Selection(float value) {
   return std::isfinite(value) ? static_cast<int>(std::lround((value - 1.0f) * 10.0f)) : -1;
 }

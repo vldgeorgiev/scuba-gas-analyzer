@@ -373,6 +373,7 @@ returns to inherited theme colour at zero. The obsolete main status subject is r
 `src/display/UiFeedback.cpp` translates analyzer results into UI log entries and message boxes.
 `UiLog` keeps its fixed-capacity circular buffer behind a mutex and copies diagnostics into a
 caller-owned fixed-size snapshot while locked; it does not return pointers into mutable shared storage.
+Invalid measurement entries identify each affected channel and include its raw reading when available.
 `src/display/Battery.cpp` owns the cached ADC characterization and voltage sampling used by the UI task.
 
 Large O2/He values use the exported 60 px H1 font; non-valid state text falls back to the body font.

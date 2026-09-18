@@ -2,6 +2,7 @@
 #include "display/UiAdapter.h"
 #include "display/Battery.h"
 #include "display/UiFeedback.h"
+#include "display/UiPresentation.h"
 #include "ui-log.h"
 #include "app/SleepPolicy.h"
 #include "app/DeviceSleep.h"
@@ -108,7 +109,13 @@ static void Task_UI(void*) {
       latest = incoming;
       pendingReading = true;
       if (incoming.lastError != SensorError::None && incoming.lastError != previousError) {
-        logUi(SensorManager::getErrorString(incoming.lastError), UiLogLevel::Warning);
+        if (incoming.lastError == SensorError::Invalid_Reading) {
+          char error[160];
+          ui::formatMeasurementError(error, sizeof(error), incoming);
+          logUi(error, UiLogLevel::Warning);
+        } else {
+          logUi(SensorManager::getErrorString(incoming.lastError), UiLogLevel::Warning);
+        }
       }
       previousError = incoming.lastError;
     }
