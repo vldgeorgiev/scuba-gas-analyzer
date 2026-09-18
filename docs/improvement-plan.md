@@ -387,6 +387,36 @@ builds show `dev`; reruns and same-day releases cannot overwrite or ambiguously 
 Device validation must confirm the displayed version and a successful OTA from GitHub. TLS trust
 authentication is implemented but remains subject to that device evidence.
 
+## 9. Migrate to LVGL 9.6.0
+
+This is future work. Keep LVGL 9.5.0 pinned until the installed LVGL Editor and its exporter support
+9.6.0, then upgrade the Editor project, generated library, firmware dependency, host tests, and
+configuration together. Follow the official
+[LVGL 9.5 to 9.6 migration guide](https://lvgl.io/docs/open/changelog/migration-v9-6#lv_obj).
+LVGL 9.6 is the final v9 release, and APIs deprecated there are removed in v10.
+
+- [ ] Confirm LVGL Editor can target 9.6.0 and regenerate the project without hand-editing exported C.
+- [ ] Refresh `lv_conf.h` from the 9.6 template and reapply this project's settings, including the
+  72 KiB memory pool, explicit color format, enabled widgets, fonts, and host-test configuration.
+- [ ] Use the 9.6 public include layout and remove direct private or compatibility-mapped API usage.
+- [ ] Migrate generated and handwritten Subjects from `lv_subject_init_*`/`lv_subject_deinit` values
+  to `lv_subject_create`/`lv_subject_delete` pointers, preserving initial values, ranges, and buffer
+  lifetimes.
+- [ ] Replace generic object flag calls with dedicated APIs such as `lv_obj_set_hidden()` and
+  `lv_obj_is_hidden()`; audit other renamed or deprecated object, display, span, and widget APIs.
+- [ ] Move disabled-sensor visibility to shared O2, He, and CO Subjects only when the 9.6 Editor
+  exports the supported boolean binding (`lv_obj_bind_bool(..., lv_obj_set_hidden)`). Do not introduce
+  the deprecated `lv_obj_bind_flag_if_*` family. If the exporter cannot represent this binding, keep
+  visibility in `UiAdapter` with `lv_obj_set_hidden()` until it can.
+- [ ] Build with deprecation warnings visible and remove reliance on the v9.5 compatibility map.
+- [ ] Run `pio test -e native -e native-ui`, build both S3 profiles, recheck LVGL heap headroom, and
+  physically verify rendering, touch/navigation, transient-screen lifetime, sensor visibility,
+  calibration, sleep/wake, and OTA before changing the pinned version.
+
+Acceptance: a fresh 9.6.0 Editor export and all handwritten code compile without LVGL deprecation or
+compatibility warnings; host suites and both firmware profiles pass; generated sources remain
+untouched; and device behavior and memory headroom are revalidated.
+
 ## Deferred
 
 - This low-risk device does not require an OTA manifest, downgrade policy, or rollback protocol.
@@ -398,8 +428,8 @@ authentication is implemented but remains subject to that device evidence.
 
 Deliver the baseline and reading fixes (1-2), then task ownership and sleep/wake (3), remaining settings
 behavior (4), calibration (5), the replacement UI (6), measured cleanup (7), and versioned release
-automation (8). Editor compatibility and calibration trace collection can proceed
-independently. Keep one current checklist per active change. Do not resume the discarded redesign.
-Update architecture and progress alongside meaningful changes. Use Claude for bounded independent
-review when useful, particularly sleep and calibration; no OpenSpec scaffolding is required for
-small changes.
+automation (8). Defer the coordinated LVGL 9.6.0 migration (9) until Editor/export support is verified.
+Editor compatibility and calibration trace collection can proceed independently. Keep one current
+checklist per active change. Do not resume the discarded redesign. Update architecture and progress
+alongside meaningful changes. Use Claude for bounded independent review when useful, particularly
+sleep and calibration; no OpenSpec scaffolding is required for small changes.
