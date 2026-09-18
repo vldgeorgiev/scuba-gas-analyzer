@@ -1,25 +1,25 @@
-# Testing and CI
+# Testing and releases
 
 This is the maintained reference for automated checks. Update it when a test suite, PlatformIO test
-environment, CI step, or validation boundary changes. Historical test results remain in
+environment, release step, or validation boundary changes. Historical test results remain in
 [progress.md](progress.md); they are not the source of truth for the current test layout.
 
 ## Quick commands
 
-PlatformIO Core 6.2.0 is used by CI. If `pio` is not on `PATH`, use
+PlatformIO Core 6.2.0 is used by the release workflow. If `pio` is not on `PATH`, use
 `~/.platformio/penv/bin/platformio` in its place.
 
 ```sh
-# Portable logic tests, also run by CI
+# Portable logic tests, also run before release
 pio test -e native
 
-# Real LVGL host integration tests, currently local-only
+# Real LVGL host integration tests, also run before release
 pio test -e native-ui
 
 # Complete host check
 pio test -e native -e native-ui
 
-# Firmware compile checks, also run by CI
+# Local firmware compile checks
 pio run -e t-display-s3 -e t-display-s3-release
 ```
 
@@ -81,23 +81,38 @@ It verifies:
 
 Events are injected directly into LVGL objects. This suite does not exercise the touch controller,
 TFT driver, target memory limits, on-device layout, or generated XML in the Editor before export.
-Because `native-ui` is not invoked by the workflow, it must be run locally whenever the UI export,
-UI assets, LVGL configuration, or `UiAdapter` changes.
+Run `native-ui` locally whenever the UI export, UI assets, LVGL configuration, or `UiAdapter`
+changes; the manual release workflow also reruns it before building firmware.
 
-## Hosted CI
+## Hosted automation
 
-The workflow is [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). It runs on every push and
-pull request using `ubuntu-latest`:
+There is no workflow triggered by pushes or pull requests. Routine verification is local. The only
+hosted pipeline is the manually dispatched release workflow below, which reruns both host suites before
+building or publishing firmware.
 
-1. Check out the repository.
-2. Install Python 3.11.
-3. Install PlatformIO 6.2.0.
-4. Run `pio test -e native`.
-5. Compile `t-display-s3` and `t-display-s3-release` in one PlatformIO invocation.
+## Manual releases
 
-The two firmware builds catch target-only compilation and linking failures across debug and release
-flags. They are compile checks, not tests, and do not execute firmware. CI currently does **not** run
-`native-ui`, `esp32dev`, upload, OTA, or device validation.
+The [manual release workflow](../.github/workflows/release.yml) accepts a commit SHA or branch through
+`workflow_dispatch`. It verifies the selected commit is reachable from the default branch, serializes
+releases, and has `contents: write` permission. It then:
+
+1. Calculates the next UTC `vYYYY.MM.DD.N` CalVer from existing matching tags.
+2. Runs `pio test -e native -e native-ui`.
+3. Builds `t-display-s3-release` with that version injected as `FIRMWARE_VERSION` through the
+	documented `PLATFORMIO_BUILD_FLAGS` environment override.
+4. Packages the release binary, SHA-256 checksum, and version/commit metadata.
+5. Creates a GitHub Release, which creates the tag at the exact tested commit and publishes the files.
+
+The release binary is `.pio/build/t-display-s3-release/firmware.bin`. The GitHub Release must expose
+it under the stable asset name `firmware.bin` so OTA can use:
+
+```text
+https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin
+```
+
+The compiled version, tag, release metadata, and Firmware Update screen must agree. The Firmware Update
+screen shows the value from
+[`src/FirmwareVersion.h`](../src/FirmwareVersion.h): `dev` unless a build supplies `FIRMWARE_VERSION`.
 
 ## Choosing validation
 
@@ -109,21 +124,22 @@ Use the smallest relevant suite first, then broaden according to the affected su
 | Analyzer, settings, sensors, calibration, or sleep policy | Relevant `native` suite with `-f` | `pio test -e native` and both S3 builds |
 | `UiAdapter`, UI export, fonts, images, or LVGL config | `pio test -e native-ui` | Both host environments and both S3 builds |
 | Board pins, display/touch driver, deep sleep, wake, or sensor power | Closest host tests and both S3 builds | Explicit physical-device validation remains required |
-| CI or PlatformIO configuration | The command(s) changed by the edit | Reproduce all affected workflow commands |
+| Release or PlatformIO configuration | The command(s) changed by the edit | Reproduce all affected workflow commands |
 
 Add regression coverage to the existing owning suite. Create another suite only when it needs a
 meaningfully different build environment or fixture boundary.
 
 ## Maintenance checklist
 
-When tests or CI change:
+When tests or release automation change:
 
 1. Update the suite count and coverage row here when `RUN_TEST` registrations move or change.
 2. Update environment selection and compiled-source notes when `platformio.ini` changes.
-3. Update hosted steps and exclusions when `.github/workflows/ci.yml` changes.
+3. Update manual release, version injection, artifact naming, and OTA asset details when the release
+	workflow changes.
 4. Keep physical/device limitations explicit; host success must not be described as device validation.
 5. Record dated execution results in [`progress.md`](progress.md), not as timeless claims here.
 
 For application behavior behind the tests, consult [`architecture.md`](architecture.md). Agents
 should begin with this document, the affected suite row, and the referenced implementation files;
-a repository-wide scan should not be necessary for routine test or CI work.
+a repository-wide scan should not be necessary for routine test or release work.

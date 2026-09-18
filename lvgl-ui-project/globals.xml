@@ -173,6 +173,7 @@
 		<int name="update_network_index" value="0" />
 		<int name="update_keyboard_visible" value="0" min_value="0" max_value="1" />
 		<int name="update_can_install" value="0" min_value="0" max_value="1" />
+		<string name="firmware_version_text" value="current version: dev" />
 		<string name="update_status_text" value="Not connected" />
 		<string name="diagnostics_log_text" value="No log entries" />
 	</subjects>

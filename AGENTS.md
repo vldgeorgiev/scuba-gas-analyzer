@@ -15,8 +15,9 @@
 - Before completing firmware changes, run the focused test first, then as appropriate:
 	`pio test -e native -e native-ui` and
 	`pio run -e t-display-s3 -e t-display-s3-release`. These checks do not replace device validation.
-- Consult `docs/testing.md` before test or CI work. Keep its suite counts, coverage map, environment
-	selection, CI steps, and validation boundaries current whenever related code or configuration changes.
+- Consult `docs/testing.md` before test or release-workflow changes. Keep its suite counts, coverage
+	map, environment selection, hosted steps, and validation boundaries current whenever related code
+	or configuration changes.
 - Treat `docs/improvement-plan.md` as the current scope, `docs/architecture.md` as the current design,
 	and the dated sections of `docs/progress.md` as historical snapshots. Do not infer current pending
 	work from an older dated entry when the status table says it is complete.

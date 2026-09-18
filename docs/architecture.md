@@ -4,6 +4,14 @@ Updated 2026-09-17 after calibration, UI, and warm-up improvements. Scope: [impr
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
+Release automation and compile-time firmware version presentation are defined in improvement-plan step
+8. The Firmware Update screen displays the application-owned `FIRMWARE_VERSION` compile definition,
+which defaults to `dev` and is injected with CalVer through `PLATFORMIO_BUILD_FLAGS` for release builds.
+The Editor-generated `firmware_version` label observes the `firmware_version_text` string subject;
+`UiAdapter` supplies the compiled value before creating the screen. OTA downloads the stable latest
+GitHub Release `firmware.bin` asset. The updater still calls `setInsecure()`; TLS trust hardening is
+deliberately a separate follow-up from changing the publication URL.
+
 ## Two application tasks
 
 ```text

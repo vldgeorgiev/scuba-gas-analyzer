@@ -267,7 +267,7 @@ void action_update_firmware(lv_event_t * e) {
     return;
   }
 
-  if (!updateFromURL("https://vld.ams3.digitaloceanspaces.com/firmware.bin")) {
+  if (!updateFromURL("https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin")) {
     lv_subject_copy_string(&update_status_text, "Firmware update failed");
     messageBox("Firmware update failed", NAN);
   }

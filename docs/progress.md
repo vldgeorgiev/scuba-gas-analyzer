@@ -10,13 +10,30 @@ their pending-validation notes have since been completed.
 
 | Step | Status |
 | --- | --- |
-| 1. Build/test baseline | Implemented and validated locally and on the device; hosted CI execution remains separate |
+| 1. Build/test baseline | Implemented and validated locally and on the device; hosted release execution remains separate |
 | 2. Measurement handling and averaging removal | Implemented and physically validated |
 | 3. Task ownership and sleep/wake | Implemented and physically validated |
 | 4. Remaining settings behavior | Implemented and physically validated |
 | 5. Stability-gated calibration | Implemented and physically validated with current thresholds |
 | 6. Replacement UI | Implemented and physically validated |
 | 7. Measured cleanup | Battery ADC characterization is initialized once; other speculative cleanup declined |
+| 8. Versioned release automation | Implemented; hosted workflow and device validation pending |
+
+## 2026-09-18: Release, version, and OTA automation
+
+- Removed automated push CI. The manual release workflow reruns both host suites, builds release
+  firmware, and publishes the exact binary as a GitHub Release asset.
+- Releases use UTC CalVer `vYYYY.MM.DD.N`, consistently injected into the firmware and shown on the
+  Firmware Update screen. The tag, release metadata, checksum, and binary identify the same
+  commit and version.
+- OTA source is the stable latest GitHub Release asset URL:
+  `https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin`.
+- Replacing the URL does not address the current `setInsecure()` call. TLS trust hardening is a
+  separate follow-up requiring its own trust/rotation design and device validation.
+- The Editor-generated Firmware Update label binds to `firmware_version_text`; `UiAdapter` supplies
+  the compiled value. The release workflow injects CalVer directly with `PLATFORMIO_BUILD_FLAGS`.
+  Native-ui tests and an injected-CalVer release build pass locally. No hosted release or OTA/device
+  validation was performed.
 
 ## 2026-09-17: Scope narrowed after calibration and diagnostics discussion
 
@@ -163,7 +180,7 @@ of acceptance. No device is needed for native tests. Generated UI files are not 
 
 The platform pins its framework/toolchain requirements, which may themselves contain ranges;
 this table records actual resolution, not a claim of a fully locked transitive toolchain.
-CI pins PlatformIO Core but uses hosted Ubuntu, Python 3.11, and version-tagged GitHub actions.
+CI pins PlatformIO Core but uses hosted Ubuntu, Python 3.14, and version-tagged GitHub actions.
 No vendoring or cold-cache reproducibility claim is added; review resolved versions on rebuild.
 
 ### Verification

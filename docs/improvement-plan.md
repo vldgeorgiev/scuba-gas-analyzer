@@ -1,6 +1,6 @@
 # Current app improvement plan
 
-Updated 2026-09-17. Implementation has started, one small step at a time, from restored `main`
+Updated 2026-09-18. Implementation has started, one small step at a time, from restored `main`
 at `ecde0b9`. See [progress and verification](progress.md) for completed work and pending checks.
 Earlier redesign build/test results describe discarded work, not completion of this plan.
 
@@ -43,8 +43,10 @@ the next change when requested; do not recreate the discarded framework.
   Warming in that window above zero ppm; He is Warming below 30 C. Raw mV remains visible.
 - Keep individual Preferences keys, defaults, and one validated RAM settings value. No settings
   blobs, migration, schema versions, CRCs, redundant records, or atomic multi-key guarantees.
-- Preserve existing OTA access. OTA security/protocol redesign and additional product features
-  remain deferred. Do not flash, upload, or run OTA during planning.
+- Preserve existing OTA access while moving release downloads from the fixed DigitalOcean object to
+  the stable GitHub Release asset URL. Versioned release automation and an on-screen firmware version
+  are active scope in step 8. TLS trust hardening remains a separate follow-up; do not hide it inside
+  the URL migration or claim HTTPS authenticity while `setInsecure()` remains in use.
 - Keep the current README unchanged during planning; update user documentation after implementation.
 
 ## Design limits
@@ -67,12 +69,12 @@ the next change when requested; do not recreate the discarded framework.
 ## 1. Establish a small verification baseline
 
 Record and pin the currently working dependency set without upgrading it. Keep debug/release
-profiles, a native test command for portable production logic, and one CI workflow for tests and
+profiles, a native test command for portable production logic, and automated checks for tests and
 target builds. Add tests as behavior is changed, not a complete fake infrastructure upfront.
 Validate a small Editor export independently so it does not delay urgent correctness fixes.
 
 Acceptance: documented build/test commands, unchanged USB/touch configuration, and an explicit
-distinction between local builds, hosted CI execution, and device validation.
+distinction between local builds, hosted release execution, and device validation.
 
 ## 2. Make readings and failures predictable
 
@@ -295,9 +297,97 @@ and additional operational documentation are not current issues and are not acti
 The one-time battery ADC initialization is implemented. No further measured cleanup is planned
 unless device behavior identifies a concrete problem.
 
+## 8. Automate tested, versioned releases
+
+Decision 2026-09-18: automated push CI is removed. The manually dispatched release workflow owns
+host testing, release compilation, packaging, and publication. The GitHub Release OTA URL and the
+on-screen compile-time version are implemented. TLS trust hardening remains deferred separately.
+
+### Local verification
+
+There is no workflow on push or pull request. Run both host environments locally before ordinary
+changes:
+
+```sh
+pio test -e native -e native-ui
+```
+
+Run relevant S3 builds locally according to the affected surface. These checks do not tag, publish,
+upload, flash, or perform OTA.
+
+### Manual release
+
+The separate `workflow_dispatch` release workflow operates on the explicitly selected commit,
+uses a concurrency group to prevent two releases allocating the same version, and requires
+`contents: write`. Restrict release commits to the default branch unless an intentional override is
+designed later.
+
+Use UTC CalVer tags in the form `vYYYY.MM.DD.N`, where `N` starts at 1 and increments when more than
+one release is made on the same date. Derive the next value from existing matching repository tags;
+do not use run number as the public version. Existing non-CalVer tags such as `proto-board-1` do not
+participate. The same calculated value must identify the Git tag, GitHub Release, metadata, and
+compiled firmware.
+
+The release workflow must:
+
+1. Check out full history and tags, calculate and validate the next CalVer, and fail if the tag exists.
+2. Run `pio test -e native -e native-ui` before packaging.
+3. Build `t-display-s3-release` once with the calculated version injected as a compile definition.
+4. Package `.pio/build/t-display-s3-release/firmware.bin` without rebuilding it under another version.
+5. Generate a SHA-256 checksum and metadata containing at least version and commit SHA.
+6. Create the immutable GitHub Release with `firmware.bin`, checksum, and metadata assets.
+7. Create/push the tag for the exact tested commit only after validation and packaging have succeeded;
+  avoid leaving a published tag when release creation fails, or make reruns idempotently recoverable.
+
+The GitHub Release asset is the durable OTA publication surface and provides the stable anonymous
+device URL.
+
+### Firmware version and update screen
+
+One application-owned compile-time firmware version constant supplies the UI. Ordinary local, debug, and CI builds
+use an explicit development fallback such as `dev`; the release workflow injects the calculated tag.
+Avoid deriving the displayed value at runtime or maintaining an independently edited version file.
+The release workflow supplies the compile definition through PlatformIO's documented
+`PLATFORMIO_BUILD_FLAGS` environment override.
+
+The Editor export defines `firmware_version_text` and binds it to the `firmware_version` label on the
+Firmware Update screen. `src/display/UiAdapter.cpp` copies the compile-time constant into that subject
+before the transient screen opens. `test_exported_ui` asserts that the bound label equals the compiled
+value, including the development fallback in host tests.
+
+### OTA publication URL
+
+The updater's download target is the stable latest-release asset URL:
+
+```text
+https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin
+```
+
+The release workflow must always attach the asset with the exact name `firmware.bin`; versioning
+belongs in the tag, release title, and metadata rather than the OTA asset filename. Preserve
+redirect following and verify the end-to-end device download because GitHub's `latest` endpoint
+redirects to release asset storage.
+
+### Separate TLS hardening follow-up
+
+The current updater calls `WiFiClientSecure::setInsecure()`, so HTTPS encrypts transport but does not
+authenticate the server. Replacing the URL does not fix that limitation. Treat TLS hardening as a
+separate change after release publication works: choose and validate a maintained trust strategy
+(CA certificate/bundle or pinned public key where supported), account for certificate rotation and
+device time requirements, define failure messaging, and test both trusted and rejected connections.
+Do not silently retain `setInsecure()` while describing OTA as authenticated or secure.
+
+Acceptance: a manual release passes both host suites and produces one CalVer used consistently by the
+binary, screen, tag, GitHub Release, and metadata; checksum verification passes; the latest-release
+URL returns that exact binary; local
+builds show `dev`; reruns and same-day releases cannot overwrite or ambiguously reuse a version.
+Device validation must confirm the displayed version and a successful OTA from GitHub. TLS trust
+hardening has its own acceptance evidence and is not implied by release completion.
+
 ## Deferred
 
-- OTA authentication/TLS/rollback/protocol redesign; preserve access and document existing limitations.
+- OTA TLS trust hardening and rollback/protocol redesign. TLS hardening is the first separate follow-up
+  after step 8 and must remove `setInsecure()` using a maintainable trust strategy.
 - Rotation, remembered screen, translations, units, calculators, and startup-calibration change warnings.
 - ADC rate changes/interleaving, polynomial optimization, DMA, and display-driver replacement.
 - New gas models, chemistry/hardware research, and additional power modes or wake sources.
@@ -305,7 +395,8 @@ unless device behavior identifies a concrete problem.
 ## Implementation order
 
 Deliver the baseline and reading fixes (1-2), then task ownership and sleep/wake (3), remaining settings
-behavior (4), calibration (5), the replacement UI (6), and measured cleanup (7). Editor compatibility and calibration trace collection can proceed
+behavior (4), calibration (5), the replacement UI (6), measured cleanup (7), and versioned release
+automation (8). Editor compatibility and calibration trace collection can proceed
 independently. Keep one current checklist per active change. Do not resume the discarded redesign.
 Update architecture and progress alongside meaningful changes. Use Claude for bounded independent
 review when useful, particularly sleep and calibration; no OpenSpec scaffolding is required for

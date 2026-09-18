@@ -1,4 +1,5 @@
 #include <unity.h>
+#include "FirmwareVersion.h"
 #include "lvgl_ui_project.h"
 #include "display/UiAdapter.h"
 #include "main.h"
@@ -192,6 +193,9 @@ void test_export_settings_round_trip_and_rejection() {
   TEST_ASSERT_EQUAL_UINT8(200, brightness);
   click(lv_obj_find_by_name(lv_screen_active(), "open_updates"));
   TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "wifi_names"));
+  lv_obj_t* version = lv_obj_find_by_name(lv_screen_active(), "firmware_version");
+  TEST_ASSERT_NOT_NULL(version);
+  TEST_ASSERT_EQUAL_STRING(FIRMWARE_VERSION_TEXT, lv_label_get_text(version));
   click(lv_obj_find_by_name(lv_screen_active(), "scan_wifi"));
   TEST_ASSERT_EQUAL_UINT(1, wifiScanActions);
   TEST_ASSERT_TRUE(settingsOpen);

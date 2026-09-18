@@ -1,5 +1,6 @@
 #include "UiAdapter.h"
 #include "UiPresentation.h"
+#include "FirmwareVersion.h"
 #include "lvgl_ui_project.h"
 #include "main.h"
 #include "ui_actions.h"
@@ -266,6 +267,7 @@ void openUpdates(lv_event_t*) {
   if (updateScreen) return;
   lv_subject_set_int(&update_can_install, 0);
   lv_subject_set_int(&update_keyboard_visible, 0);
+  copyText(&firmware_version_text, FIRMWARE_VERSION_TEXT);
   copyText(&update_status_text, "Not connected");
   updateScreen = firmware_update_create();
   if (!updateScreen) {
