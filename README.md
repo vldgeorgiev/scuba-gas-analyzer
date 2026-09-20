@@ -74,12 +74,13 @@ Other elements:
 
 Power consumption:
 
-The consumption varies depending on the sensors enabled and display brightness. Here are some estimates with medium brightness, based on a 3000mAh battery
+The consumption varies depending on the sensors enabled and display brightness. Here are some estimates with medium brightness, based on a 2000mAh battery
 
-- **O2 sensor only**: 90mA, ~33 hours
-- **O2 and CO sensors**: 100mA, ~30 hours
-- **O2, CO, and He sensors**: 210mA, ~14 hours
-- **Display brightness**: varies about 30mA between lowest and highest
+- **O2 sensor only**: 70mA, ~28 hours
+- **O2 and CO sensors**: 80mA, ~25 hours
+- **O2, CO, and He sensors**: 170mA, ~12 hours
+- **Display brightness**: varies about 35mA between lowest and highest
+- **Sleep mode**: ~250uA, ~1 year
 
 ## TODO
 
@@ -100,3 +101,4 @@ The consumption varies depending on the sensors enabled and display brightness. 
 - [ ] Gas calculator, best mix, etc...
 - [ ] Implement the external plugin O2 sensor detection and reading. Turn off CO and He in that case
 - [ ] Improve battery charge and level display
+- [ ] CO static correction for sensors that have an offset of a few mV
