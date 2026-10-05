@@ -3,6 +3,11 @@
 A DIY project for a scuba gas analyzer. The analyzer detects Oxygen, Helium and Carbon monoxide.  
 _Disclaimer: This is not a certified device and should be used with caution at your own risk. Always double-check your results with a professional-grade analyzer._
 
+## User manuals
+
+- [English](docs/user-manual.md)
+- [Български](docs/user-manual.bg.md)
+
 Based on ideas from  
 <https://slideplayer.fr/slide/10883088>  
 <https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564>  

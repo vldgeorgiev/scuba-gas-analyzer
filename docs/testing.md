@@ -85,6 +85,17 @@ TFT driver, target memory limits, on-device layout, or generated XML in the Edit
 Run `native-ui` locally whenever the UI export, UI assets, LVGL configuration, or `UiAdapter`
 changes.
 
+To regenerate the screenshots used by the [user manual](user-manual.md), run:
+
+```sh
+MANUAL_SCREENSHOTS=1 pio test -e native-ui
+for image in docs/images/user-manual/*.ppm; do sips -s format png "$image" --out "${image%.ppm}.png"; done
+rm docs/images/user-manual/*.ppm
+```
+
+The capture mode records the rendered 320 x 170 LVGL frames for the readings, calibration, and
+firmware-update flows. It is disabled during ordinary test runs.
+
 ## Choosing validation
 
 Use the smallest relevant suite first, then broaden according to the affected surface:

@@ -6,6 +6,8 @@
 #include "main.h"
 #include "network/FirmwareUpdate.h"
 #include "ui-log.h"
+#include <cstdlib>
+#include <fstream>
 
 DisplayManager displayManager;
 static AnalyzerSettings effective;
@@ -20,6 +22,7 @@ static app::CommandType lastCommandType;
 static unsigned flushes;
 static bool renderedPixels;
 static uint8_t brightness;
+static uint16_t renderedFrame[320 * 170];
 
 void DisplayManager::setBrightness(uint8_t value) { brightness = value; }
 void DisplayManager::resetInactivity() {}
@@ -49,6 +52,13 @@ static void flush(lv_display_t* display, const lv_area_t* area, uint8_t* pixels)
   ++flushes;
   const unsigned bytes = lv_area_get_width(area) * lv_area_get_height(area) * 2;
   for (unsigned index = 0; index < bytes; ++index) renderedPixels |= pixels[index] != 0;
+  for (int y = area->y1; y <= area->y2; ++y) {
+    for (int x = area->x1; x <= area->x2; ++x) {
+      const unsigned source = ((y - area->y1) * lv_area_get_width(area) + (x - area->x1)) * 2;
+      renderedFrame[y * 320 + x] = static_cast<uint16_t>(pixels[source]) |
+                                 (static_cast<uint16_t>(pixels[source + 1]) << 8);
+    }
+  }
   lv_display_flush_ready(display);
 }
 
@@ -59,6 +69,62 @@ static void refresh() {
   lv_tick_inc(40);
   lv_timer_handler();
   lv_refr_now(nullptr);
+}
+
+static void captureManualScreen(const char* name) {
+  if (!std::getenv("MANUAL_SCREENSHOTS")) return;
+  lv_obj_invalidate(lv_screen_active());
+  refresh();
+  char path[128];
+  std::snprintf(path, sizeof(path), "docs/images/user-manual/%s.ppm", name);
+  std::ofstream output(path, std::ios::binary);
+  output << "P6\n320 170\n255\n";
+  for (uint16_t pixel : renderedFrame) {
+    const char rgb[] = {
+        static_cast<char>(((pixel >> 11) & 0x1f) * 255 / 31),
+        static_cast<char>(((pixel >> 5) & 0x3f) * 255 / 63),
+        static_cast<char>((pixel & 0x1f) * 255 / 31),
+    };
+    output.write(rgb, sizeof(rgb));
+  }
+}
+
+static void captureManualScreens() {
+  sensorsData data;
+  data.o2State = data.heState = data.coState = data.temperatureState = ChannelState::Valid;
+  data.O2Level.percentage = 20.9f;
+  data.O2Level.millivolts = 10.4f;
+  data.HeLevel.percentage = 10.5f;
+  data.HeLevel.millivolts = 80;
+  data.CoLevel.ppm = 0;
+  data.CoLevel.millivolts = 400;
+  data.HeTemperature = 25;
+  ui::presentReadings(data, effective);
+  ui::presentStatus(data, false, true);
+  lv_screen_load(mainscr);
+  captureManualScreen("readings");
+
+  lv_screen_load(largescr);
+  captureManualScreen("large-readings");
+  lv_screen_load(mainscr);
+
+  ui::openCalibration(nullptr);
+  captureManualScreen("calibration");
+  lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "calibrate_air"), LV_EVENT_CLICKED, nullptr);
+  app::Result saved;
+  saved.type = app::CommandType::CalibrateAir;
+  saved.complete = true;
+  saved.calibrationPhase = app::CalibrationPhase::Saved;
+  saved.calibrationMillivolts = 10.3f;
+  saved.calibrationElapsedMs = 5000;
+  ui::presentCalibration(saved);
+  captureManualScreen("calibration-complete");
+  lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "calibration_done"), LV_EVENT_CLICKED, nullptr);
+  lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "calibration_back"), LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_send_event(lv_obj_find_by_name(mainscr, "open_settings"), LV_EVENT_CLICKED, nullptr);
+  lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "open_updates"), LV_EVENT_CLICKED, nullptr);
+  captureManualScreen("firmware-update");
 }
 
 static void click(lv_obj_t* object) {
@@ -371,5 +437,6 @@ int main(int, char**) {
   RUN_TEST(test_export_settings_round_trip_and_rejection);
   RUN_TEST(test_export_readings_and_sensor_states);
   RUN_TEST(test_export_settings_lifetime);
+  captureManualScreens();
   return UNITY_END();
 }
