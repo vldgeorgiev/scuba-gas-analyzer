@@ -257,7 +257,15 @@ void test_export_settings_round_trip_and_rejection() {
   TEST_ASSERT_TRUE(settingsOpen);
   TEST_ASSERT_NOT_EQUAL(mainscr, lv_screen_active());
   TEST_ASSERT_EQUAL_INT(4, lv_subject_get_int(&settings_po2_bottom_index));
+  TEST_ASSERT_EQUAL_INT(2, lv_subject_get_int(&settings_co_correction_index));
+  lv_obj_t* coCorrection = lv_obj_find_by_name(lv_screen_active(), "co_correction");
+  TEST_ASSERT_NOT_NULL(coCorrection);
+  TEST_ASSERT_EQUAL_UINT32(8, lv_dropdown_get_option_count(coCorrection));
   lv_subject_set_int(&settings_po2_bottom_index, 3);
+  lv_subject_set_int(&settings_co_correction_index, 5);
+  char option[8];
+  lv_dropdown_get_selected_str(coCorrection, option, sizeof(option));
+  TEST_ASSERT_EQUAL_STRING("-3", option);
   lv_subject_set_int(&settings_sleep_index, 4);
   lv_subject_set_int(&settings_brightness, 200);
   lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "brightness"), LV_EVENT_VALUE_CHANGED, nullptr);
@@ -276,6 +284,7 @@ void test_export_settings_round_trip_and_rejection() {
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 1.3f, submitted.po2Bottom);
   TEST_ASSERT_EQUAL_UINT8(10, submitted.sleepMinutes);
+  TEST_ASSERT_EQUAL_INT8(-3, submitted.coCorrectionPpm);
   TEST_ASSERT_EQUAL_FLOAT(12, submitted.o2Air);
   TEST_ASSERT_EQUAL_FLOAT(600, submitted.heCalibration);
   allowSubmit = false;

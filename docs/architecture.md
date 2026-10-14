@@ -128,6 +128,22 @@ ApplySettings command. Settings is dynamically created and deleted on exit. Subj
 restores effective values on busy/rejected/write-failed requests. DisplayManager has no
 UI-specific sleep controls or accessors.
 
+## CO correction
+
+`AnalyzerSettings::coCorrectionPpm` is a signed whole-ppm correction from
+`app::CO_CORRECTION_MIN_PPM` (-5) to `app::CO_CORRECTION_MAX_PPM` (+2), default 0, persisted as the
+signed-char `co_correction` key.
+A missing key loads 0; an out-of-range value is repaired to 0 and reported as LoadedDefaults like
+other repaired fields. The analyzer passes the effective value to `SensorManager::setCoCorrection()`
+in `apply()`; `conversions::coPpm()` adds it after the linear 400-2000 mV conversion. Raw mV
+are unchanged. Corrected ppm feeds warm-up classification, display, and the above-0 ppm warning,
+and is not clamped, so an excessive negative correction is visible as a negative reading. The
+correction is part of `sameMeasurementSettings()`, so changing it advances the measurement
+generation. ApplySettings carries it from the editor; calibration commands preserve it.
+
+The Settings dropdown binds `settings_co_correction_index` (index = 2 - ppm, labels `+2` down to
+`-5`). `ui::coCorrectionSelection()` and `ui::applySelections()` map between index and ppm.
+
 LVGL's display inactivity counter is the only inactivity time source. Touch input already updates
 it. DisplayManager exposes its read/reset APIs; UI resets activity after initialization and whenever
 an acknowledged operation leaves the app no longer busy. Thus startup, failed settings, calibration

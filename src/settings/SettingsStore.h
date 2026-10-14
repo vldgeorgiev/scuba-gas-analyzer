@@ -32,6 +32,7 @@ public:
       value.sleepMinutes = app::DEFAULT_SLEEP_MINUTES;
       log_w("Invalid sleep timeout; using five minutes");
     }
+    value.coCorrectionPpm = _preferences.getChar("co_correction", value.coCorrectionPpm);
     value.po2Bottom = _preferences.getFloat("po2_max_bottom", value.po2Bottom);
     value.po2Deco = _preferences.getFloat("po2_max_deco", value.po2Deco);
     const float storedAir = _preferences.getFloat("o2_calib_21", NAN);
@@ -70,7 +71,8 @@ public:
       ((!force && value.po2Deco == previous.po2Deco) || _preferences.putFloat("po2_max_deco", value.po2Deco) == sizeof(float)) &&
       ((!force && sameFloat(air, previousAir)) || _preferences.putFloat("o2_calib_21", air) == sizeof(float)) &&
       ((!force && !(!_oxygenAccepted && acceptOxygen) && sameFloat(pure, previousPure)) || _preferences.putFloat("o2_calib_100", pure) == sizeof(float)) &&
-      ((!force && sameFloat(helium, previousHelium)) || _preferences.putFloat("he_calib_100", helium) == sizeof(float));
+      ((!force && sameFloat(helium, previousHelium)) || _preferences.putFloat("he_calib_100", helium) == sizeof(float)) &&
+      ((!force && value.coCorrectionPpm == previous.coCorrectionPpm) || _preferences.putChar("co_correction", value.coCorrectionPpm) == 1);
     _rewrite = !saved;
     if (saved) {
       _oxygenAccepted = oxygenAccepted;

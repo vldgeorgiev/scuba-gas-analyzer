@@ -187,6 +187,7 @@ lv_subject_t subject_show_keyboard;
 lv_subject_t settings_o2_enabled;
 lv_subject_t settings_he_enabled;
 lv_subject_t settings_co_enabled;
+lv_subject_t settings_co_correction_index;
 lv_subject_t settings_po2_bottom_index;
 lv_subject_t settings_po2_deco_index;
 lv_subject_t settings_brightness;
@@ -556,6 +557,9 @@ void lvgl_ui_project_init_gen(const char * asset_path)
     lv_subject_init_int(&settings_co_enabled, 1);
     lv_subject_set_min_value_int(&settings_co_enabled, 0);
     lv_subject_set_max_value_int(&settings_co_enabled, 1);
+    lv_subject_init_int(&settings_co_correction_index, 2);
+    lv_subject_set_min_value_int(&settings_co_correction_index, 0);
+    lv_subject_set_max_value_int(&settings_co_correction_index, 7);
     lv_subject_init_int(&settings_po2_bottom_index, 4);
     lv_subject_set_min_value_int(&settings_po2_bottom_index, 0);
     lv_subject_set_max_value_int(&settings_po2_bottom_index, 6);
@@ -748,6 +752,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
     lv_xml_register_subject(NULL, "settings_o2_enabled", &settings_o2_enabled);
     lv_xml_register_subject(NULL, "settings_he_enabled", &settings_he_enabled);
     lv_xml_register_subject(NULL, "settings_co_enabled", &settings_co_enabled);
+    lv_xml_register_subject(NULL, "settings_co_correction_index", &settings_co_correction_index);
     lv_xml_register_subject(NULL, "settings_po2_bottom_index", &settings_po2_bottom_index);
     lv_xml_register_subject(NULL, "settings_po2_deco_index", &settings_po2_deco_index);
     lv_xml_register_subject(NULL, "settings_brightness", &settings_brightness);

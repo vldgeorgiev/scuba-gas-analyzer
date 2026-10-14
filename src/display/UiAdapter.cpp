@@ -303,6 +303,7 @@ void syncSettings(const AnalyzerSettings& settings) {
   lv_subject_set_int(&settings_o2_enabled, settings.o2Enabled);
   lv_subject_set_int(&settings_he_enabled, settings.heEnabled);
   lv_subject_set_int(&settings_co_enabled, settings.coEnabled);
+  lv_subject_set_int(&settings_co_correction_index, coCorrectionSelection(settings.coCorrectionPpm));
   lv_subject_set_int(&settings_po2_bottom_index, po2Selection(settings.po2Bottom));
   lv_subject_set_int(&settings_po2_deco_index, po2Selection(settings.po2Deco));
   lv_subject_set_int(&settings_brightness, settings.brightness);
@@ -370,7 +371,8 @@ bool readSettings(AnalyzerSettings& settings) {
   candidate.coEnabled = lv_subject_get_int(&settings_co_enabled) != 0;
   if (!applySelections(candidate, lv_subject_get_int(&settings_po2_bottom_index),
                        lv_subject_get_int(&settings_po2_deco_index),
-                       lv_subject_get_int(&settings_brightness), lv_subject_get_int(&settings_sleep_index))) return false;
+                       lv_subject_get_int(&settings_brightness), lv_subject_get_int(&settings_sleep_index),
+                       lv_subject_get_int(&settings_co_correction_index))) return false;
   settings = candidate;
   return true;
 }

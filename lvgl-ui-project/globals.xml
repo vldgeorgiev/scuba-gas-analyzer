@@ -130,6 +130,13 @@
 		<int name="settings_he_enabled" value="1" min_value="0" max_value="1" />
 		<int name="settings_co_enabled" value="1" min_value="0" max_value="1" />
 		<int
+			name="settings_co_correction_index"
+			value="2"
+			min_value="0"
+			max_value="7"
+			help="CO correction option index; ppm = 2 - index, 2 = 0 ppm"
+		/>
+		<int
 			name="settings_po2_bottom_index"
 			value="4"
 			min_value="0"

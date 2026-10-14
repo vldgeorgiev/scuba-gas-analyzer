@@ -8,6 +8,8 @@
 namespace app {
 constexpr uint8_t DEFAULT_SLEEP_MINUTES = 5;
 constexpr uint8_t SLEEP_OPTIONS[] = {0, 1, 2, 5, 10, 30};
+constexpr int8_t CO_CORRECTION_MIN_PPM = -5;
+constexpr int8_t CO_CORRECTION_MAX_PPM = 2;
 }
 
 struct AnalyzerSettings {
@@ -17,6 +19,7 @@ struct AnalyzerSettings {
   bool calibrateOnStart = true;
   uint8_t brightness = 128;
   uint8_t sleepMinutes = app::DEFAULT_SLEEP_MINUTES;
+  int8_t coCorrectionPpm = 0;
   float po2Bottom = 1.4f;
   float po2Deco = 1.6f;
   float o2Air = app::policy::O2_AIR_CALIBRATION_DEFAULT_MV;
@@ -28,6 +31,10 @@ struct AnalyzerSettings {
       if (minutes == option) return true;
     }
     return false;
+  }
+
+  static bool validCoCorrection(int value) {
+    return value >= app::CO_CORRECTION_MIN_PPM && value <= app::CO_CORRECTION_MAX_PPM;
   }
 
   static bool validPo2Bottom(float value) {
@@ -54,7 +61,8 @@ struct AnalyzerSettings {
   }
 
   bool valid() const {
-    return validSleepMinutes(sleepMinutes) && brightness >= 8 && validPo2Bottom(po2Bottom) &&
+    return validSleepMinutes(sleepMinutes) && brightness >= 8 && validCoCorrection(coCorrectionPpm) &&
+           validPo2Bottom(po2Bottom) &&
            validPo2Deco(po2Deco, po2Bottom) && validO2Air(o2Air) && validO2Pure(o2Pure, o2Air) &&
            validHeCalibration(heCalibration);
   }
@@ -64,6 +72,7 @@ struct AnalyzerSettings {
     const AnalyzerSettings defaults;
     if (!validSleepMinutes(sleepMinutes)) sleepMinutes = defaults.sleepMinutes;
     if (brightness < 8) brightness = defaults.brightness;
+    if (!validCoCorrection(coCorrectionPpm)) coCorrectionPpm = defaults.coCorrectionPpm;
     if (!validPo2Bottom(po2Bottom)) {
       po2Bottom = validPo2Deco(po2Deco, 1) && po2Deco < defaults.po2Bottom ? po2Deco : defaults.po2Bottom;
     }
@@ -81,7 +90,7 @@ struct AnalyzerSettings {
 
   bool sameMeasurementSettings(const AnalyzerSettings& other) const {
     return o2Enabled == other.o2Enabled && coEnabled == other.coEnabled && heEnabled == other.heEnabled &&
-           o2Air == other.o2Air && heCalibration == other.heCalibration &&
+           coCorrectionPpm == other.coCorrectionPpm && o2Air == other.o2Air && heCalibration == other.heCalibration &&
            (o2Pure == other.o2Pure || (std::isnan(o2Pure) && std::isnan(other.o2Pure)));
   }
 };

@@ -24,6 +24,16 @@
 					<h5 text="CO" />
 					<switch name="co_enabled" subject="settings_co_enabled" ext_click_area="#space_sm" />
 				</row>
+				<row name="co_correction_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<h5 text="CO correction" />
+					<dropdown
+						name="co_correction"
+						width="104"
+						options="+2&#10;+1&#10;0&#10;-1&#10;-2&#10;-3&#10;-4&#10;-5"
+						selected="2"
+						subject="settings_co_correction_index"
+					/>
+				</row>
 				<row name="po2_bottom_row" width="100%" horizontal_align="space_between" vertical_align="center">
 					<h5 text="Bottom pO2" />
 					<dropdown

@@ -82,6 +82,15 @@ lv_obj_t * settings_create(void)
         lv_obj_set_name(co_enabled, "co_enabled");
         lv_obj_set_ext_click_area(co_enabled, SPACE_SM);
 
+        lv_obj_t * co_correction_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+        lv_obj_set_name(co_correction_row, "co_correction_row");
+        lv_obj_set_width(co_correction_row, lv_pct(100));
+        h5_create(co_correction_row, "CO correction", "");
+
+        lv_obj_t * co_correction = dropdown_create(co_correction_row, "+2\n+1\n0\n-1\n-2\n-3\n-4\n-5", 2, &settings_co_correction_index);
+        lv_obj_set_name(co_correction, "co_correction");
+        lv_obj_set_width(co_correction, 104);
+
         lv_obj_t * po2_bottom_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_name(po2_bottom_row, "po2_bottom_row");
         lv_obj_set_width(po2_bottom_row, lv_pct(100));

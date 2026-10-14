@@ -17,6 +17,8 @@ class COSensor {
 public:
   COSensor(uint8_t analogChannel, Adafruit_ADS1115& adc) : _analogChannel(analogChannel), _adc(adc) {}
 
+  void setCorrection(int8_t ppm) { _correctionPpm = ppm; }
+
   COReading readLevel(bool* timedOut = nullptr) {
     if (timedOut) *timedOut = false;
     COReading reading;
@@ -28,13 +30,14 @@ public:
     }
     reading.millivolts = _adc.computeVolts(adcValue) * 1000;
 
-    reading.ppm = conversions::coPpm(reading.millivolts);
+    reading.ppm = conversions::coPpm(reading.millivolts, _correctionPpm);
     return reading;
   }
 
 private:
   uint8_t _analogChannel;
   Adafruit_ADS1115& _adc;
+  int8_t _correctionPpm = 0;
 };
 
 #endif // COSensor_H

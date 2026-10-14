@@ -59,6 +59,14 @@ void test_co_endpoints_and_unclamped_values() {
   TEST_ASSERT_EQUAL_FLOAT(625, conversions::coPpm(2400));
 }
 
+void test_co_correction_is_added_without_clamping() {
+  TEST_ASSERT_EQUAL_FLOAT(-3, conversions::coPpm(400, -3));
+  TEST_ASSERT_EQUAL_FLOAT(2, conversions::coPpm(400, 2));
+  TEST_ASSERT_EQUAL_FLOAT(245, conversions::coPpm(1200, -5));
+  TEST_ASSERT_TRUE(std::isnan(conversions::coPpm(400, NAN)));
+  TEST_ASSERT_TRUE(std::isnan(conversions::coPpm(NAN, 1)));
+}
+
 void test_temperature_current_rounding() {
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 25, conversions::temperatureCelsius(250));
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 25.13f, conversions::temperatureCelsius(251.26f));
@@ -174,19 +182,28 @@ void test_ui_settings_indices_preserve_calibration() {
   candidate.o2Air = 12;
   candidate.o2Pure = 55;
   candidate.heCalibration = 610;
-  TEST_ASSERT_TRUE(ui::applySelections(candidate, 3, 5, 200, 4));
+  TEST_ASSERT_TRUE(ui::applySelections(candidate, 3, 5, 200, 4, 2));
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 1.3f, candidate.po2Bottom);
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 1.5f, candidate.po2Deco);
   TEST_ASSERT_EQUAL_UINT8(10, candidate.sleepMinutes);
+  TEST_ASSERT_EQUAL_INT8(0, candidate.coCorrectionPpm);
   TEST_ASSERT_EQUAL_FLOAT(12, candidate.o2Air);
   TEST_ASSERT_EQUAL_FLOAT(55, candidate.o2Pure);
   TEST_ASSERT_EQUAL_FLOAT(610, candidate.heCalibration);
-  TEST_ASSERT_FALSE(ui::applySelections(candidate, 6, 0, 128, 3));
-  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 128, -1));
-  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 256, 3));
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 6, 0, 128, 3, 2));
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 128, -1, 2));
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 256, 3, 2));
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 128, 3, -1));
+  TEST_ASSERT_FALSE(ui::applySelections(candidate, 3, 5, 128, 3, 8));
   TEST_ASSERT_EQUAL_UINT8(200, candidate.brightness);
+  TEST_ASSERT_TRUE(ui::applySelections(candidate, 3, 5, 200, 4, 0));
+  TEST_ASSERT_EQUAL_INT8(2, candidate.coCorrectionPpm);
+  TEST_ASSERT_TRUE(ui::applySelections(candidate, 3, 5, 200, 4, 7));
+  TEST_ASSERT_EQUAL_INT8(-5, candidate.coCorrectionPpm);
+  TEST_ASSERT_EQUAL_INT(7, ui::coCorrectionSelection(-5));
+  TEST_ASSERT_EQUAL_INT(0, ui::coCorrectionSelection(2));
   candidate.po2Bottom = 1.35f;
-  TEST_ASSERT_TRUE(ui::applySelections(candidate, ui::po2Selection(1.35f), 5, 200, 4));
+  TEST_ASSERT_TRUE(ui::applySelections(candidate, ui::po2Selection(1.35f), 5, 200, 4, 2));
   TEST_ASSERT_EQUAL_FLOAT(1.35f, candidate.po2Bottom);
 }
 
@@ -198,6 +215,7 @@ int main(int, char**) {
   RUN_TEST(test_he_requires_usable_o2);
   RUN_TEST(test_he_polynomial_and_calibration_scale);
   RUN_TEST(test_co_endpoints_and_unclamped_values);
+  RUN_TEST(test_co_correction_is_added_without_clamping);
   RUN_TEST(test_temperature_current_rounding);
   RUN_TEST(test_o2_rejects_invalid_readings_and_calibrations);
   RUN_TEST(test_he_rejects_invalid_denominators_and_overflow);

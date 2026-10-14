@@ -86,6 +86,7 @@ public:
     SensorError readSensors(bool coWarmupWindow = false);
     void discardMeasurements() { xQueueReset(_dataQueue); }
     void setGeneration(uint32_t generation) { _generation = generation; }
+    void setCoCorrection(int8_t ppm) { _coSensor.setCorrection(ppm); }
     float readO2CalibrationSample();
     float readHeCalibrationSample();
 

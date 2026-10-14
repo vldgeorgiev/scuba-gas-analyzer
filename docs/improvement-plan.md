@@ -185,6 +185,11 @@ calibration is required; finer presentation can be handled with the remaining UI
 Check that calibration outcomes cannot overwrite in-progress editable settings drafts, and that
 old-generation readings never accompany new coefficients. Keep tests focused on product behavior.
 
+Step 4d (2026-10-14) adds a persisted CO correction setting (+2 to -5 ppm, default 0, added to the
+measured value) to the
+existing Settings save-on-exit path; see architecture. Host tests cover storage, repair, mapping,
+and subtraction.
+
 Acceptance: retained settings and reset/clear behavior verified on the device, write failures
 reported accurately, and no repeated NVS reads during display updates. No new store framework.
 

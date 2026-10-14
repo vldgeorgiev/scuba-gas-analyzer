@@ -14,6 +14,7 @@ void Analyzer::apply() {
   _sensors.setSensorsConfig(_effective.o2Enabled, _effective.coEnabled, _effective.heEnabled,
                            _oxygenRequired ? NAN : _effective.o2Air, _effective.o2Pure,
                            _heliumRequired ? NAN : _effective.heCalibration);
+  _sensors.setCoCorrection(_effective.coCorrectionPpm);
   _sensors.setGeneration(_generation);
 }
 

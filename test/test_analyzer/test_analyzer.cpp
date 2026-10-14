@@ -690,6 +690,49 @@ void test_co_warmup_samples_raw_value_and_ends_at_configured_deadline() {
   TEST_ASSERT_EQUAL_UINT(4, secondary->singleEndedReads);
 }
 
+void test_co_correction_is_persisted_applied_and_invalidates_measurements() {
+  Rig rig;
+  Adafruit_ADS1115::devices[1]->counts = 7040;
+  nowMs = app::policy::CO_WARMUP_MS;
+  app::Command command;
+  command.settings = rig.analyzer.effective();
+  command.settings.coCorrectionPpm = -3;
+  const auto result = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+  TEST_ASSERT_EQUAL_INT8(-3, result.effective.coCorrectionPpm);
+  TEST_ASSERT_EQUAL_UINT32(2, result.generation);
+  TEST_ASSERT_EQUAL_FLOAT(-3, Preferences::values["co_correction"]);
+  rig.analyzer.measure();
+  sensorsData sample;
+  xQueueReceive(rig.handle, &sample, 0);
+  TEST_ASSERT_EQUAL_UINT32(2, sample.generation);
+  TEST_ASSERT_EQUAL(ChannelState::Valid, sample.coState);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 9.5f, sample.CoLevel.ppm);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 440, sample.CoLevel.millivolts);
+  const auto writes = Preferences::writes;
+  TEST_ASSERT_EQUAL_UINT32(2, rig.analyzer.execute(command).generation);
+  TEST_ASSERT_EQUAL_UINT(writes, Preferences::writes);
+  command.settings.coCorrectionPpm = app::CO_CORRECTION_MAX_PPM + 1;
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, rig.analyzer.execute(command).failure);
+  TEST_ASSERT_EQUAL_INT8(-3, rig.analyzer.effective().coCorrectionPpm);
+
+  SettingsStore restarted;
+  restarted.begin();
+  TEST_ASSERT_EQUAL_INT8(-3, restarted.load().coCorrectionPpm);
+  TEST_ASSERT_FALSE(restarted.loadedDefaults());
+}
+
+void test_invalid_stored_co_correction_is_repaired_to_zero() {
+  Preferences::values["co_correction"] = app::CO_CORRECTION_MIN_PPM - 1;
+  SettingsStore store;
+  store.begin();
+  const auto loaded = store.load();
+  TEST_ASSERT_TRUE(store.loadedDefaults());
+  TEST_ASSERT_EQUAL_INT8(0, loaded.coCorrectionPpm);
+  TEST_ASSERT_TRUE(AnalyzerSettings::validCoCorrection(app::CO_CORRECTION_MIN_PPM));
+  TEST_ASSERT_TRUE(AnalyzerSettings::validCoCorrection(app::CO_CORRECTION_MAX_PPM));
+}
+
 void test_co_reenable_restarts_warmup_across_clock_wrap() {
   Rig rig;
   app::Command command;
@@ -1306,6 +1349,8 @@ int main(int, char**) {
   RUN_TEST(test_out_of_range_helium_calibration_is_not_saved);
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);
   RUN_TEST(test_co_warmup_samples_raw_value_and_ends_at_configured_deadline);
+  RUN_TEST(test_co_correction_is_persisted_applied_and_invalidates_measurements);
+  RUN_TEST(test_invalid_stored_co_correction_is_repaired_to_zero);
   RUN_TEST(test_co_reenable_restarts_warmup_across_clock_wrap);
   RUN_TEST(test_helium_keeps_temperature_powered_when_co_is_disabled);
   RUN_TEST(test_adc_recovery_does_not_restart_co_warmup);

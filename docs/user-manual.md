@@ -38,7 +38,9 @@ If calibration reports an invalid range, unstable signal, or save failure, do no
 
 ## Settings
 
-Open **Settings** from the main screen to enable or disable sensors and adjust oxygen limits, brightness, and sleep timing. Changes save when leaving the screen. If the analyzer is busy or a value is invalid, it keeps the previous effective setting and reports an error.
+Open **Settings** from the main screen to enable or disable sensors and adjust the CO correction, oxygen limits, brightness, and sleep timing. Changes save when leaving the screen. If the analyzer is busy or a value is invalid, it keeps the previous effective setting and reports an error.
+
+**CO correction** compensates for a CO sensor that reads a constant few ppm in clean air. Select a value from `+2` to `-5` ppm; the analyzer adds it to every measured CO reading. For example, if clean air reads `3 ppm` after warm-up, select `-3`. The default is `0`. Readings may show below zero when the correction is too negative.
 
 ## Firmware update
 

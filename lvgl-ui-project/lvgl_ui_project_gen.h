@@ -238,6 +238,7 @@ extern lv_subject_t subject_show_keyboard;
 extern lv_subject_t settings_o2_enabled;
 extern lv_subject_t settings_he_enabled;
 extern lv_subject_t settings_co_enabled;
+extern lv_subject_t settings_co_correction_index;
 extern lv_subject_t settings_po2_bottom_index;
 extern lv_subject_t settings_po2_deco_index;
 extern lv_subject_t settings_brightness;

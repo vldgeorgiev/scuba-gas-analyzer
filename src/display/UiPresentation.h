@@ -53,16 +53,24 @@ inline int po2Selection(float value) {
   return std::isfinite(value) ? static_cast<int>(std::lround((value - 1.0f) * 10.0f)) : -1;
 }
 
+// Dropdown lists corrections from the maximum down to the minimum.
+inline int coCorrectionSelection(int8_t correctionPpm) {
+  return app::CO_CORRECTION_MAX_PPM - correctionPpm;
+}
+
 inline bool applySelections(AnalyzerSettings& candidate, int bottom, int deco,
-                            int brightness, int sleep) {
+                            int brightness, int sleep, int coCorrection) {
   const int sleepCount = sizeof(app::SLEEP_OPTIONS) / sizeof(app::SLEEP_OPTIONS[0]);
+  const int coCorrectionPpm = app::CO_CORRECTION_MAX_PPM - coCorrection;
   if (bottom < 0 || bottom > 6 || deco < 0 || deco > 10 ||
-      brightness < 8 || brightness > 255 || sleep < 0 || sleep >= sleepCount) return false;
+      brightness < 8 || brightness > 255 || sleep < 0 || sleep >= sleepCount ||
+      !AnalyzerSettings::validCoCorrection(coCorrectionPpm)) return false;
   AnalyzerSettings updated = candidate;
   if (bottom != po2Selection(updated.po2Bottom)) updated.po2Bottom = 1.0f + bottom / 10.0f;
   if (deco != po2Selection(updated.po2Deco)) updated.po2Deco = 1.0f + deco / 10.0f;
   updated.brightness = static_cast<uint8_t>(brightness);
   updated.sleepMinutes = app::SLEEP_OPTIONS[sleep];
+  updated.coCorrectionPpm = static_cast<int8_t>(coCorrectionPpm);
   if (!updated.valid()) return false;
   candidate = updated;
   return true;

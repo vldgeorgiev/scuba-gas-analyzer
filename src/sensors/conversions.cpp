@@ -53,12 +53,12 @@ float hePercentage(float millivolts, float calibration100) {
   return static_cast<float>(percentage);
 }
 
-float coPpm(float millivolts) {
-  if (!std::isfinite(millivolts) || millivolts < 0) return NAN;
+float coPpm(float millivolts, float correctionPpm) {
+  if (!std::isfinite(millivolts) || millivolts < 0 || !std::isfinite(correctionPpm)) return NAN;
   const float V_MIN = 400;
   const float V_MAX = 2000;
   const float PPM_MAX = 500.0;
-  return (millivolts - V_MIN) * (PPM_MAX / (V_MAX - V_MIN));
+  return (millivolts - V_MIN) * (PPM_MAX / (V_MAX - V_MIN)) + correctionPpm;
 }
 
 float temperatureCelsius(float millivolts) {
