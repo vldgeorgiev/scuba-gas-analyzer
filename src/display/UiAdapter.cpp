@@ -196,7 +196,7 @@ void openSettings(lv_event_t*) {
 }
 
 ChannelState percentageState(float value, ChannelState state) {
-  return state == ChannelState::Valid && (!std::isfinite(value) || value < 0 || value > 100)
+  return state == ChannelState::Valid && (!std::isfinite(value) || value < 0)
       ? ChannelState::Invalid : state;
 }
 

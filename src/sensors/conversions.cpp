@@ -18,7 +18,6 @@ float o2Percentage(float millivolts, float calibration21, float calibration100) 
   }
   if (!std::isfinite(percentage)) return NAN;
   if (percentage < 0) percentage = 0;
-  if (percentage > 100) percentage = 100;
   return percentage;
 }
 
@@ -26,7 +25,7 @@ float o2Percentage(float millivolts, float calibration21, float calibration100) 
 // Values based on the code here, which comes from the original French presentation https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564/page-4#post-9084208
 float heCorrectedMillivolts(float millivolts, float o2Percentage) {
   if (!std::isfinite(millivolts) || millivolts < 0 ||
-      !std::isfinite(o2Percentage) || o2Percentage < 0 || o2Percentage > 100) return NAN;
+  !std::isfinite(o2Percentage) || o2Percentage < 0) return NAN;
   if (o2Percentage > 40) {
     if (o2Percentage > 89) { millivolts = millivolts - 17; }
     else if (o2Percentage > 82) { millivolts -= 16; }

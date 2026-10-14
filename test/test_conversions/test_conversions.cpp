@@ -15,10 +15,10 @@ void test_o2_air_only() {
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 41.8f, conversions::o2Percentage(20, 10, NAN));
 }
 
-void test_o2_two_point_and_clamp() {
+void test_o2_two_point_and_unclamped_values() {
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 20.9f, conversions::o2Percentage(10, 10, 50));
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 60.45f, conversions::o2Percentage(30, 10, 50));
-  TEST_ASSERT_EQUAL_FLOAT(100, conversions::o2Percentage(60, 10, 50));
+  TEST_ASSERT_FLOAT_WITHIN(kTolerance, 119.775f, conversions::o2Percentage(60, 10, 50));
   TEST_ASSERT_EQUAL_FLOAT(0, conversions::o2Percentage(0, 10, NAN));
 }
 
@@ -53,7 +53,7 @@ void test_he_requires_usable_o2() {
   TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, NAN)));
   TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, INFINITY)));
   TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, -1)));
-  TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, 101)));
+  TEST_ASSERT_EQUAL_FLOAT(83, conversions::heCorrectedMillivolts(100, 101));
   const float invalidMillivolts[] = {NAN, INFINITY, -INFINITY, -1};
   for (float millivolts : invalidMillivolts) {
     TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(millivolts, 100)));
@@ -91,7 +91,7 @@ void test_temperature_current_rounding() {
 
 void test_o2_rejects_invalid_readings_and_calibrations() {
   TEST_ASSERT_FLOAT_WITHIN(kTolerance, 20.9f, conversions::o2Percentage(5, 5, NAN));
-  TEST_ASSERT_EQUAL_FLOAT(100, conversions::o2Percentage(100, 10, NAN));
+  TEST_ASSERT_EQUAL_FLOAT(209, conversions::o2Percentage(100, 10, NAN));
   const float invalidInputs[] = {NAN, INFINITY, -INFINITY, -1, 101};
   for (float value : invalidInputs) {
     TEST_ASSERT_TRUE(std::isnan(conversions::o2Percentage(value, 10, NAN)));
@@ -226,7 +226,7 @@ void test_ui_settings_indices_preserve_calibration() {
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_o2_air_only);
-  RUN_TEST(test_o2_two_point_and_clamp);
+  RUN_TEST(test_o2_two_point_and_unclamped_values);
   RUN_TEST(test_he_correction_boundaries);
   RUN_TEST(test_he_requires_usable_o2);
   RUN_TEST(test_he_polynomial_and_calibration_scale);
