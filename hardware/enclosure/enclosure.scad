@@ -158,7 +158,7 @@ module front_label(value, position, opening_height) {
 }
 
 module pcb_side_labels() {
-    front_label("On/Off    ", on_off_position, on_off_height);
+    front_label("Off/On    ", on_off_position, on_off_height);
     front_label("He", potentiometer_position, potentiometer_hole_diameter);
     front_label("    Ext O2", coax_position, coax_hole_diameter);
 }
