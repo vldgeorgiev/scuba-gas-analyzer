@@ -4,21 +4,28 @@
 namespace app {
 
 void Analyzer::apply() {
-  digitalWrite(PIN_HE_ENABLE, _effective.heEnabled && !preparedForSleep() ? HIGH : LOW);
-  const bool coPower = (_effective.coEnabled || _effective.heEnabled) && !preparedForSleep();
+  _externalO2Connected = digitalRead(PIN_EXT_O2_DETECT) == EXT_O2_DETECT_ACTIVE_LEVEL;
+  _oxygenRequired = !_settingsStore.hasOxygenCalibration(_externalO2Connected);
+  const float oxygenAir = _externalO2Connected ? _effective.externalO2Air : _effective.o2Air;
+  const float oxygenPure = _externalO2Connected ? _effective.externalO2Pure : _effective.o2Pure;
+  const bool heEnabled = _effective.heEnabled && !_externalO2Connected;
+  const bool coEnabled = _effective.coEnabled && !_externalO2Connected;
+  digitalWrite(PIN_HE_ENABLE, heEnabled && !preparedForSleep() ? HIGH : LOW);
+  const bool coPower = (coEnabled || heEnabled) && !preparedForSleep();
   if (coPower != _coPowered) {
     digitalWrite(PIN_CO_ENABLE, coPower ? HIGH : LOW);
     _coPowered = coPower;
     if (_coPowered) _coPoweredAt = ::millis();
   }
-  _sensors.setSensorsConfig(_effective.o2Enabled, _effective.coEnabled, _effective.heEnabled,
-                           _oxygenRequired ? NAN : _effective.o2Air, _effective.o2Pure,
-                           _heliumRequired ? NAN : _effective.heCalibration);
+  _sensors.setSensorsConfig(_effective.o2Enabled, coEnabled, heEnabled,
+                           _oxygenRequired ? NAN : oxygenAir, oxygenPure,
+                           _heliumRequired ? NAN : _effective.heCalibration, _externalO2Connected);
   _sensors.setCoCorrection(_effective.coCorrectionPpm);
   _sensors.setGeneration(_generation);
 }
 
 Result Analyzer::begin(bool applicationWake) {
+  pinMode(PIN_EXT_O2_DETECT, INPUT_PULLUP);
   pinMode(PIN_HE_ENABLE, OUTPUT);
   pinMode(PIN_CO_ENABLE, OUTPUT);
   digitalWrite(PIN_HE_ENABLE, LOW);
@@ -31,7 +38,6 @@ Result Analyzer::begin(bool applicationWake) {
     _effective = AnalyzerSettings{};
     result.failure = Failure::LoadedDefaults;
   }
-  _oxygenRequired = !_settingsStore.hasOxygenCalibration();
   _heliumRequired = !_settingsStore.hasHeliumCalibration();
   const SensorError initialization = _sensors.init();
   apply();
@@ -61,8 +67,12 @@ Result Analyzer::begin(bool applicationWake) {
 
 bool Analyzer::service(QueueHandle_t commands, QueueHandle_t results) {
   bool worked = false;
+  if ((digitalRead(PIN_EXT_O2_DETECT) == EXT_O2_DETECT_ACTIVE_LEVEL) != _externalO2Connected) {
+    apply();
+    worked = true;
+  }
   if (_hasPending) {
-    if (xQueueSend(results, &_pending, 0) != pdPASS) return false;
+    if (xQueueSend(results, &_pending, 0) != pdPASS) return worked;
     _hasPending = false;
     worked = true;
   }
@@ -91,6 +101,7 @@ bool Analyzer::calibrationCommand(CommandType type) const {
 }
 
 void Analyzer::startCalibration(const Command& command, QueueHandle_t results) {
+  apply();
   if (command.type == CommandType::CalibratePure && _oxygenRequired) {
     _pending = Result{};
     _pending.type = command.type;
@@ -196,14 +207,17 @@ Result Analyzer::finishCalibration(Failure failure, CalibrationPhase phase, floa
   result.calibrationElapsedMs = static_cast<uint32_t>(::millis() - _calibrationStartedMs);
   result.calibrationPhase = phase;
   AnalyzerSettings candidate = _effective;
+  float& oxygenAir = _externalO2Connected ? candidate.externalO2Air : candidate.o2Air;
+  float& oxygenPure = _externalO2Connected ? candidate.externalO2Pure : candidate.o2Pure;
   const bool acceptOxygen = result.type == CommandType::CalibrateAir;
   const bool acceptHelium = result.type == CommandType::CalibrateHe;
   if (failure == Failure::None) {
-    if (result.type == CommandType::CalibrateAir) candidate.o2Air = candidateValue;
-    else if (result.type == CommandType::CalibratePure) candidate.o2Pure = candidateValue;
+    if (result.type == CommandType::CalibrateAir) oxygenAir = candidateValue;
+    else if (result.type == CommandType::CalibratePure) oxygenPure = candidateValue;
     else candidate.heCalibration = candidateValue;
     if (!candidate.valid()) failure = Failure::Invalid;
-    else if (!_settingsStore.save(candidate, _effective, acceptOxygen, acceptHelium)) failure = Failure::Storage;
+    else if (!_settingsStore.save(candidate, _effective, acceptOxygen && !_externalO2Connected,
+                    acceptHelium, acceptOxygen && _externalO2Connected)) failure = Failure::Storage;
   }
   if (failure == Failure::None) {
     const bool calibrationRestored = (acceptOxygen && _oxygenRequired) || (acceptHelium && _heliumRequired);
@@ -234,6 +248,7 @@ Result Analyzer::finishCalibration(Failure failure, CalibrationPhase phase, floa
 }
 
 Result Analyzer::execute(const Command& command) {
+  apply();
   Result result;
   result.type = command.type;
   result.id = command.id;
@@ -259,6 +274,7 @@ Result Analyzer::execute(const Command& command) {
       result.failure = Failure::Invalid;
     }
     result.generation = _generation;
+    result.oxygenCalibrationRequired = _oxygenRequired;
     return result;
   }
   if (preparedForSleep()) {
@@ -266,25 +282,30 @@ Result Analyzer::execute(const Command& command) {
     return result;
   }
   AnalyzerSettings candidate = _effective;
+  float& oxygenAir = _externalO2Connected ? candidate.externalO2Air : candidate.o2Air;
+  float& oxygenPure = _externalO2Connected ? candidate.externalO2Pure : candidate.o2Pure;
   switch (command.type) {
     case CommandType::ApplySettings:
       candidate = command.settings;
       candidate.o2Air = _effective.o2Air;
       candidate.o2Pure = _effective.o2Pure;
+      candidate.externalO2Air = _effective.externalO2Air;
+      candidate.externalO2Pure = _effective.externalO2Pure;
       candidate.heCalibration = _effective.heCalibration;
       break;
     case CommandType::ResetAir:
-      candidate.o2Air = AnalyzerSettings{}.o2Air;
-      if (candidate.o2Pure <= candidate.o2Air) candidate.o2Pure = NAN;
+      oxygenAir = AnalyzerSettings{}.o2Air;
+      if (oxygenPure <= oxygenAir) oxygenPure = NAN;
       break;
-    case CommandType::ClearPure: candidate.o2Pure = NAN; break;
+    case CommandType::ClearPure: oxygenPure = NAN; break;
     case CommandType::ResetHe: candidate.heCalibration = AnalyzerSettings{}.heCalibration; break;
     default: result.failure = Failure::Invalid; break;
   }
   if (result.failure == Failure::None && !candidate.valid()) result.failure = Failure::Invalid;
   const bool acceptOxygen = command.type == CommandType::ResetAir;
   const bool acceptHelium = command.type == CommandType::ResetHe;
-  if (result.failure == Failure::None && !_settingsStore.save(candidate, _effective, acceptOxygen, acceptHelium)) {
+  if (result.failure == Failure::None && !_settingsStore.save(candidate, _effective,
+      acceptOxygen && !_externalO2Connected, acceptHelium, acceptOxygen && _externalO2Connected)) {
     result.failure = Failure::Storage;
   }
   if (result.failure == Failure::None) {

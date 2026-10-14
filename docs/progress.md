@@ -18,6 +18,44 @@ Older dated entries below are implementation snapshots; the status table is the 
 | 7. Measured cleanup | Battery ADC characterization is initialized once; other speculative cleanup declined |
 | 8. Versioned release automation | Implemented; hosted GitHub releases and OTA confirmed |
 
+## 2026-10-14: External O2 ADC wiring correction
+
+- Hardware clarification supersedes the earlier switching-jack assumption: the jack does not
+  switch analog wiring. External O2 connects to differential A0/A1 on ADC1 (`0x49`); internal O2
+  remains on differential A2/A3 of the same ADC.
+- Jack detection now selects the differential pair as well as the independent calibration profile.
+  Normal readings and calibration use the same selected input. Gain, data rate, He/CO suppression,
+  and calibration persistence are unchanged.
+- Existing analyzer tests now assert input-pair selection for internal/external readings and air/pure
+  calibration. Focused analyzer: 65 passed; full host checks: 135 passed; both S3 profiles built.
+  Both user manuals, architecture, scope, and testing documentation reflect the corrected wiring.
+
+## 2026-10-14: Independent O2 calibration profiles
+
+- Internal O2 keeps the existing air/pure Preferences keys. External O2 now has separate
+  `ext_o2_air`/`ext_o2_pure` keys and independent accepted-air state; missing external calibration
+  never copies internal coefficients or becomes accepted through an ordinary settings save.
+- Jack state selects reading coefficients and the target for air/pure calibration, reset, and clear.
+  Enabled cold-boot calibration uses the same incremental path for the selected profile. Settings
+  drafts cannot overwrite either profile; failed saves retain live values and acceptance.
+- Updated both user manuals with external-jack behavior, profile selection, first-use calibration,
+  and the requirement to recalibrate when replacing an external sensor. Keep the connection fixed
+  throughout calibration; no sensor-switch protection or additional UI/runtime messages were added.
+- Focused analyzer suite: 65 passed. Full host checks: native 131 and native-ui 4 passed.
+  Both S3 profiles built successfully.
+
+## 2026-10-14: External O2 jack
+
+- Added analyzer-owned GPIO13 detection with a pull-up and assumed active-LOW connection level,
+  configurable through `EXT_O2_DETECT_ACTIVE_LEVEL` in `src/pin_config.h`.
+- Connection disables He/CO power and acquisition without changing saved settings. The switching
+  jack supplies O2 through the existing ADC path, enable setting, and calibration coefficients.
+  Unplugging restores current settings and normal CO warm-up; resume reads the current jack state.
+- Kept the change small: no queue clearing, jack-driven generation change, new UI messages,
+  debounce, or handling of sensor changes during calibration.
+- Focused analyzer suite: 58 passed. Full host checks: native 124 and native-ui 4 passed.
+  Both `t-display-s3` and `t-display-s3-release` builds passed.
+
 ## 2026-10-14: Release and OTA status
 
 - User confirmed hosted GitHub releases and OTA are working.

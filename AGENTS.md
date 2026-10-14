@@ -17,6 +17,9 @@
 	`pio run -e t-display-s3 -e t-display-s3-release`. These checks do not replace device validation.
 - Consult `docs/testing.md` before test changes. Keep its suite counts, coverage map, environment
 	selection, and validation boundaries current whenever related code or configuration changes.
+- Keep documentation focused on software behavior, design, and agent-run build/test results. Do not
+	record firmware upload status, hardware verification status or reminders, or other operational
+	checklists outside the agent's control unless explicitly requested by the user.
 - Treat `docs/improvement-plan.md` as the current scope, `docs/architecture.md` as the current design,
 	and the dated sections of `docs/progress.md` as historical snapshots. Do not infer current pending
 	work from an older dated entry when the status table says it is complete.

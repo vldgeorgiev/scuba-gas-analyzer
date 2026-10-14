@@ -81,6 +81,35 @@ admit another operation while a supposedly timed-out command still owns the hard
 allocation failures are logged; failed analyzer creation leaves commands unavailable. A permanently
 stuck task requires explicit recovery policy later, not silent readmission.
 
+## External O2 jack
+
+The analyzer configures GPIO13 (`PIN_EXT_O2_DETECT`) with `INPUT_PULLUP`. LOW currently means
+connected, selected by `EXT_O2_DETECT_ACTIVE_LEVEL` in `src/pin_config.h`.
+The jack does not switch the analog wiring. Both O2 sensors connect to
+ADC1 (`0x49`): internal O2 uses differential A2/A3, external O2 uses differential A0/A1. The analyzer
+selects the input pair from jack detection for both readings and calibration. The existing gain,
+sample rate, and absolute-millivolt conversion are unchanged. O2 still respects its enable setting.
+
+Internal O2 retains `o2Air`/`o2Pure` under the existing `o2_calib_21`/`o2_calib_100` Preferences keys.
+External O2 uses `externalO2Air`/`externalO2Pure` under `ext_o2_air`/`ext_o2_pure`. Each air point has
+independent acceptance; missing external keys do not copy or invalidate internal calibration.
+`apply()` selects coefficients and calibration-required state from the current jack. Manual and
+enabled cold-boot air calibration share the existing incremental validation path and save only the
+selected profile. Pure calibration requires accepted air for that profile; reset/clear target it
+too. Ordinary settings commands preserve both profiles, and failed writes retain RAM acceptance
+and values. There is one external profile, not per-sensor identification.
+
+While connected, `Analyzer::apply()` suppresses He/CO acquisition and drives both power enables LOW
+without changing saved settings. The service loop detects changes even when result delivery is
+blocked and requests a fresh measurement. Unplugging restores the latest settings and restarts CO
+warm-up when power returns. Startup and sleep resume read the current jack state before enabling
+sensor power; the jack is not a wake source.
+
+Jack changes do not clear queues, advance measurement generation, or send command results. The next
+reading carries Disabled states for He/CO/temperature through the existing UI path. No debounce
+or protection against switching sensors during calibration is added;
+users must keep the sensor connected throughout calibration.
+
 ## Sleep preparation and resume
 
 Step 3c added the handshake on the existing queues, without a shared sensor-access flag or a new

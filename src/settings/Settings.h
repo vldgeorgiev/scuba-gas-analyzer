@@ -24,6 +24,8 @@ struct AnalyzerSettings {
   float po2Deco = 1.6f;
   float o2Air = app::policy::O2_AIR_CALIBRATION_DEFAULT_MV;
   float o2Pure = NAN;
+  float externalO2Air = app::policy::O2_AIR_CALIBRATION_DEFAULT_MV;
+  float externalO2Pure = NAN;
   float heCalibration = app::policy::HE_CALIBRATION_DEFAULT_MV;
 
   static bool validSleepMinutes(uint8_t minutes) {
@@ -64,6 +66,7 @@ struct AnalyzerSettings {
     return validSleepMinutes(sleepMinutes) && brightness >= 8 && validCoCorrection(coCorrectionPpm) &&
            validPo2Bottom(po2Bottom) &&
            validPo2Deco(po2Deco, po2Bottom) && validO2Air(o2Air) && validO2Pure(o2Pure, o2Air) &&
+           validO2Air(externalO2Air) && validO2Pure(externalO2Pure, externalO2Air) &&
            validHeCalibration(heCalibration);
   }
 
@@ -84,6 +87,11 @@ struct AnalyzerSettings {
       o2Pure = defaults.o2Pure;
     }
     if (!validO2Pure(o2Pure, o2Air)) o2Pure = defaults.o2Pure;
+    if (!validO2Air(externalO2Air)) {
+      externalO2Air = defaults.externalO2Air;
+      externalO2Pure = NAN;
+    }
+    if (!validO2Pure(externalO2Pure, externalO2Air)) externalO2Pure = NAN;
     if (!validHeCalibration(heCalibration)) heCalibration = defaults.heCalibration;
     return repaired;
   }
@@ -91,6 +99,8 @@ struct AnalyzerSettings {
   bool sameMeasurementSettings(const AnalyzerSettings& other) const {
     return o2Enabled == other.o2Enabled && coEnabled == other.coEnabled && heEnabled == other.heEnabled &&
            coCorrectionPpm == other.coCorrectionPpm && o2Air == other.o2Air && heCalibration == other.heCalibration &&
+           externalO2Air == other.externalO2Air &&
+           (externalO2Pure == other.externalO2Pure || (std::isnan(externalO2Pure) && std::isnan(other.externalO2Pure))) &&
            (o2Pure == other.o2Pure || (std::isnan(o2Pure) && std::isnan(other.o2Pure)));
   }
 };

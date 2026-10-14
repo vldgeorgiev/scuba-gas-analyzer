@@ -180,6 +180,7 @@ private:
   uint32_t _generation = 1;
   Result _pending;
   bool _hasPending = false;
+  bool _externalO2Connected = false;
   bool _coPowered = false;
   uint32_t _coPoweredAt = 0;
   uint32_t _sleepId = 0;

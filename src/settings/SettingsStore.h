@@ -16,7 +16,9 @@ public:
 
   bool ready() const { return _ready; }
   bool loadedDefaults() const { return _loadedDefaults; }
-  bool hasOxygenCalibration() const { return _ready && _oxygenAccepted; }
+  bool hasOxygenCalibration(bool external = false) const {
+    return _ready && (external ? _externalOxygenAccepted : _oxygenAccepted);
+  }
   bool hasHeliumCalibration() const { return _ready && _heliumAccepted; }
 
   AnalyzerSettings load() {
@@ -39,6 +41,11 @@ public:
     _oxygenAccepted = AnalyzerSettings::validO2Air(storedAir);
     value.o2Air = std::isnan(storedAir) ? value.o2Air : storedAir;
     value.o2Pure = _preferences.getFloat("o2_calib_100", value.o2Pure);
+    const float storedExternalAir = _preferences.getFloat("ext_o2_air", NAN);
+    _externalOxygenAccepted = AnalyzerSettings::validO2Air(storedExternalAir);
+    value.externalO2Air = std::isnan(storedExternalAir) ? value.externalO2Air : storedExternalAir;
+    value.externalO2Pure = _preferences.getFloat("ext_o2_pure", value.externalO2Pure);
+    if (!_externalOxygenAccepted) value.externalO2Pure = NAN;
     const float storedHelium = _preferences.getFloat("he_calib_100", NAN);
     _heliumAccepted = AnalyzerSettings::validHeCalibration(storedHelium);
     value.heCalibration = std::isnan(storedHelium) ? value.heCalibration : storedHelium;
@@ -49,11 +56,16 @@ public:
   }
 
   bool save(const AnalyzerSettings& value, const AnalyzerSettings& previous,
-            bool acceptOxygen = false, bool acceptHelium = false) {
+            bool acceptOxygen = false, bool acceptHelium = false, bool acceptExternalOxygen = false) {
     if (!_ready || !value.valid()) return false;
     const bool force = _rewrite;
     const bool oxygenAccepted = _oxygenAccepted || acceptOxygen;
     const bool heliumAccepted = _heliumAccepted || acceptHelium;
+    const bool externalOxygenAccepted = _externalOxygenAccepted || acceptExternalOxygen;
+    const float externalAir = externalOxygenAccepted ? value.externalO2Air : NAN;
+    const float previousExternalAir = _externalOxygenAccepted ? previous.externalO2Air : NAN;
+    const float externalPure = externalOxygenAccepted ? value.externalO2Pure : NAN;
+    const float previousExternalPure = _externalOxygenAccepted ? previous.externalO2Pure : NAN;
     const float air = oxygenAccepted ? value.o2Air : NAN;
     const float previousAir = _oxygenAccepted ? previous.o2Air : NAN;
     const float pure = oxygenAccepted ? value.o2Pure : NAN;
@@ -72,11 +84,14 @@ public:
       ((!force && sameFloat(air, previousAir)) || _preferences.putFloat("o2_calib_21", air) == sizeof(float)) &&
       ((!force && !(!_oxygenAccepted && acceptOxygen) && sameFloat(pure, previousPure)) || _preferences.putFloat("o2_calib_100", pure) == sizeof(float)) &&
       ((!force && sameFloat(helium, previousHelium)) || _preferences.putFloat("he_calib_100", helium) == sizeof(float)) &&
+      ((!force && sameFloat(externalAir, previousExternalAir)) || _preferences.putFloat("ext_o2_air", externalAir) == sizeof(float)) &&
+      ((!force && !(!_externalOxygenAccepted && acceptExternalOxygen) && sameFloat(externalPure, previousExternalPure)) || _preferences.putFloat("ext_o2_pure", externalPure) == sizeof(float)) &&
       ((!force && value.coCorrectionPpm == previous.coCorrectionPpm) || _preferences.putChar("co_correction", value.coCorrectionPpm) == 1);
     _rewrite = !saved;
     if (saved) {
       _oxygenAccepted = oxygenAccepted;
       _heliumAccepted = heliumAccepted;
+      _externalOxygenAccepted = externalOxygenAccepted;
     }
     return saved;
   }
@@ -90,6 +105,7 @@ private:
   bool _rewrite = false;
   bool _loadedDefaults = false;
   bool _oxygenAccepted = false;
+  bool _externalOxygenAccepted = false;
   bool _heliumAccepted = false;
 };
 

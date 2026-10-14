@@ -51,6 +51,15 @@ the next change when requested; do not recreate the discarded framework.
   are active scope in step 8. Authenticate GitHub and its release redirect with maintained root CAs
   after bounded NTP synchronization; fail closed when time or TLS verification fails.
 - Keep the current README unchanged during planning; update user documentation after implementation.
+- External O2 jack (2026-10-14): GPIO13 detection temporarily disables He/CO power and acquisition,
+  preserving saved settings and the existing O2 enable/ADC path. LOW currently means plugged
+  in. Keep this small: no queue clearing, generation change, new UI messages,
+  or calibration-switch protection. Internal and external O2 have separate persisted air/pure
+  calibration sets, selected by the jack; existing internal keys remain unchanged. Readings and
+  calibration select differential A0/A1 for external O2 or A2/A3 for internal O2 on ADC1 (`0x49`);
+  the jack does not switch analog wiring. Startup, polling,
+  and resume use the current jack state; unplugging restores settings and normal warm-up.
+  See architecture and tests.
 
 ## Design limits
 

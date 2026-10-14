@@ -62,7 +62,7 @@ ChannelState SensorManager::recordRead(DeviceState& state, bool timedOut, bool v
   return valid ? ChannelState::Valid : ChannelState::Invalid;
 }
 
-void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100) {
+void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100, bool externalO2) {
   log_d("Setting sensors config: O2 %d, CO %d, O2 21%% %.2f, O2 100%% %.2f",
       isO2Enabled, isCOEnabled, o2Calibration21, o2Calibration100);
   _isO2Enabled = isO2Enabled;
@@ -71,6 +71,7 @@ void SensorManager::setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool is
   _o2Calibration21 = o2Calibration21;
   _o2Calibration100 = o2Calibration100;
   _heCalibration100 = heCalibration100;
+  _o2Sensor.setExternalInput(externalO2);
   _o2Sensor.setCalibrations(_o2Calibration21, _o2Calibration100);
   _heSensor.setCalibrations(_heCalibration100);
 }

@@ -36,3 +36,4 @@
 #define PIN_CO_ENABLE                10
 
 #define PIN_EXT_O2_DETECT            13
+#define EXT_O2_DETECT_ACTIVE_LEVEL   LOW

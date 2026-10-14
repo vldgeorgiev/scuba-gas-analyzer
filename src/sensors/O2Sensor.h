@@ -16,6 +16,10 @@ class O2Sensor {
 public:
   O2Sensor(Adafruit_ADS1115 &adc) : _adc(adc) {}
 
+  void setExternalInput(bool external) {
+    _mux = external ? ADS1X15_REG_CONFIG_MUX_DIFF_0_1 : ADS1X15_REG_CONFIG_MUX_DIFF_2_3;
+  }
+
   void setCalibrations(float calibration21, float calibration100) {
     // The 100% may not be defined, but the 21% must always be valid
     if (!std::isfinite(calibration21) || calibration21 < app::policy::O2_AIR_CALIBRATION_MIN_MV ||
@@ -35,7 +39,7 @@ public:
     O2Reading reading;
 
     int16_t adcValue;
-    if (!acquisition::readCounts(_adc, ADS1X15_REG_CONFIG_MUX_DIFF_2_3, adcValue)) {
+    if (!acquisition::readCounts(_adc, _mux, adcValue)) {
       if (timedOut) *timedOut = true;
       return reading;
     }
@@ -54,6 +58,7 @@ public:
 
 private:
     Adafruit_ADS1115 &_adc;
+  uint16_t _mux = ADS1X15_REG_CONFIG_MUX_DIFF_2_3;
     // The calibration coeficitients for air and 100% O2
     float _calibration21 = NAN;
     float _calibration100 = NAN;

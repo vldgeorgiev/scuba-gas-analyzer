@@ -82,7 +82,7 @@ public:
     SensorManager(QueueHandle_t& dataQueue);
 
     SensorError init();
-    void setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100);
+    void setSensorsConfig(bool isO2Enabled, bool isCOEnabled, bool isHeEnabled, float o2Calibration21, float o2Calibration100, float heCalibration100, bool externalO2 = false);
     SensorError readSensors(bool coWarmupWindow = false);
     void discardMeasurements() { xQueueReset(_dataQueue); }
     void setGeneration(uint32_t generation) { _generation = generation; }

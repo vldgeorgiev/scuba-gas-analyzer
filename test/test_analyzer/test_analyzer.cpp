@@ -6,6 +6,7 @@ void setUp() {
   Preferences::values.clear();
   Preferences::values["calib_start"] = 0;
   Preferences::values["o2_calib_21"] = 10;
+  Preferences::values["ext_o2_air"] = 10;
   Preferences::values["he_calib_100"] = 620;
   Preferences::available = true;
   Preferences::failWrite = false;
@@ -13,6 +14,7 @@ void setUp() {
   Preferences::reads = 0;
   Preferences::failAfter = -1;
   nowMs = 0;
+  pinInputs.fill(HIGH);
   Adafruit_ADS1115::present[0] = Adafruit_ADS1115::present[1] = true;
 }
 void tearDown() {}
@@ -25,6 +27,115 @@ struct Rig {
   app::Analyzer analyzer{settingsStore, sensors};
   Rig() { analyzer.begin(); }
 };
+
+void test_external_o2_at_startup_disables_he_co_without_changing_settings() {
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  Rig rig;
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
+  TEST_ASSERT_TRUE(rig.analyzer.effective().heEnabled);
+  TEST_ASSERT_TRUE(rig.analyzer.effective().coEnabled);
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  rig.analyzer.measure();
+  sensorsData sample;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &sample, 0));
+  TEST_ASSERT_EQUAL(ChannelState::Valid, sample.o2State);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, sample.O2Level.millivolts);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.coState);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.temperatureState);
+  TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[0]->differential01Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[1]->resultReads);
+  TEST_ASSERT_EQUAL_UINT32(1, sample.generation);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_external_o2_hotplug_updates_even_with_blocked_result_delivery() {
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  results.occupied = true;
+  nowMs = app::policy::CO_WARMUP_MS;
+  TEST_ASSERT_FALSE(rig.analyzer.coWarming());
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  TEST_ASSERT_TRUE(rig.analyzer.service(&commands, &results));
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
+  rig.analyzer.measure();
+  sensorsData sample;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &sample, 0));
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.coState);
+  TEST_ASSERT_EQUAL_UINT32(1, sample.generation);
+  pinInputs[PIN_EXT_O2_DETECT] = HIGH;
+  TEST_ASSERT_TRUE(rig.analyzer.service(&commands, &results));
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_CO_ENABLE]);
+  TEST_ASSERT_TRUE(rig.analyzer.coWarming());
+  rig.analyzer.measure();
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &sample, 0));
+  TEST_ASSERT_NOT_EQUAL(ChannelState::Disabled, sample.heState);
+  TEST_ASSERT_NOT_EQUAL(ChannelState::Disabled, sample.coState);
+  TEST_ASSERT_EQUAL_UINT32(1, sample.generation);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_external_o2_unplug_restores_latest_settings_and_respects_o2_disabled() {
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  Rig rig;
+  app::Command command;
+  command.settings = rig.analyzer.effective();
+  command.settings.o2Enabled = false;
+  command.settings.heEnabled = false;
+  const auto result = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+  TEST_ASSERT_FALSE(result.effective.heEnabled);
+  TEST_ASSERT_TRUE(result.effective.coEnabled);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
+  rig.analyzer.measure();
+  sensorsData sample;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &sample, 0));
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.heState);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.coState);
+  const auto writes = Preferences::writes;
+  pinInputs[PIN_EXT_O2_DETECT] = HIGH;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  rig.analyzer.service(&commands, &results);
+  TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_HE_ENABLE]);
+  TEST_ASSERT_EQUAL_INT(HIGH, pinValues[PIN_CO_ENABLE]);
+  rig.analyzer.measure();
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &sample, 0));
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.o2State);
+  TEST_ASSERT_EQUAL(ChannelState::Disabled, sample.heState);
+  TEST_ASSERT_NOT_EQUAL(ChannelState::Disabled, sample.coState);
+  TEST_ASSERT_EQUAL_UINT32(result.generation, sample.generation);
+  TEST_ASSERT_EQUAL_UINT(writes, Preferences::writes);
+}
+
+void test_external_o2_resume_reads_current_jack_state() {
+  Rig rig;
+  for (const int level : {LOW, HIGH}) {
+    app::Command prepare;
+    prepare.type = app::CommandType::PrepareSleep;
+    prepare.id = 7;
+    TEST_ASSERT_EQUAL(app::Failure::None, rig.analyzer.execute(prepare).failure);
+    pinInputs[PIN_EXT_O2_DETECT] = level;
+    TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_HE_ENABLE]);
+    TEST_ASSERT_EQUAL_INT(LOW, pinValues[PIN_CO_ENABLE]);
+    app::Command resume;
+    resume.type = app::CommandType::Resume;
+    resume.id = prepare.id;
+    TEST_ASSERT_EQUAL(app::Failure::None, rig.analyzer.execute(resume).failure);
+    const int expectedPower = level == EXT_O2_DETECT_ACTIVE_LEVEL ? LOW : HIGH;
+    TEST_ASSERT_EQUAL_INT(expectedPower, pinValues[PIN_HE_ENABLE]);
+    TEST_ASSERT_EQUAL_INT(expectedPower, pinValues[PIN_CO_ENABLE]);
+  }
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
 
 void test_apply_settings_acknowledges_live_state_and_generation() {
   Rig rig;
@@ -446,6 +557,218 @@ static app::Result finishServiceCalibration(Rig& rig, FakeQueue& commands, FakeQ
   app::Result terminal;
   TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &terminal, 0));
   return terminal;
+}
+
+void test_o2_readings_select_independent_profiles_without_generation_change() {
+  Preferences::values["ext_o2_air"] = 20;
+  Rig rig;
+  Adafruit_ADS1115::devices[0]->counts = 320;
+  rig.analyzer.measure();
+  sensorsData internal;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &internal, 0));
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 20.9f, internal.O2Level.percentage);
+  TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential01Reads);
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  rig.analyzer.service(&commands, &results);
+  rig.analyzer.measure();
+  sensorsData external;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &external, 0));
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10.45f, external.O2Level.percentage);
+  TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[0]->differential01Reads);
+  TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT32(internal.generation, external.generation);
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+}
+
+void test_o2_calibration_saves_only_selected_profile_and_survives_reboot() {
+  Preferences::values["o2_calib_100"] = 50;
+  {
+    pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+    Rig rig;
+    FakeQueue commands(sizeof(app::Command));
+    FakeQueue results(sizeof(app::Result));
+    Adafruit_ADS1115::devices[0]->counts = 384;
+    const auto air = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+    TEST_ASSERT_EQUAL(app::Failure::None, air.failure);
+    TEST_ASSERT_EQUAL_FLOAT(12, air.effective.externalO2Air);
+    TEST_ASSERT_EQUAL_FLOAT(10, air.effective.o2Air);
+    nowMs = 0;
+    Adafruit_ADS1115::devices[0]->counts = 1920;
+    const auto pure = finishServiceCalibration(rig, commands, results, app::CommandType::CalibratePure);
+    TEST_ASSERT_EQUAL(app::Failure::None, pure.failure);
+    TEST_ASSERT_EQUAL_FLOAT(60, pure.effective.externalO2Pure);
+    TEST_ASSERT_EQUAL_FLOAT(50, pure.effective.o2Pure);
+    TEST_ASSERT_GREATER_THAN_UINT(0, Adafruit_ADS1115::devices[0]->differential01Reads);
+    TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  }
+  pinInputs[PIN_EXT_O2_DETECT] = HIGH;
+  nowMs = 0;
+  Rig restarted;
+  TEST_ASSERT_EQUAL_FLOAT(12, restarted.analyzer.effective().externalO2Air);
+  TEST_ASSERT_EQUAL_FLOAT(60, restarted.analyzer.effective().externalO2Pure);
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[0]->counts = 448;
+  const auto internal = finishServiceCalibration(restarted, commands, results, app::CommandType::CalibrateAir);
+  TEST_ASSERT_EQUAL(app::Failure::None, internal.failure);
+  TEST_ASSERT_EQUAL_FLOAT(14, Preferences::values["o2_calib_21"]);
+  TEST_ASSERT_EQUAL_FLOAT(50, Preferences::values["o2_calib_100"]);
+  TEST_ASSERT_EQUAL_FLOAT(12, Preferences::values["ext_o2_air"]);
+  TEST_ASSERT_EQUAL_FLOAT(60, Preferences::values["ext_o2_pure"]);
+  TEST_ASSERT_GREATER_THAN_UINT(0, Adafruit_ADS1115::devices[0]->differential23Reads);
+  TEST_ASSERT_EQUAL_UINT(0, Adafruit_ADS1115::devices[0]->differential01Reads);
+}
+
+void test_missing_external_calibration_is_not_accepted_by_settings_save() {
+  Preferences::values.erase("ext_o2_air");
+  Preferences::values["ext_o2_pure"] = 55;
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  {
+    Rig rig;
+    TEST_ASSERT_TRUE(rig.settingsStore.hasOxygenCalibration());
+    TEST_ASSERT_FALSE(rig.settingsStore.hasOxygenCalibration(true));
+    TEST_ASSERT_FALSE(rig.settingsStore.loadedDefaults());
+    Adafruit_ADS1115::devices[0]->counts = 320;
+    rig.analyzer.measure();
+    sensorsData sample;
+    TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(rig.handle, &sample, 0));
+    TEST_ASSERT_EQUAL(ChannelState::Invalid, sample.o2State);
+    TEST_ASSERT_EQUAL_FLOAT(10, sample.O2Level.millivolts);
+    app::Command save;
+    save.settings = rig.analyzer.effective();
+    save.settings.externalO2Air = 18;
+    save.settings.externalO2Pure = 80;
+    save.settings.brightness = 64;
+    const auto saved = rig.analyzer.execute(save);
+    TEST_ASSERT_TRUE(saved.oxygenCalibrationRequired);
+    TEST_ASSERT_EQUAL_FLOAT(10, saved.effective.externalO2Air);
+    TEST_ASSERT_TRUE(std::isnan(saved.effective.externalO2Pure));
+    FakeQueue commands(sizeof(app::Command));
+    FakeQueue results(sizeof(app::Result));
+    rig.analyzer.service(&commands, &results);
+    app::Result rejected;
+    TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &rejected, 0));
+    app::Command pure;
+    pure.type = app::CommandType::CalibratePure;
+    pure.id = 42;
+    TEST_ASSERT_EQUAL_INT(pdPASS, xQueueSend(&commands, &pure, 0));
+    rig.analyzer.service(&commands, &results);
+    rig.analyzer.service(&commands, &results);
+    TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &rejected, 0));
+    TEST_ASSERT_EQUAL(app::Failure::CalibrationRequired, rejected.failure);
+    TEST_ASSERT_TRUE(rejected.complete);
+  }
+  Rig restarted;
+  TEST_ASSERT_FALSE(restarted.settingsStore.hasOxygenCalibration(true));
+  TEST_ASSERT_TRUE(restarted.settingsStore.hasOxygenCalibration());
+  TEST_ASSERT_FALSE(restarted.settingsStore.loadedDefaults());
+}
+
+void test_o2_reset_and_clear_affect_only_selected_profile() {
+  Preferences::values["o2_calib_21"] = 12;
+  Preferences::values["o2_calib_100"] = 50;
+  Preferences::values["ext_o2_air"] = 18;
+  Preferences::values["ext_o2_pure"] = 80;
+  Rig rig;
+  app::Command command;
+  command.type = app::CommandType::ClearPure;
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  const auto externalClear = rig.analyzer.execute(command);
+  TEST_ASSERT_TRUE(std::isnan(externalClear.effective.externalO2Pure));
+  TEST_ASSERT_EQUAL_FLOAT(50, externalClear.effective.o2Pure);
+  command.type = app::CommandType::ResetAir;
+  const auto externalReset = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL_FLOAT(10, externalReset.effective.externalO2Air);
+  TEST_ASSERT_EQUAL_FLOAT(12, externalReset.effective.o2Air);
+  pinInputs[PIN_EXT_O2_DETECT] = HIGH;
+  const auto internalReset = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL_FLOAT(10, internalReset.effective.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(50, internalReset.effective.o2Pure);
+  command.type = app::CommandType::ClearPure;
+  const auto internalClear = rig.analyzer.execute(command);
+  TEST_ASSERT_TRUE(std::isnan(internalClear.effective.o2Pure));
+  TEST_ASSERT_EQUAL_FLOAT(10, internalClear.effective.externalO2Air);
+}
+
+void test_external_calibration_partial_write_is_unaccepted_until_retry() {
+  Preferences::values.erase("ext_o2_air");
+  Preferences::values["ext_o2_pure"] = 55;
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  Rig rig;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  Adafruit_ADS1115::devices[0]->counts = 384;
+  Preferences::failAfter = 1;
+  const auto failed = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  TEST_ASSERT_EQUAL(app::Failure::Storage, failed.failure);
+  TEST_ASSERT_TRUE(failed.oxygenCalibrationRequired);
+  TEST_ASSERT_FALSE(rig.settingsStore.hasOxygenCalibration(true));
+  TEST_ASSERT_EQUAL_FLOAT(10, rig.analyzer.effective().externalO2Air);
+  Preferences::failAfter = -1;
+  app::Command save;
+  save.settings = rig.analyzer.effective();
+  TEST_ASSERT_EQUAL(app::Failure::None, rig.analyzer.execute(save).failure);
+  TEST_ASSERT_TRUE(std::isnan(Preferences::values["ext_o2_air"]));
+  TEST_ASSERT_TRUE(std::isnan(Preferences::values["ext_o2_pure"]));
+  TEST_ASSERT_EQUAL_FLOAT(10, Preferences::values["o2_calib_21"]);
+  nowMs = 0;
+  const auto accepted = finishServiceCalibration(rig, commands, results, app::CommandType::CalibrateAir);
+  TEST_ASSERT_EQUAL(app::Failure::None, accepted.failure);
+  TEST_ASSERT_FALSE(accepted.oxygenCalibrationRequired);
+  TEST_ASSERT_EQUAL_FLOAT(12, Preferences::values["ext_o2_air"]);
+  TEST_ASSERT_TRUE(std::isnan(Preferences::values["ext_o2_pure"]));
+  SettingsStore reloaded;
+  reloaded.begin();
+  reloaded.load();
+  TEST_ASSERT_TRUE(reloaded.hasOxygenCalibration(true));
+  TEST_ASSERT_TRUE(reloaded.hasOxygenCalibration());
+}
+
+void test_external_startup_calibration_accepts_only_external_profile() {
+  Preferences::values.erase("ext_o2_air");
+  Preferences::values["calib_start"] = 1;
+  pinInputs[PIN_EXT_O2_DETECT] = EXT_O2_DETECT_ACTIVE_LEVEL;
+  Rig rig;
+  TEST_ASSERT_TRUE(rig.analyzer.calibrating());
+  Adafruit_ADS1115::devices[0]->counts = 384;
+  FakeQueue commands(sizeof(app::Command));
+  FakeQueue results(sizeof(app::Result));
+  for (nowMs = 0; nowMs <= app::policy::CALIBRATION_MINIMUM_MS;
+       nowMs += app::policy::CALIBRATION_SAMPLE_MS) {
+    rig.analyzer.service(&commands, &results);
+  }
+  rig.analyzer.service(&commands, &results);
+  app::Result startup;
+  TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&results, &startup, 0));
+  TEST_ASSERT_EQUAL(app::CommandType::Startup, startup.type);
+  TEST_ASSERT_EQUAL(app::Failure::None, startup.failure);
+  TEST_ASSERT_FALSE(startup.oxygenCalibrationRequired);
+  TEST_ASSERT_TRUE(rig.settingsStore.hasOxygenCalibration(true));
+  TEST_ASSERT_EQUAL_FLOAT(12, startup.effective.externalO2Air);
+  TEST_ASSERT_EQUAL_FLOAT(10, startup.effective.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(10, Preferences::values["o2_calib_21"]);
+}
+
+void test_corrupt_external_calibration_repairs_only_external_profile() {
+  Preferences::values["ext_o2_air"] = 25;
+  Preferences::values["ext_o2_pure"] = 90;
+  Preferences::values["o2_calib_100"] = 50;
+  SettingsStore store;
+  store.begin();
+  const auto loaded = store.load();
+  TEST_ASSERT_TRUE(store.loadedDefaults());
+  TEST_ASSERT_FALSE(store.hasOxygenCalibration(true));
+  TEST_ASSERT_TRUE(store.hasOxygenCalibration());
+  TEST_ASSERT_EQUAL_FLOAT(10, loaded.o2Air);
+  TEST_ASSERT_EQUAL_FLOAT(50, loaded.o2Pure);
+  TEST_ASSERT_EQUAL_FLOAT(10, loaded.externalO2Air);
+  TEST_ASSERT_TRUE(std::isnan(loaded.externalO2Pure));
+  TEST_ASSERT_TRUE(store.save(loaded, loaded));
+  TEST_ASSERT_TRUE(std::isnan(Preferences::values["ext_o2_air"]));
+  TEST_ASSERT_TRUE(std::isnan(Preferences::values["ext_o2_pure"]));
 }
 
 void test_stable_service_calibration_saves_at_five_seconds() {
@@ -1319,6 +1642,17 @@ void test_delayed_results_do_not_sync_an_open_editor() {
 
 int main(int, char**) {
   UNITY_BEGIN();
+  RUN_TEST(test_o2_readings_select_independent_profiles_without_generation_change);
+  RUN_TEST(test_o2_calibration_saves_only_selected_profile_and_survives_reboot);
+  RUN_TEST(test_missing_external_calibration_is_not_accepted_by_settings_save);
+  RUN_TEST(test_o2_reset_and_clear_affect_only_selected_profile);
+  RUN_TEST(test_external_calibration_partial_write_is_unaccepted_until_retry);
+  RUN_TEST(test_external_startup_calibration_accepts_only_external_profile);
+  RUN_TEST(test_corrupt_external_calibration_repairs_only_external_profile);
+  RUN_TEST(test_external_o2_at_startup_disables_he_co_without_changing_settings);
+  RUN_TEST(test_external_o2_hotplug_updates_even_with_blocked_result_delivery);
+  RUN_TEST(test_external_o2_unplug_restores_latest_settings_and_respects_o2_disabled);
+  RUN_TEST(test_external_o2_resume_reads_current_jack_state);
   RUN_TEST(test_apply_settings_acknowledges_live_state_and_generation);
   RUN_TEST(test_rejection_and_write_failure_keep_effective_state);
   RUN_TEST(test_clear_optional_calibration_and_unchanged_commands);

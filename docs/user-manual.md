@@ -20,6 +20,18 @@ The CO value turns red when the analyzer detects CO above 0 ppm. Investigate the
 
 A fully charged cell is about 4.2 V. Recharge before it drops to about 3.0 V. Use the **Sleep** setting to put the analyzer into low-power sleep after several minutes of inactivity; select `Off` only when continuous operation is needed. Sleep greatly reduces battery consumption while the analyzer is not in use. Keep the analyzer powered during an active firmware update.
 
+## External O2 sensor
+
+Connect the external O2 sensor to the coaxial jack. The analyzer detects it and reads its input;
+He and CO are powered off. Their saved enable settings are unchanged. Unplugging
+restores the internal O2 sensor and the current He/CO settings; wait for enabled sensors to settle
+again. O2 must still be enabled in **Settings**.
+
+Internal and external O2 have separate saved air and optional pure-O2 calibrations. Calibrate the external sensor before its first use.
+Without an accepted air calibration for the selected sensor, O2 shows `Invalid` but raw voltage is
+still available. One external calibration set is stored, not a set for each interchangeable sensor:
+recalibrate whenever you replace the external sensor.
+
 ## Calibration
 
 From the main screen, tap the circular-arrow **Calibration** button. Choose the calibration that matches the reference gas being used:
@@ -28,13 +40,19 @@ From the main screen, tap the circular-arrow **Calibration** button. Choose the 
 - **Pure O2 calibration** calibrate O2 sensor with 100% O2 (optional).
 - **Helium calibration** calibrate He sensor with 100% helium.
 
+O2 calibration automatically uses the connected sensor: unplug the external sensor to calibrate the
+internal one, or plug it in to calibrate the external one. Air calibration must be accepted before
+optional pure-O2 calibration for that same sensor. O2 reset and pure-O2 clear also affect only the
+selected sensor. Keep the connection unchanged throughout calibration. Disconnect the external O2
+sensor before calibrating helium.
+
 ![Calibration choices](images/user-manual/calibration.png)
 
 Start calibration only after supplying stable reference gas to the sensors. The analyzer samples the sensor value and waits for a stable reading. It saves after at least five stable seconds. The graph freezes and the screen shows `Saved` when it is complete; use **Done** to return to the calibration screen. Use **Cancel** to stop a calibration in progress.
 
 ![Completed air calibration](images/user-manual/calibration-complete.png)
 
-If calibration reports an invalid range, unstable signal, or save failure, do not use the attempted value. Check the reference gas, sensor connection, and sensor warm-up, then try again. The **Calibrate on startup** setting requests an air calibration after a cold boot.
+If calibration reports an invalid range, unstable signal, or save failure, do not use the attempted value. Check the reference gas, sensor connection, and sensor warm-up, then try again. The **Calibrate on startup** setting requests an air calibration of the selected O2 sensor after a cold boot; waking from automatic sleep retains calibration.
 
 ## Settings
 
