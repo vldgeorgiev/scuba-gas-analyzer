@@ -33,6 +33,19 @@ void test_he_correction_boundaries() {
                            conversions::heCorrectedMillivolts(100, boundaries[index]));
     TEST_ASSERT_EQUAL_FLOAT(100 - (9 + index),
                            conversions::heCorrectedMillivolts(100, boundaries[index] + 0.1f));
+    const float correction = 9 + index;
+    const float oxygen = boundaries[index] + 0.1f;
+    TEST_ASSERT_EQUAL_FLOAT(0, conversions::heCorrectedMillivolts(0, oxygen));
+    TEST_ASSERT_EQUAL_FLOAT(0, conversions::heCorrectedMillivolts(correction - 0.1f, oxygen));
+    TEST_ASSERT_EQUAL_FLOAT(0, conversions::heCorrectedMillivolts(correction, oxygen));
+    TEST_ASSERT_FLOAT_WITHIN(kTolerance, 0.1f,
+                           conversions::heCorrectedMillivolts(correction + 0.1f, oxygen));
+  }
+  const float oxygenOnlyMillivolts[] = {5, 10, 17};
+  for (float millivolts : oxygenOnlyMillivolts) {
+    const float corrected = conversions::heCorrectedMillivolts(millivolts, 100);
+    TEST_ASSERT_EQUAL_FLOAT(0, corrected);
+    TEST_ASSERT_EQUAL_FLOAT(0, conversions::hePercentage(corrected, 621.2f));
   }
 }
 
@@ -41,7 +54,10 @@ void test_he_requires_usable_o2() {
   TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, INFINITY)));
   TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, -1)));
   TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(100, 101)));
-  TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(10, 100)));
+  const float invalidMillivolts[] = {NAN, INFINITY, -INFINITY, -1};
+  for (float millivolts : invalidMillivolts) {
+    TEST_ASSERT_TRUE(std::isnan(conversions::heCorrectedMillivolts(millivolts, 100)));
+  }
 }
 
 void test_he_polynomial_and_calibration_scale() {

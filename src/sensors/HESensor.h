@@ -28,8 +28,6 @@ public:
     }
     reading.millivolts = abs(_adc.computeVolts(adcValue) * 1000);
 
-    // In case of high oxygen percentage, the He sensor also reads higher voltage. E.g. for 100, the He voltage is 4-5mv higher
-    // Values based on the code here, which comes from the original French presentation https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564/page-4#post-9084208
     const float correctedMillivolts = conversions::heCorrectedMillivolts(reading.millivolts, o2Percentage);
 
     // ================ Sensor calibration ===================
