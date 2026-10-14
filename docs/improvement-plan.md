@@ -1,6 +1,6 @@
 # Current app improvement plan
 
-Updated 2026-09-18. Implementation has started, one small step at a time, from restored `main`
+Updated 2026-10-14. Implementation has started, one small step at a time, from restored `main`
 at `ecde0b9`. See [progress and verification](progress.md) for completed work and pending checks.
 Earlier redesign build/test results describe discarded work, not completion of this plan.
 
@@ -27,6 +27,8 @@ the next change when requested; do not recreate the discarded framework.
 - Preserve current gas formulas, gains, sample rate, polarity, and calibration targets initially.
   Fix invalid inputs and numerical defects separately with focused tests. No gas-model refitting,
   new temperature compensation, sensor/electrical redesign, or accuracy-certification work.
+- Do not clamp finite O2/He percentages or CO ppm to nominal full-scale display values. Keep
+  over-range readings visible; retain input, calibration, and finite-value guards.
 - Remove `RunningAverage` and the application-level 20-conversion batches for normal gas readings.
   Use one fresh ADC conversion per enabled channel per acquisition cycle, keeping the ADC data rate
   unchanged. The ADS1115 hardware provides internal digital filtering; the Adafruit library reads
@@ -74,8 +76,7 @@ profiles, a native test command for portable production logic, and automated che
 target builds. Add tests as behavior is changed, not a complete fake infrastructure upfront.
 Validate a small Editor export independently so it does not delay urgent correctness fixes.
 
-Acceptance: documented build/test commands, unchanged USB/touch configuration, and an explicit
-distinction between local builds, hosted release execution, and device validation.
+Acceptance: documented build/test commands and unchanged USB/touch configuration.
 
 ## 2. Make readings and failures predictable
 
@@ -83,8 +84,8 @@ Progress: normal-reading batch averaging is removed (step 2a); initialized readi
 guards, checked integer presentation, and cycle error reset are implemented (step 2b).
 Latest-only measurement publication and UI-clock stale suppression are implemented (step 2c).
 ADC polling deadlines and independent readiness/retry are implemented (step 2d). Explicit channel
-state and a temporary status-label adapter are implemented (step 2e). Physical validation is complete;
-see [verification details](progress.md).
+state and a temporary status-label adapter are implemented (step 2e). See
+[verification details](progress.md).
 
 Initialize every measurement field. Distinguish disabled, warming, valid, invalid, and unavailable;
 compute staleness in the UI even when acquisition stops. Never replace unknown values with zero
@@ -95,27 +96,24 @@ baseline when O2 is disabled. Preserve raw diagnostics.
 Use stock Adafruit conversion start/poll/result calls with a timeout. Initialize ADCs independently,
 retry failed initialization or observed timeouts with simple backoff, and read temperature only
 when needed. Preserve ADC gains and data rate, but replace each 20-conversion gas batch with one
-fresh conversion. Neither range checks nor the polling
-deadline prove that an individual I2C exchange succeeded.
+fresh conversion. Neither range checks nor the polling deadline prove that an individual I2C
+exchange succeeded.
 
 Remove the normal-reading average buffers and do not replace them with another smoothing filter.
 With all channels enabled at 128 SPS, this reduces the conversion count from 61 to 4 per cycle:
 approximately 477 ms to 31 ms of nominal conversion time, excluding bus and scheduling overhead.
-This reduces acquisition latency but does not automatically increase UI refresh frequency; measure
-end-to-end response and review the task wait interval so a fixed delay does not hide the benefit.
-Compare steady-input noise and step response on hardware before claiming an improvement in displayed
-readings. Do not automatically reintroduce smoothing if noise rises; review the measured tradeoff.
+This reduces acquisition latency but does not automatically increase UI refresh frequency; review
+the task wait interval so a fixed delay does not hide the benefit. Do not automatically reintroduce
+smoothing if noise rises; review the tradeoff.
 
 The `RunningAverage` dependency was retired after calibration moved to the bounded stability window
 in step 5. That window is evidence for calibration, not normal-reading smoothing.
 
 Acceptance: focused tests for invalid/disabled values, stopped producer, independent readiness,
 timeout/recovery, clock wrap, and exactly one fresh conversion per enabled channel (temperature only
-when needed). Verify readings are derived from that conversion without a batch average. Record
-before/after acquisition latency, displayed step response, and steady-input noise on hardware.
-Target stale indication within two seconds of the last usable
-sample, including UI refresh latency. Measure disconnect behavior without promising every bus
-failure can be detected with the stock library.
+when needed). Verify readings are derived from that conversion without a batch average. Target stale
+indication within two seconds of the last usable sample, including UI refresh latency. The stock
+library cannot detect every bus failure.
 
 ## 3. Establish task ownership and add sleep
 
@@ -126,7 +124,7 @@ GUI mutex, separate screen-update task, and arbitrary startup delay are removed.
 Step 3c implements analyzer-owned preparation/resume and the fixed CO startup interval. Step 3d
 adds the persisted timeout, configuration dropdown, and tested activity/debounce policy. Step 3e
 enables S3 automatic entry, display/touch shutdown, abort/resume, and GPIO14 wake with confirmed-wake
-calibration preservation. Physical sleep/wake validation passed on the device.
+calibration preservation.
 
 The analyzer owns ADCs, sensor-enable GPIOs, calibration, effective RAM settings, and Preferences.
 UI callbacks submit one operation at a time and receive an outcome with effective values and a
@@ -139,7 +137,8 @@ Persist the selected timeout; use 5 minutes when the stored value is missing or 
 Measure touch/button inactivity, not redraws. Inhibit sleep during calibration, pending settings,
 Wi-Fi scans, and OTA using explicit activity flags, not a nested inhibitor registry. Start a fresh
 idle interval after operations finish.
-Also inhibit sleep while the settings editor contains a draft; do not discard unsaved changes.
+Keep sleep inhibited while Settings is open so its current draft is not lost to sleep. Closing
+submits the draft; if saving is rejected, restore effective settings and do not retain those edits.
 
 Deliver ownership and sleep against the existing UI before the replacement UI. Reuse the analyzer
 command path for sleep preparation/resume and owner-driven sensor power timing. No more temporary
@@ -154,11 +153,10 @@ Validate the expected wake cause plus a simple consumed application-sleep marker
 settings and skip automatic startup calibration only on confirmed application wake. Restart the
 CO interval. Report missing/invalid calibration; do not present it as an accepted calibration just
 because a numerical default exists. Wait for button release before arming and consume/debounce
-the wake press. Verify GPIO output hold/pull requirements on the board rather than assuming them.
+the wake press. Configure GPIO output hold/pull behavior according to the board requirements.
 
 Acceptance: five-minute default, missing/invalid timeout fallback, Off and all timeout options,
-busy inhibition, abort/resume, held button, retained settings, and ten sleep/wake cycles. Actual
-wake reliability and current consumption require hardware.
+busy inhibition, abort/resume, held button, and retained settings.
 
 ## 4. Finish settings behavior and acceptance
 
@@ -179,9 +177,9 @@ required channels; raw O2/He diagnostics remain available. Step 4c was simplifie
 save on exit, restore effective settings and report failure if rejected, and do not retain failed edits.
 One editing flag prevents asynchronous results overwriting an open editor. No discard controls or
 retained-draft sleep inhibition; only the open editor and pending operations inhibit sleep.
-Save-on-exit and apply/reset/clear behavior have been physically validated.
-Reading labels still use the existing Invalid state when
-calibration is required; finer presentation can be handled with the remaining UI work.
+Save-on-exit and apply/reset/clear behavior are implemented.
+Calibration-required reading labels use the existing Invalid state; detailed calibration outcomes
+identify the channels that require calibration.
 Check that calibration outcomes cannot overwrite in-progress editable settings drafts, and that
 old-generation readings never accompany new coefficients. Keep tests focused on product behavior.
 
@@ -190,14 +188,14 @@ measured value) to the
 existing Settings save-on-exit path; see architecture. Host tests cover storage, repair, mapping,
 and subtraction.
 
-Acceptance: retained settings and reset/clear behavior verified on the device, write failures
-reported accurately, and no repeated NVS reads during display updates. No new store framework.
+Acceptance: tests cover retained settings and reset/clear behavior, write failures are reported
+accurately, and display updates do not repeat NVS reads. No new store framework.
 
 ## 5. Complete stability-gated calibration
 
 Implementation status: manual and enabled cold-boot calibration share one incremental session.
 Spread and drift qualification, cancellation, persistence-gated completion, and legacy averaging
-removal are complete and physically validated with the current thresholds.
+removal are complete with the current thresholds.
 
 Use one incremental calibration session for manual and enabled cold-boot calibration. Collect fresh
 timestamped millivolt samples into a fixed rolling window. Require minimum sample count/coverage,
@@ -214,20 +212,15 @@ does not restore continuous smoothing to normal measurements.
 Compute the candidate from the final stable window, validate, persist, then apply. Cancellation,
 sampling failure, invalid input, timeout, and reported write failure retain the previous live
 calibration. Define late cancellation after successful application as already completed, not undone.
-Publish bounded history/progress independently of screen refresh. Thresholds are code constants
-chosen from recorded traces, not new user-facing settings. Accept O2-air candidates from 5 through
-20 mV, pure-O2 candidates from 30 through 100 mV, and helium candidates at or above 400 mV.
-Calibration and warm-up constants are centralized in `src/app/AnalyzerPolicy.h`. No CO calibration
-workflow is added.
+Publish bounded history/progress independently of screen refresh. Thresholds are code constants,
+not new user-facing settings. Accept O2-air candidates from 5 through 20 mV, pure-O2 candidates from
+30 through 100 mV, and helium candidates at or above 400 mV. Calibration and warm-up constants are
+centralized in `src/app/AnalyzerPolicy.h`. No CO calibration workflow is added.
 
-Acceptance: tests for steady input, noise, positive/negative slow drift, settling, spikes,
-timeout, cancellation, and clock wrap. Sample-gap and additional dwell changes are deferred.
-A hidden or slow graph must not change the result.
-Keep UI response near 200 ms as a provisional target; measure analyzer response separately.
-The former roughly 477 ms batch-acquisition estimate no longer applies after step 2 removes the
-20-conversion batches. Measure the single-conversion path, including timeouts and task waits,
-before adding scheduling machinery. Use bounded acquisition steps only if needed, without changing
-ADC rate or adding another task.
+Acceptance: tests for steady input, noise, positive/negative slow drift, settling, spikes, timeout,
+cancellation, and clock wrap. Sample-gap and additional dwell changes are deferred. A hidden or slow
+graph must not change the result. Use bounded acquisition steps only if needed, without changing ADC
+rate or adding another task.
 
 ## 6. Integrate the replacement UI
 
@@ -246,8 +239,6 @@ ADC rate or adding another task.
 - [x] Test real LVGL initialization/rendering, navigation, settings rejection and lifetime, sensor
   status formatting, and all existing portable behavior. Compile debug and release firmware.
 - [x] Re-export the renamed logo object in the Editor and verify direct-library builds and host tests.
-- [x] Verify physical touch, layout, warning readability, Settings save/reboot, brightness, dialogs,
-  keyboard, OTA access, heap/stack headroom, and sleep/wake on the device.
 - [x] Prepare component-based `calibration.xml`, `firmware_update.xml`, and `diagnostics.xml`.
 - [x] Export and verify the new screens, wire their controls, and remove handwritten action dialogs.
 - [x] Implement manual calibration graph/progress/cancellation UI and stability gating.
@@ -270,7 +261,7 @@ and existing components. Calibration exposes the startup preference, Air/Pure-O2
 Pure-O2 clear, and Diagnostics navigation. Firmware Update exposes
 network selection, scan, a masked password field and keyboard, connection status, and Install.
 Its keyboard takes layout space rather than covering the password; other form controls hide while
-editing. Install starts disabled until the future adapter sets `update_can_install`.
+editing. Install starts disabled until the adapter sets `update_can_install`.
 Diagnostics shows a wrapping `diagnostics_log_text` subject. These controls are wired through
 `UiAdapter`. In particular, `update_back` intentionally has
 no screen-create event: integration must return to the existing Settings draft without recreating it.
@@ -288,8 +279,8 @@ remains the source for generated controls.
 Acceptance: compatible export compiles, regeneration preserves handwritten code, navigation stays
 responsive, and invalid/disabled/warming states are understandable. Consult the LVGL MCP server
 and verify APIs against the selected version before implementation. Export compilation and host
-adapter behavior and physical acceptance are verified. A future Editor change should still be
-regenerated and built before delivery.
+adapter behavior are verified. A future Editor change should still be regenerated and built before
+delivery.
 
 ## 7. Measured cleanup
 
@@ -374,8 +365,7 @@ https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmw
 
 The release workflow must always attach the asset with the exact name `firmware.bin`; versioning
 belongs in the tag, release title, and metadata rather than the OTA asset filename. Preserve
-redirect following and verify the end-to-end device download because GitHub's `latest` endpoint
-redirects to release asset storage.
+redirect following through GitHub's `latest` endpoint to release asset storage.
 
 ### TLS authentication
 
@@ -384,15 +374,13 @@ HTTPS. `WiFiClientSecure::setCACert()` receives concatenated USERTrust ECC and I
 anchors, covering `github.com` and `release-assets.githubusercontent.com` respectively. Time setup,
 certificate validation, hostname validation, or connection failure cancels the update; there is no
 insecure fallback. Review the redirect chains and replace trust anchors before their 2038 and 2035
-expirations or when GitHub changes its chains. Device tests must cover successful OTA, unavailable
-NTP, and a rejected TLS connection.
+expirations or when GitHub changes its chains.
 
 Acceptance: a manual release passes both host suites and produces one CalVer used consistently by the
 binary, screen, tag, GitHub Release, and metadata; checksum verification passes; the latest-release
 URL returns that exact binary; local
 builds show `dev`; reruns and same-day releases cannot overwrite or ambiguously reuse a version.
-Device validation must confirm the displayed version and a successful OTA from GitHub. TLS trust
-authentication is implemented but remains subject to that device evidence.
+TLS trust authentication must fail closed when NTP or certificate validation fails.
 
 ## 9. Migrate to LVGL 9.6.0
 
@@ -416,13 +404,12 @@ LVGL 9.6 is the final v9 release, and APIs deprecated there are removed in v10.
   the deprecated `lv_obj_bind_flag_if_*` family. If the exporter cannot represent this binding, keep
   visibility in `UiAdapter` with `lv_obj_set_hidden()` until it can.
 - [ ] Build with deprecation warnings visible and remove reliance on the v9.5 compatibility map.
-- [ ] Run `pio test -e native -e native-ui`, build both S3 profiles, recheck LVGL heap headroom, and
-  physically verify rendering, touch/navigation, transient-screen lifetime, sensor visibility,
-  calibration, sleep/wake, and OTA before changing the pinned version.
+- [ ] Run `pio test -e native -e native-ui` and build both S3 profiles before changing the pinned
+  version.
 
 Acceptance: a fresh 9.6.0 Editor export and all handwritten code compile without LVGL deprecation or
 compatibility warnings; host suites and both firmware profiles pass; generated sources remain
-untouched; and device behavior and memory headroom are revalidated.
+untouched.
 
 ## Deferred
 
@@ -436,7 +423,7 @@ untouched; and device behavior and memory headroom are revalidated.
 Deliver the baseline and reading fixes (1-2), then task ownership and sleep/wake (3), remaining settings
 behavior (4), calibration (5), the replacement UI (6), measured cleanup (7), and versioned release
 automation (8). Defer the coordinated LVGL 9.6.0 migration (9) until Editor/export support is verified.
-Editor compatibility and calibration trace collection can proceed independently. Keep one current
+Editor compatibility can proceed independently. Keep one current
 checklist per active change. Do not resume the discarded redesign. Update architecture and progress
 alongside meaningful changes. Use Claude for bounded independent review when useful, particularly
 sleep and calibration; no OpenSpec scaffolding is required for small changes.

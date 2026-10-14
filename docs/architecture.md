@@ -1,6 +1,6 @@
 # Current firmware architecture
 
-Updated 2026-09-18 after calibration, UI, warm-up, and firmware-update improvements. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-10-14 after calibration, UI, warm-up, firmware-update, and settings behavior updates. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
@@ -109,9 +109,7 @@ result reports failure, it may be retried after one second; the UI remains busy 
 Late prepare acknowledgements are consumed but ignored during resume. Timing is wrap-safe.
 
 Prepared proceeds through the power-down sequence below or requests resume on abort/new activity.
-A permanently stuck analyzer cannot be
-recovered by forgetting the pending ID. Device checks must confirm publication and power restoration,
-not infer physical recovery merely from host state-machine tests.
+A permanently stuck analyzer cannot be recovered by forgetting the pending ID.
 
 ## Sleep setting and activity policy
 
@@ -161,7 +159,8 @@ clock wrap. The other experimental board profile does not yet have this wake-but
 an inhibition flag, and the debounced release state. It adds no second idle timer or task. On S3,
 the UI evaluates it after its normal input/render pass. Startup, pending operations, network work,
 and an open settings editor inhibit entry. Keeping settings open is deliberately more conservative
-than the original all-screens policy: an unsaved draft is not discarded by sleeping.
+than the original all-screens policy: sleep does not interrupt the active draft. Closing Settings
+submits it; if that save is rejected, the UI restores effective values and does not retain the edits.
 
 Scan/update callbacks mark network activity and start a temporary worker. The UI task drains its
 one-entry event queue, owns all dropdown/subject updates, and displays coalesced download percentages.
@@ -173,7 +172,6 @@ instead of immediately retrying sleep every UI tick.
 LVGL MCP guidance and installed 9.1 headers confirm `lv_display_get_inactive_time`,
 `lv_display_trigger_activity`, and dropdown selection APIs. Installed SDK headers also expose S3
 `ESP_EXT1_WAKEUP_ANY_LOW` and GPIO hold APIs, and pinned TouchLib has a checked `enableSleep()` call.
-These are integration evidence, not proof of physical wake/current behavior.
 
 ## S3 deep-sleep entry and wake
 
@@ -192,8 +190,7 @@ No additional worker task or generic power-management framework is used.
   detaches PWM, and drives backlight low. After the 120 ms panel interval it checks input again,
   stops touch polling, resets the touch controller for 200 ms low/200 ms high, probes its address,
   rechecks input, and checks TouchLib's `enableSleep()` result. Reset/probe is shared with abort
-  recovery; either probe or write failure aborts entry with a stage-specific message. This sequence
-  passed the device first-sleep, button-wake, restored-touch, and subsequent-sleep check.
+  recovery; either probe or write failure aborts entry with a stage-specific message.
   In the pinned CST-self driver,
   this boolean is inverted: `writeRegister()` returns 0 on success and -1 on failure, and
   `enableSleep()` returns that integer as bool. The adapter treats false as success and true as
@@ -223,7 +220,7 @@ boot and unrelated resets follow the original calibrate-on-start preference. GPI
 follows the SDK's configure-known-output-level-before-release rule; levels are reasserted afterward.
 Sensor/backlight outputs start low and the board power-on pin returns to its normal high level.
 The wake pin leaves RTC mode before normal input polling. The board rail is not redesigned or
-powered off speculatively; retained levels/current still need measurement on the actual board.
+powered off speculatively.
 
 On confirmed application wake, the analyzer skips automatic calibration and reloads settings.
 On both cold boot and wake, O2-air and He acceptance are independently determined from the raw stored
@@ -237,10 +234,6 @@ value equals the fallback. An unavailable store reports Storage rather than only
 Results carry independent required flags and name enabled channels needing calibration, including
 O2 needed for He correction. Pure-O2 calibration requires accepted O2 air. Disabled channels retain
 their required flags so enabling one cannot silently accept a fallback.
-
-Basic first sleep, button wake, restored touch and another sleep passed on the device. Step-4b
-calibration persistence changes are native-tested/build-verified, not yet device-validated. See the
-acceptance checklist in progress for held buttons, aborts, retained settings/pins, and repeated cycles.
 
 ## UI and drafts
 

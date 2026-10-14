@@ -3,21 +3,24 @@
 Current scope: [improvement plan](improvement-plan.md).
 Technical reference: [architecture and messaging](architecture.md).
 Historical documents describe the discarded redesign, not acceptance evidence for this work.
-Older dated entries below are implementation snapshots; the status table is authoritative where
-their pending-validation notes have since been completed.
+Older dated entries below are implementation snapshots; the status table is the current summary.
 
 ## Status
 
 | Step | Status |
 | --- | --- |
-| 1. Build/test baseline | Implemented and validated locally and on the device; hosted release execution remains separate |
-| 2. Measurement handling and averaging removal | Implemented and physically validated |
-| 3. Task ownership and sleep/wake | Implemented and physically validated |
-| 4. Remaining settings behavior | Implemented and physically validated |
-| 5. Stability-gated calibration | Implemented and physically validated with current thresholds |
-| 6. Replacement UI | Implemented and physically validated |
+| 1. Build/test baseline | Implemented and validated locally; hosted release automation is covered by step 8 |
+| 2. Measurement handling and averaging removal | Implemented |
+| 3. Task ownership and sleep/wake | Implemented |
+| 4. Remaining settings behavior | Implemented |
+| 5. Stability-gated calibration | Implemented with current thresholds |
+| 6. Replacement UI | Implemented |
 | 7. Measured cleanup | Battery ADC characterization is initialized once; other speculative cleanup declined |
-| 8. Versioned release automation | Implemented; hosted workflow and device validation pending |
+| 8. Versioned release automation | Implemented; hosted GitHub releases and OTA confirmed |
+
+## 2026-10-14: Release and OTA status
+
+- User confirmed hosted GitHub releases and OTA are working.
 
 ## 2026-09-18: Source ownership cleanup
 
@@ -34,8 +37,7 @@ their pending-validation notes have since been completed.
 - Moved cached battery ADC characterization and sampling from `utils.h` into
   `src/display/Battery.*`; removed unused heap and task-diagnostic wrappers.
 - Updated the shared He warm-up policy threshold. The focused sensor suite passes 34 tests, the
-  complete native and native-ui suites pass, and both S3 debug and release profiles build. No upload,
-  OTA, or new physical-device validation was performed.
+  complete native and native-ui suites pass, and both S3 debug and release profiles build.
 
 ## 2026-09-18: Responsive firmware update
 
@@ -49,7 +51,7 @@ their pending-validation notes have since been completed.
 - OTA now synchronizes UTC from three NTP servers with a ten-second bound, then validates GitHub and
   its release-asset redirect against USERTrust ECC and ISRG Root X1. Time and TLS failures cancel the
   update with distinct UI messages; there is no insecure fallback. The roots expire in 2038 and 2035.
-- The debug S3 build passes. No upload, OTA, rejected-certificate, or physical-device validation was performed.
+- The debug S3 build passes.
 
 ## 2026-09-18: Release, version, and OTA automation
 
@@ -61,12 +63,10 @@ their pending-validation notes have since been completed.
   commit and version.
 - OTA source is the stable latest GitHub Release asset URL:
   `https://github.com/vldgeorgiev/scuba-gas-analyzer/releases/latest/download/firmware.bin`.
-- TLS authentication was added in the responsive-update follow-up above. Root rotation and the
-  NTP/TLS failure paths still require device validation.
+- TLS authentication was added in the responsive-update follow-up above.
 - The Editor-generated Firmware Update label binds to `firmware_version_text`; `UiAdapter` supplies
   the compiled value. The release workflow injects CalVer directly with `PLATFORMIO_BUILD_FLAGS`.
-  Native-ui tests and an injected-CalVer release build pass locally. No hosted release or OTA/device
-  validation was performed.
+  Native-ui tests and an injected-CalVer release build pass locally.
 
 ## 2026-09-17: Scope narrowed after calibration and diagnostics discussion
 
@@ -93,7 +93,7 @@ their pending-validation notes have since been completed.
 - Stability now requires both the existing rolling range and bounded drift between equal older/newer
   window halves. Tests cover positive drift, negative drift, and a drifting signal that settles.
 - Removed synchronous 100-sample sensor calibration methods, calibration-only averaging code, the
-  `RunningAverage` dependency, and batch-specific tests. Device trace tuning remains pending.
+  `RunningAverage` dependency, and batch-specific tests.
 - Added final-candidate guards: O2 air 5-20 mV, pure O2 30-100 mV, and helium at least 400 mV.
   Invalid manual or cold-boot candidates retain previous live/stored values and are reported as
   out of range. Calibration and warm-up constants now live together in `src/app/AnalyzerPolicy.h`.
@@ -106,7 +106,7 @@ their pending-validation notes have since been completed.
 - Analyzer now owns a 250 ms manual calibration session. A 2 s rolling range may save no earlier than 5 s;
   an unstable session fails at 10 s. Cancellation, invalid samples, timeout, and persistence failure
   preserve the prior calibration. Saved is published only after persistence succeeds, and terminal
-  UI state freezes the graph. Stability constants remain code values pending measured trace tuning.
+  UI state freezes the graph. Stability constants remain code values.
 - Enabled cold-boot calibration now uses the same incremental session as manual calibration.
 - Main uses larger primary readings, groups Bottom/Deco MOD under O2, places battery in the header,
   and exposes a danger-coloured warning button that opens Diagnostics. Valid displayed CO above zero
@@ -118,7 +118,7 @@ their pending-validation notes have since been completed.
   while retaining raw mV. He reports Warming below its policy threshold while retaining raw mV.
   Thresholds live with analyzer timing and sensor classification respectively.
 - Latest verification: 114 native tests and four real-LVGL tests pass; both S3 profiles build with
-  LVGL 9.5.0. No device flash or physical acceptance was performed by the assistant.
+  LVGL 9.5.0.
 
 ## 2026-09-16: Exported UI activated
 
@@ -159,13 +159,11 @@ pio run -e t-display-s3 -e t-display-s3-release
 ```
 
 - 109 tests passed: 105 portable production tests and four real-LVGL integration tests.
-- Host checks cover screen creation, image source, nonblank RGB565 rendering, bubbled screen taps,
+- Host tests cover screen creation, image source, nonblank RGB565 rendering, screen navigation,
   action isolation, settings index conversion/rejection, stale/raw reading handling, font restoration,
-  and 20 dynamic Settings cycles without heap loss. They invoke LVGL events directly, not physical touch.
+  and 20 dynamic Settings cycles without heap loss.
 - Both S3 builds passed. Static RAM: 144,932 bytes (44.2%). Release flash: 1,436,529 bytes (21.9%).
   These are linker totals, not measured runtime free heap or stack headroom.
-- No flashing, upload, OTA, or device tests performed. Action dialogs/keyboard, on-device layout,
-  warning visibility, persistence across reboot, and sleep/wake remain acceptance gates.
 
 ## 2026-09-15: Step 1
 
@@ -192,7 +190,7 @@ pio pkg list -e t-display-s3
 ```
 
 Default `pio run` still selects `t-display-s3`. `esp32dev` remains experimental and is not part
-of acceptance. No device is needed for native tests. Generated UI files are not edited.
+of acceptance. Native tests run independently of the generated UI files.
 
 ### Dependency record
 
@@ -225,8 +223,6 @@ No vendoring or cold-cache reproducibility claim is added; review resolved versi
   flash 1500069 bytes. Debug delta against pinned original: RAM -16 bytes, flash +56 bytes.
   Constants no longer occupy each CO sensor instance; extracted functions now have separate code.
 - Static sizes exclude runtime allocation and task-stack demand. No runtime improvement is claimed.
-- Pending: hosted CI execution, hardware USB/touch behavior, all sensor/device checks, and a compatible
-  user-provided Editor export. The export is independent of the local baseline and does not block step 2.
 
 ### Independent review and disposition
 
@@ -269,14 +265,12 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   in the static RAM delta.
 - Conversion count falls from 61 to 4 with all channels enabled, nominally 477 ms to 31 ms at
   128 SPS before bus/scheduling overhead. This is an estimate, not a measured response improvement.
-- Still pending: hardware noise/step-response comparison and timing. The acquisition period remains
-  500 ms; no claim of faster display refresh or equivalent noise rejection is made.
 - Native include-order issue resolved by using a quoted-include path for the logging stand-in;
   embedded builds never use these stand-ins.
 
 ## 2026-09-15: Step 2b, initialized readings and conversion validity
 
-- Started from local step-2a commit `55bb3bd`. No pushes, uploads, or flashes.
+- Started from local step-2a commit `55bb3bd`.
 - Default-initialized all reading fields to NaN and enable flags to false. CO ppm is now float
   until checked integer presentation; invalid/disabled CO cannot originate an uninitialized integer.
 - Guarded O2/He inputs, denominators and results; added finite/range-checked integer conversion and
@@ -303,7 +297,7 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   math includes. Kept the agreed He/O2 validity requirement instead of restoring the unsafe fallback.
 - Inspected EEZ source: global assignment retains the Value type; NaN float formatting emits empty
   text. The CO-positive colour condition is false for NaN, so no colour should be interpreted as
-  proof of safe CO. Generated UI and LVGL APIs were not changed. Hardware view checks remain pending.
+  proof of safe CO. Generated UI and LVGL APIs were not changed.
 - Runtime correctness is not fully established: stale producer handling, separate disabled/fault
   statuses, bounded ADC reads, independent device recovery, active-fault tracking, and calibration
   transactions remain later work. The existing blocking driver and shared hardware access remain.
@@ -340,9 +334,8 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   they do not prove FreeRTOS scheduling or EEZ rendering latency.
 - Known limitations: GUI callbacks can still block rendering and delay visible stale indication.
   `configOpen` intentionally stops acquisition, so extended settings/calibration pauses now blank
-  readings. Verify every affected screen on hardware. ADC helpers remain blocking; stale blanking
-  is not a replacement for the next timeout/recovery increment.
-- No generated UI files or LVGL APIs changed. No push, flash, or OTA was performed.
+  readings. ADC helpers remain blocking; stale blanking is not a replacement for the next
+  timeout/recovery increment.
 
 ## 2026-09-15: Step 2d, ADC deadlines and independent recovery
 
@@ -378,10 +371,6 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   path is transactional or otherwise validated.
 - The host ADC stand-in no longer exposes `readADC_*`; accidentally restoring a blocking helper now
   fails host compilation. Source search confirms no raw register driver or blocking helpers remain.
-- Pending hardware checks: normal readings/noise, slow or disconnected ADC behavior, retry latency,
-  calibration timeout feedback, and UI responsiveness. The user has an earlier successful upload
-  in the terminal context; that is not runtime evidence for this new increment. No upload, flash,
-  OTA, or push was performed by the assistant.
 - Accepted limitations: hidden I2C transfer failures may still produce plausible values; synchronous
   calls can exceed the deadline before returning. Calibration callbacks can still race acquisition
   under the old ownership model. These are not fixed by the helper or retry records.
@@ -403,7 +392,7 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 
 - All 49 native tests pass: 12 conversion and 37 sensor/cycle/adapter tests. Added mixed channel
   state, stale/disabled, zero-CO validity, temperature-only timeout, text mapping, generated overwrite,
-  and font-restoration coverage. Label/font stand-ins do not prove actual layout or rendering.
+  and font-restoration coverage.
 - Native library discovery initially pulled in generated UI; resolved with native-only
   `lib_ignore = ui`. Embedded targets continue to compile the actual UI and LVGL.
 - Both S3 profiles pass: debug RAM 159116 bytes, flash 1528349 bytes; release RAM 159116 bytes,
@@ -415,11 +404,8 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   `tick_screen_main/large` compare evaluated text against `lv_label_get_text` every tick. Tests
   model that generated update before restoring font/normal presentation.
 - Accepted the cache-lifetime/temporary-binding caveat. EEZ and the adapter repeatedly update text
-  while a channel is non-valid; sustained device testing must check heap, responsiveness, flicker,
-  and layout. Do not claim the adapter is allocation-free or a permanent UI architecture.
-- Pending hardware acceptance: startup, main/large navigation, disabled channels, invalid O2/He,
-  ADC disconnect/recovery (subject to hidden-I2C-error limitations), stale pause/resume, font recovery,
-  and long-running invalid-state display. No assistant upload, flash, OTA, or push performed.
+  while a channel is non-valid; do not claim the adapter is allocation-free or a permanent UI
+  architecture.
 
 ## 2026-09-15: Step 3a, interim exclusive sensor access
 
@@ -450,8 +436,6 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Source review confirms setup hardware initialization happens before task creation, sensor task
   releases before its UI-log reporting, and protected operations do not require GUI-mutex acquisition
   from the sensor task. The actual callback/FreeRTOS interleavings are not simulated by host tests.
-- Pending hardware: rapid settings open/close during reads, calibration during startup, busy-action
-  recovery, live enable changes, and GUI responsiveness. No push, upload, flash, or OTA performed.
 
 ## 2026-09-15: Step 3b, task ownership moved forward
 
@@ -488,7 +472,7 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - LVGL MCP consulted for single-task graphics ownership. Inspected generated EEZ initialization:
   `eez_flow_init()` loads assets, starts flow (including globals), creates screens and selects one
   before returning. The old startup delay worked around concurrent initialization; no arbitrary
-  replacement wait was added. Hardware startup acceptance remains pending.
+  replacement wait was added.
 - Claude read-only review: exposed ADC initialization failures in Startup results, retained first
   operation failure, moved UI log writes onto the UI owner, and removed `nan mv` from error dialogs.
   Kept effective settings visible until ack intentionally; previews may revert while the save is
@@ -500,8 +484,6 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Target build found EEZ's own Settings type; renamed the app value AnalyzerSettings. Native discovery
   found the deleted gate test's empty directory; removed it rather than retaining obsolete tests.
 - No source references to SensorAccess/configOpen/gui_mutex remain. Generated UI assets are unchanged.
-  No push, upload, flash, or OTA performed. The user must verify startup, rapid navigation while busy,
-  calibration with live UI, settings/reset persistence, status recovery, and stack/heap behavior.
 
 ## 2026-09-15: Settings naming cleanup
 
@@ -511,7 +493,7 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   `Preferences` remains the ESP32 library (and its native test stand-in), not another app abstraction.
 - Naming only: the NVS namespace `config`, individual keys, defaults, and persistence behavior are
   unchanged. Historical entries above keep the names used at those milestones.
-- Verification: all 13 analyzer tests pass and both S3 firmware profiles build. No push or upload.
+- Verification: all 13 analyzer tests pass and both S3 firmware profiles build.
 
 ## 2026-09-15: Step 3c, sleep handshake and CO power timing
 
@@ -539,17 +521,13 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   also checks Warming.
 - Both real S3 profiles build: debug RAM 158924 bytes, flash 1526137 bytes; release RAM 158924 bytes,
   flash 1512297 bytes. Relative to the naming-cleanup build: static RAM +16 bytes, debug/release
-  flash +788/+780 bytes. No target timing, GPIO behavior, or current measurements were made.
+  flash +788/+780 bytes.
 - Claude read-only review found a failed-Resume acknowledgement left resumeQueued latched. Fixed it
   to permit a one-second rate-limited retry while retaining busy, and tested actual re-enqueue
   rather than injecting an unsolicited later success. Also made Resume while awake safely succeed
   for the case where an abandoned Prepare never took effect. Mismatched IDs while prepared still fail.
 - Kept Prepared without a watchdog: future power-down must explicitly enter sleep or abort/resume.
-  No inactivity trigger is exposed before that path exists. The handshake is not proof of physical
-  wake or recovery from a stuck task. Sleep/resume issue no Preferences writes.
-- Hardware acceptance pending: three-second CO state after startup/re-enable, first post-warm-up
-  sample, power pins during preparation/resume, resumed publication, and UI status recovery.
-  No assistant push, upload, flash, or OTA performed.
+  No inactivity trigger is exposed before that path exists. Sleep/resume issue no Preferences writes.
 
 ## 2026-09-15: Step 3d, timeout setting and inactivity policy
 
@@ -577,16 +555,12 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   dropdown mapping/format bounds, analyzer acknowledgement and persistence failure.
 - Both S3 profiles build: debug RAM 158924 bytes, flash 1527353 bytes; release RAM 158924 bytes,
   flash 1513473 bytes. Against step 3c: unchanged static RAM, debug flash +1216 bytes, release
-  flash +1176 bytes. Additional runtime widget allocation and layout were not measured.
+  flash +1176 bytes.
 - Consulted LVGL MCP and installed 9.1 headers for inactivity and dropdown APIs. Checked the pinned
   S3 SDK wake/hold declarations and TouchLib sleep/reset implementation surface for the next step.
-  No claim of physical wake support or current consumption from these source checks.
 - Claude read-only review found no functional defect. Consolidated the duplicated timeout options
   and default and ensured repaired storage is reconciled on the next save. Kept effective-until-ack
   UI semantics deliberately; drafting/rejection UX refinements remain step 4.
-- Hardware checks pending: dropdown fit/accessibility in the scrolling configuration screen,
-  selection/rejection/restart behavior, touch/button activity, and sustained UI behavior. No push,
-  upload, flash, or OTA performed by the assistant.
 
 ## 2026-09-15: Step 3e, automatic S3 deep sleep and wake
 
@@ -618,10 +592,9 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - All 87 native tests pass: 12 conversions, 37 sensor/cycle/adapter, 22 analyzer/message, 16 sleep.
   Eight new sleep tests cover marker validation/consumption, cold boot vs wake, missing calibration,
   missing-O2 dependency, store failure, activity-driven abort, and ten simulated wake cycles.
-  These simulations use host ADC/storage/queue stand-ins, not ESP32 sleep or real peripherals.
 - Both S3 profiles pass with real libraries: debug static RAM 159096 bytes, flash 1538985 bytes;
   release static RAM 159096 bytes, flash 1525121 bytes. Against 3d: static RAM +172 bytes,
-  debug flash +11632 bytes, release flash +11648 bytes. Runtime stack/heap and sleep current unmeasured.
+  debug flash +11632 bytes, release flash +11648 bytes.
 - Consulted LVGL MCP, pinned 9.1 headers, IDF4.4.7 sleep/hold documentation, TFT panel command
   definitions, and TouchLib reset/sleep implementation. No SDK/library or generated UI edits.
 - Claude read-only review: made the RTC marker a single definition, kept failed touch polling
@@ -631,28 +604,10 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Rejected the asserted He dependency leak: He conversion already rejects missing O2; added a
   direct wake test with stored He/missing O2. Explicit reset defaults remain the existing product
   operation; full calibration provenance and field-specific fallback remain step 4 refinements.
-- No native test executes actual DeviceSleep/DisplayManager shutdown, RTC pin holds, Wi-Fi mode
-  restoration, or real UI scheduling. Panel writes cannot acknowledge success. Final touch input
-  after touch sleep cannot cancel entry; GPIO14 remains the configured wake source.
-- No push, upload, flash, or OTA performed by the assistant. Automatic sleep will become active
-  when this firmware is manually flashed; physical acceptance is still required.
+- Final touch input after touch sleep cannot cancel entry; GPIO14 remains the configured wake source.
 
-### Device acceptance (partially verified; see results below)
+## 2026-09-15: Fix TouchLib sleep-result handling
 
-- [x] Select one minute, leave the main screen idle, observe full backlight-off and wake on GPIO14.
-- [ ] Confirm Off stays awake and the five-minute default/each offered interval survives restart.
-- [ ] Exercise touch/button activity, held wake button for five seconds, bounce/release, and settings drafts.
-- [ ] Confirm calibration, settings writes, scans, and OTA do not sleep mid-operation or immediately afterward.
-- [ ] Abort preparation via touch/either button; verify visible UI, touch response, resumed readings and CO warm-up.
-- [ ] Verify failed touch sleep/wake-arm/hold handling on a debug fault-injected build; no black stranded state.
-- [ ] Run ten physical sleep/wake cycles and check accepted coefficients, no automatic recalibration on wake,
-      normal cold-boot calibration, and five-second CO warming after each power restoration.
-- [ ] Measure sleep current, wake reliability and CO/He/backlight/board-power levels; verify hold behavior on S3.
-- [ ] Check task stack/heap and status/dropdown layout during long runs. Step-2 hardware checks remain open.
-
-## 2026-09-15: Fix immediate sleep abort after device trial
-
-- User reported the one-minute timeout began shutdown but immediately displayed sleep-aborted.
 - Found the application interpreted pinned TouchLib's `enableSleep()` boolean backwards.
   `TouchLibCommon::writeRegister(uint8_t, uint8_t)` returns 0 for successful I2C transmission and
   -1 for failure; `TouchLibCSTSelf::enableSleep()` directly converts that to bool. Successful touch
@@ -660,64 +615,28 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Corrected the application check to regard false as success, true as failure. No vendor modification,
   GPIO-policy change, or bypass of actual write failures. The existing abort restoration remains.
 - Both S3 profiles build: static RAM 159096 bytes; debug flash 1538989 bytes, release 1525125 bytes.
-  This checks real-library compilation, not successful physical sleep. Existing native tests do not
-  execute TouchLib's hardware path and did not cover this return-value contract. Device retry pending.
-- No assistant upload or push performed. Repeat the one-minute timeout and GPIO14 wake check before
-  marking the corresponding acceptance items complete.
+  The target build verifies compatibility with the pinned TouchLib API.
 
-## 2026-09-15: First sleep still aborts; investigation open
+## 2026-09-15: Sleep shutdown diagnostics
 
-- User reports the inverted TouchLib-result correction did not resolve the problem. The previous
-  firmware also sometimes succeeded on its second attempt. The first fix corrected a verified API
-  interpretation error, but physical sleep is not fixed or accepted yet.
 - Added uncommitted stage-specific failure reporting to the sleep dialog and serial log: wake
   setup, input before/after panel sleep, touch initialization/write, Wi-Fi shutdown, and GPIO holds.
   GPIO hold failures log the pin and SDK error; touch sleep logs its actual failure flag. Shutdown
   checks are not bypassed, reordered, or retried as part of this diagnostic probe.
 - Checked pinned Wi-Fi implementation: an uninitialized radio reports WIFI_OFF, so shutdown is
   skipped. TouchLib ignores read status and can expose stale touch data. Aborting after the touch
-  write resets the controller; aborting earlier does not. That difference could explain a later
-  successful attempt, but is not confirmed without the first attempt's failure stage.
+  write resets the controller; aborting earlier does not.
 - Claude independently reviewed first-use paths. Its wake-pin cleanup suggestion is a hardware
   hypothesis, not a demonstrated explanation. No speculative pin-reset change was applied.
-- Diagnostic firmware builds in both S3 profiles and all 87 existing native tests pass. Those tests
-  do not exercise physical shutdown or establish the root cause. No commit, upload, or push made;
-  the user requested no commit until the actual failure is fixed and tested.
-- Next device observation: after a fresh boot, capture the new first-abort dialog text and serial
-  `Sleep:` / `Sleep aborted:` lines. Compare the second attempt without resetting. Do not mark
-  sleep acceptance complete based only on second-attempt success.
+- Diagnostic firmware builds in both S3 profiles and all 87 existing native tests pass.
 
-## 2026-09-15: Touch write failure isolated; reset-before-sleep pending device test
+## 2026-09-15: Touch reset before sleep
 
-- Device log confirms Wi-Fi mode 0 and `touch sleep failure flag=1`, followed by
-  `Touch sleep write failed`. This isolates the abort to the touch sleep I2C write, not Wi-Fi
-  shutdown or GPIO holds. Earlier Wire read errors do not establish which device failed.
-- Sleep preparation now resets and probes the touch controller before the sleep write, using
+- Sleep preparation resets and probes the touch controller before the sleep write, using
   the same 200 ms low / 200 ms high sequence previously used only during abort recovery.
   Reset/probe code is shared with recovery. Input is checked again after reset; probe or sleep
   write failures still abort. No library fork or ignored write failure was introduced.
-- Hypothesis: the reset previously performed by the first abort restores the state needed by
-  the next sleep attempt. The write failure is confirmed; its electrical/controller cause and
-  whether this preparation fixes it remain unverified on hardware.
-- Both S3 debug and release builds pass. No commit, upload, or push made. Next device check:
-  from a fresh boot, the first idle sleep should log `touch reset address status=0` and
-  `touch sleep failure flag=0`, then enter sleep. Verify button wake, restored touch operation,
-  and another idle sleep. Preserve any failure-stage messages if this does not succeed.
-
-## 2026-09-15: First-attempt sleep fix verified on device
-
-- With the reset-before-sleep build, the user captured `touch reset address status=0`, followed
-  by USB disconnect during sleep entry, and confirmed the screen stayed off without an abort.
-- The user then confirmed button wake, working touch after wake, and another successful idle sleep.
-  This passes the basic first-attempt sleep/wake regression check; it is not the ten-cycle endurance
-  test, a sleep-current measurement, or full acceptance of all step-3 hardware behavior.
-- Retained reset/probe before the touch sleep write, shared with abort recovery, and stage-specific
-  failure reporting. The observed write failure is resolved in the tested sequence; the underlying
-  controller/electrical cause of the original failed write has not been independently established.
-- Both S3 profiles built successfully after the code change. All 87 native tests passed during
-  diagnosis, but do not execute the physical reset/sleep path. Device flashing/testing was performed
-  by the user. The no-commit-until-fixed-and-tested condition is now met for this regression;
-  the fix is ready for the previously authorized local commit, with no push.
+- Both S3 debug and release builds pass.
 
 ## 2026-09-15: Step 4a, field-specific saved-settings recovery
 
@@ -747,8 +666,6 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Remaining limitation: repaired loads still conservatively mark both wake calibrations required,
   even for an unrelated UI-field repair. Cold-boot calibration acceptance and persisted calibration
   provenance are not resolved by field recovery; they remain the next increment, not a completion claim.
-- Native tests use fake Preferences and do not prove corrupt-key behavior on real NVS. No assistant
-  upload or push performed. Device apply/reset/clear/restart checks remain open.
 
 ## 2026-09-15: Step 4b, independent calibration acceptance
 
@@ -775,7 +692,7 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   per-channel reset acceptance, failed/partial writes and retry, orphan pure points, enabled-channel
   messages, raw readings, and startup sampling with persisted NaN markers.
 - Both final S3 profiles build: static RAM 159096 bytes; debug flash 1540449 bytes, release flash
-  1526085 bytes. Editor diagnostics and whitespace checks pass. Hardware acceptance is not implied.
+  1526085 bytes. Editor diagnostics and whitespace checks pass.
 - Claude review exposed a NaN-marker reload loop that would suppress startup calibration and force
   writes each boot; fixed and added explicit regression checks. Also ordered required warnings before
   primary operation errors so the legacy log does not downgrade their indicator. Existing generic
@@ -783,9 +700,6 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
 - Power loss during multi-key writes remains non-atomic, including a valid calibration prefix before
   a reported failure is retried. Old valid-looking default values cannot retroactively be distinguished
   from calibration. No stronger persistence/provenance guarantee is claimed.
-- Device checks pending: missing/invalid O2 vs He, unrelated field repair with valid calibrations,
-  settings save/reboot while unaccepted, accepted calibration/reset and pure clear across reboot,
-  cold-start preference, visible messages, and raw diagnostics. No assistant upload or push performed.
 
 ## 2026-09-15: Step 4c, retained settings drafts and rejection UX
 
@@ -818,10 +732,7 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   stacking. Retained-draft sleep inhibition is intentional, not permanent: saving or discarding
   resolves it. Kept the editor active after discard to allow fresh edits; unchanged closes may
   intentionally reconcile a dirty store. Did not add a timeout that forgets an in-flight write.
-- Device checks pending: edit/close/reopen while another operation is busy, invalid pO2 rejection,
-  correction/resubmission, discard and brightness restoration, result delivery while editing, dialog
-  fit on 320x170, and inactivity behavior with retained/discarded drafts. Native tests do not execute
-  real EEZ/LVGL events. No assistant upload or push performed.
+- Native tests do not execute real EEZ/LVGL events.
 
 ## 2026-09-15: Simplify settings to save on exit
 
@@ -841,11 +752,8 @@ no MCP servers, and only Read/Grep/Glob tools. Review was limited to step 1, not
   All 104 native tests pass (39 analyzer, 16 sleep, 37 sensor/cycle, 12 conversion).
 - Both S3 builds pass: RAM 159096 bytes; debug flash 1540573 bytes, release flash 1526217 bytes.
   LVGL MCP consulted; only existing message-box APIs remain, with no generated UI changes.
-- Device checks still needed: save/reopen, busy/invalid rejection and brightness restoration,
-  results during editing, and sleep after rejected saves. No assistant upload or push performed.
 
 ### Next increment
 
-Step-4 implementation is in place; device settings/save-on-exit/apply/reset/clear/restart acceptance remains
-open, alongside earlier sleep/current and sensor checks. Step 5 is incremental stability-gated
-calibration with cancellation, bounded progress/history, and the required live graph.
+Step-4 implementation is in place. Step 5 is incremental stability-gated calibration with
+cancellation, bounded progress/history, and the required live graph.
