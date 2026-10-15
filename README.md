@@ -26,12 +26,16 @@ A DIY scuba gas analyzer for oxygen (O2), helium (He), and carbon monoxide (CO).
       <strong>Front</strong>
     </td>
     <td align="center">
+      <img src="docs/images/box/readme-inside.png" alt="Side view" width="200"><br>
+      <strong>Inside view</strong>
+    </td>
+    <td align="center">
       <img src="docs/images/box/readme-inlet.png" alt="Analyzer inlet" width="260"><br>
       <strong>Inlet</strong>
     </td>
     <td align="center">
       <img src="docs/images/box/readme-side.png" alt="Side view" width="260"><br>
-      <strong>Side with ext O2 connector, USB-C port, He adjustment, On/Off switch</strong>
+      <strong>Side with ext O2 connector, USB-C port,</br> He adjustment, On/Off switch</strong>
     </td>
   </tr>
 </table>
