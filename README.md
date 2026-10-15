@@ -1,37 +1,71 @@
-# DIY Scuba gas analyzer
+# DIY Scuba Gas Analyzer
 
-A DIY project for a scuba gas analyzer. The analyzer detects Oxygen, Helium and Carbon monoxide.  
-_Disclaimer: This is not a certified device and should be used with caution at your own risk._
+A DIY scuba gas analyzer for oxygen (O2), helium (He), and carbon monoxide (CO).
+
+**Contents**  
+[Features](#features) | [User manuals](#user-manuals) | [Hardware](#hardware) | [Software](#software) | [Planned improvements](#planned-improvements)
+
+## Features
+
+- Detection of O2, He, and CO
+- Compact and large-number readings screens
+- Touch screen interface
+- External O2 sensor support and auto-detection via a coaxial jack, with separate calibration data
+- Air, optional pure-O2, and helium calibration
+- Configurable sensors, CO correction, ppO2 limits, display brightness, and sleep timing
+- Firmware update via WiFi
+- Compact box design
 
 ## User manuals
 
 - [English](docs/user-manual.md)
 - [Български](docs/user-manual.bg.md)
 
-Based on ideas from  
-<https://slideplayer.fr/slide/10883088>  
-<https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564>  
+## Hardware
+
+Some elements are available in different versions, depending on how the board is built. For example, use SMD components for a PCB, or build on perfboard or a breadboard.
+
+- [Lilygo S3 ESP32](https://www.lilygo.cc/products/t-display-s3) (about $24) - ESP32 controller with a built-in touch display, dual-core processor, LiPo power, and charging.
+- [ADS1115](https://aliexpress.com/item/1005001703504835.html) (2 x about $1) - 16-bit analog-to-digital converters for reading sensor values.
+- [3 V voltage regulator](https://www.ti.com/product/TPS782/part-details/TPS78230DDCT) or similar. The helium sensor requires 3.0 V. Use a regulator with an enable pin so the ESP32 can turn the sensor off when it is not used.
+- [5 V voltage regulator](https://eu.mouser.com/ProductDetail/Texas-Instruments/TPS61240DRVR) or similar. The CO sensor requires 5.0 V to 12.0 V. Use a regulator with an enable pin so the ESP32 can turn the sensor off when it is not used.
+- [LM35DZ temperature sensor](https://aliexpress.com/item/32921896929.html) (about $2) for detecting when the helium sensor has warmed up.
+
+Gas sensors:
+
+- [O2 oxygen cell](https://www.aliexpress.com/item/1005006077026218.html) (about $21-$50) - A standard oxygen sensor. Cells are available from different suppliers; connectors can vary. Typical service life is ~2 years. Cheap Chinese ones have shorter life, but also work well.
+- [Winsen MD61 or MD62 helium sensor](https://www.aliexpress.com/item/33019119435.html) (about $30) - A thermal-conductivity sensor for inert gases. It cannot identify different gases, so readings assume there are no other gases such as hydrogen or CO2. Readings use a Wheatstone bridge; solder the sensor and bridge to avoid resistance changes from unstable connectors. Typical service life is 10 years. The sensor warms to about 25 C after power-on, usually in 1-2 minutes depending on starting temperature. Warm-up can use up to 120 mA. The sensor is sensitive to CO2, so breath near it affects readings.
+- [Winsen ZE15-CO or ZE07-CO carbon monoxide sensor](https://www.aliexpress.com/item/4001321584178.html) (about $10) - Measures 0-500 ppm CO. These sensors provide digital and analog outputs; this project uses the analog output (400 mV-2000 mV for 0-500 ppm). Typical service life is 3-5 years.
+
+Other elements:
+
+- LiPo battery providing 2.7-4.2 V. The Lilygo S3 is designed to power and charge the battery directly.
+- Wheatstone bridge for the MD61 helium sensor, made from two 2 kOhm resistors and a 500 Ohm precision potentiometer (at least 10-15 turns).
+- Capacitors for the voltage converters.
+
+Expected runtimes and power consumption vary with enabled sensors and display brightness. Approximate runtime estimates at medium brightness, based on a 2000 mAh battery:
+
+- **O2 sensor only:** 70 mA, about 28 hours
+- **O2 and CO sensors:** 80 mA, about 25 hours
+- **O2, CO, and He sensors:** 170 mA, about 12 hours
+- **Display brightness:** about 35 mA difference between lowest and highest
+- **Sleep mode:** about 250 uA
 
 ## Software
 
-The application is developed with [Platformio](https://platformio.org/).  
-It uses FreeRTOS tasks for multithread UI processing, data reading, etc.  
+The application is developed with [PlatformIO](https://platformio.org/) and uses FreeRTOS tasks for the UI, sensor readings, and other work.
 
-Libraries used:
+Libraries and tools:
 
-- [TFT eSPI](https://github.com/Bodmer/TFT_eSPI) MCU graphics library and driver
-- [LVGL UI library](https://github.com/lvgl/lvgl) lightweight GUI library for ESP32 and Arduino
-- [LVGL Pro Editor](https://lvgl.io/docs/pro) for the exported C UI, using LVGL 9.5.0
+- [TFT eSPI](https://github.com/Bodmer/TFT_eSPI), MCU graphics library and driver
+- [LVGL](https://github.com/lvgl/lvgl), graphics library for ESP32 and Arduino
+- [LVGL Pro Editor](https://lvgl.io/docs/pro), used to create the exported C UI with LVGL 9.5.0
 
 ### UI build and checks
 
-The active UI is in [lvgl-ui-project](lvgl-ui-project/README.md). Export changes in the Editor before
-building; PlatformIO compiles exported C, fonts, and images, not XML. Application bindings live in
-[UiAdapter.cpp](src/display/UiAdapter.cpp), outside generated files. Only the LVGL Editor export is used.
+The active UI is in [lvgl-ui-project](lvgl-ui-project/). Export changes from the Editor before building; PlatformIO compiles the exported C, fonts, and images, not the XML. Application bindings live in [UiAdapter.cpp](src/display/UiAdapter.cpp), outside generated files.
 
-PlatformIO links the export directly via `gas-analyzer-ui=symlink://lvgl-ui-project`.
-[library.json](lvgl-ui-project/library.json) selects the source directories and declares the LVGL
-dependency. No Python build hook, staging copy, or generated-source rewriting is used.
+PlatformIO links the export directly via `gas-analyzer-ui=symlink://lvgl-ui-project`. [library.json](lvgl-ui-project/library.json) selects the source directories and declares the LVGL dependency.
 
 ```sh
 pio run -e t-display-s3
@@ -39,71 +73,15 @@ pio run -e t-display-s3-release
 pio test -e native -e native-ui
 ```
 
-The manually dispatched release workflow reruns both host suites before building and publishing release
-firmware. Run `native-ui` locally when UI exports or bindings change. Neither host tests nor target
-compilation flash the device or replace physical checks.
-See [testing](docs/testing.md) for the maintained suite inventory, coverage boundaries, focused
-commands, and device-validation boundaries.
+## Planned Improvements
 
-Tap the readings screen to switch Main/Large. Settings saves on exit. Calibration/reset, startup
-calibration preference, and Diagnostics are available from the Calibration button; Firmware update
-is in Settings. Calibration starts immediately, samples raw mV every 250 ms, saves after at least
-five stable seconds, and fails unchanged after ten unstable seconds. Its graph supports cancellation
-and freezes on the terminal result. The current calibration thresholds and related device workflows
-have passed physical validation.
+- [ ] Support metric and imperial units.
+- [ ] Add a 180-degree screen rotation option.
+- [ ] Remember the last screen on startup.
+- [ ] Warn when the O2 sensor reading changes significantly between startups, such as after sensor replacement, and prompt the user to review calibration.
+- [ ] Add translations for more languages.
+- [ ] Add a gas calculator with best-mix suggestions.
 
-## Hardware
-
-Some elements are available in different versions, depending on how the board is built. E.g. SMD for a proper PCB, or a perfboard, or a breadboard...
-
-- [Lilygo S3 ESP32](https://www.lilygo.cc/products/t-display-s3) (24$) - An ESP32 controller with a built in touch display, 2-core, LiPo power, LiPo charging, etc.
-- [ADS 1115](https://aliexpress.com/item/1005001703504835.html) (2 x 1$) - 16bit analog-to-digital converter for reading sensor values.
-- [3V voltage regulator](https://www.ti.com/product/TPS782/part-details/TPS78230DDCT) or similar. The helium sensor requires a 3.0V power. The regulator should have an "enable" pin so it can be turned on/off by a signal from the ESP32 if the sensor is not used.
-- [5V voltage regulator](https://eu.mouser.com/ProductDetail/Texas-Instruments/TPS61240DRVR) or similar. The CO2 sensor requires a 5.0V to 12.0V power. The regulator should have an "enable" pin so it can be turned on/off by a signal from the ESP32 if the sensor is not used.
-- [LM35DZ temperature sensor](https://aliexpress.com/item/32921896929.html) (2$) for detecting that the He sensor has warmed up.
-
-Gas sensors:
-
-- [O2 (Oxygen cell)](https://www.aliexpress.com/item/1005006077026218.html) (21$ - 50$) - A standard O2 sensor with a 3 pin Molex connector. There are various similar oxygen cell sensors from various suppliers. The cheap Chinese one works equally well. Other connectors can be used too instead of the Molex. **Service life 2-3 years**
-- [Winsen MD61 or MD62 helium sensor](https://www.aliexpress.com/item/33019119435.html) (30$) - A thermal conductivity inert gas sensor. Measures the change of conductivity of gases. It can not identify different gases. In our case it depends on the assumption that there are no other gases like hydrogen, CO2, etc. The values are measured with a Wheatstone bridge. It is very sensitive, so the sensor and bridge should be soldered, to avoid the variable resistance of unstable connectors. **Service life 10 years**  
-The sensor is thermal and after powered on warms up to about 25C. The time required is 1-2 min, but depends on the starting temperature. Readings are accurate after the warmup. The warming feature uses up to 120mA, which is considerable for a device powered by a battery. It is best to have an option to turn it on/off programatically.  
-_The sensor is sensitive to CO2. Readings will be affected by breath while testing._
-- [Winsen ZE15-CO or ZE07-CO carbon monoxied sensor](https://www.aliexpress.com/item/4001321584178.html) (10$) - Measures 0-500ppm of CO. For scuba the CO should be 0 and sensors that measure from 10-20ppm and higher are not suitable. The ZE15/ZE07 come factory calibrated and provide both a digital and analog readout. The project uses the analog one (400mV-2000mV range corresponding to 0-500ppm).  
-The sensor has an up to 3 min warm up time, but my testing in various conditions and temperatures ranging 10-30C has not shown any difference in the readings. **Service life 3-5 years**
-
-Other elements:
-
-- The device is powered by one 18650 LiIon battery, providing 2.7-4.2V. The Lilygo S3 is designed to be powered and to charge the battery directly. Any other lithium battery can be used as long as the voltage is suitable.
-- Wheatstone bridge for reading the MD61 helium sensor. Comprised of 2 x 2KOhm resistors and a 500Ohm precise potentiometer (at least 10-15 turns)
-- A few capacitors for the voltage converters.
-
-Power consumption:
-
-The consumption varies depending on the sensors enabled and display brightness. Here are some estimates with medium brightness, based on a 2000mAh battery
-
-- **O2 sensor only**: 70mA, ~28 hours
-- **O2 and CO sensors**: 80mA, ~25 hours
-- **O2, CO, and He sensors**: 170mA, ~12 hours
-- **Display brightness**: varies about 35mA between lowest and highest
-- **Sleep mode**: ~250uA, ~1 year
-
-## TODO
-
-- [x] 100% O2 calibration. How much does it improve accuracy? Most other analyzers don't do it, including brand ones. Check that linear drift in more detail.
-- [ ] Metric/Imperial values - not so important yet
-- [x] Go to sleep after X minutes
-- [ ] Screen flip 180 degrees option
-- [x] Add large digits screen for easier monitoring. Switch from main with touch anywhere.
-- [ ] Remember last screen on startup (where applicable)
-- [x] Battery level and charging indicator
-- [ ] Show a warning if the initial O2 sensor's voltage is much different from the previous startup. E.g. when a sensor is replaced. Reset the 100% O2 calibration and remind user
-- [x] Log screen to show warnings and errors. To be opened from the main or config screens
-- [x] Indicator icon on the main screen for warnings. To open the log screen
-- [x] Auto detection of stable levels during calibration. Read for up to 5-10s and wait for minimal deviation
-- [x] OTA updates
-- [x] Brightness control
-- [ ] Translation in other languages
-- [ ] Gas calculator, best mix, etc...
-- [x] Implement the external plugin O2 sensor detection and reading. Turn off CO and He in that case
-- [x] Improve battery charge and level display
-- [ ] CO static correction for sensors that have an offset of a few mV
+## Based on ideas from:
+- https://slideplayer.fr/slide/10883088
+- https://scubaboard.com/community/threads/nitrox-trimix-co-analyzer.595564
