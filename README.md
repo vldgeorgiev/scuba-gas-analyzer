@@ -3,7 +3,7 @@
 A DIY scuba gas analyzer for oxygen (O2), helium (He), and carbon monoxide (CO).
 
 **Contents**  
-[Features](#features) | [User manuals](#user-manuals) | [Hardware](#hardware) | [Software](#software) | [Planned improvements](#planned-improvements)
+[Features](#features) | [Images](#images) | [User manuals](#user-manuals) | [Hardware](#hardware) | [Software](#software) | [Planned improvements](#planned-improvements)
 
 ## Features
 
@@ -14,7 +14,44 @@ A DIY scuba gas analyzer for oxygen (O2), helium (He), and carbon monoxide (CO).
 - Air, optional pure-O2, and helium calibration
 - Configurable sensors, CO correction, ppO2 limits, display brightness, and sleep timing
 - Firmware update via WiFi
-- Compact box design
+- Compact box design - current 3D print is 70x110x36mm (without the removable mushroom flow limiter)
+- Built-in battery with USB-C charging (can be built with a different lithium battery)
+
+## Images
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="docs/images/box/readme-front.png" alt="Front view" width="200"><br>
+      <strong>Front</strong>
+    </td>
+    <td align="center">
+      <img src="docs/images/box/readme-inlet.png" alt="Analyzer inlet" width="260"><br>
+      <strong>Inlet</strong>
+    </td>
+    <td align="center">
+      <img src="docs/images/box/readme-side.png" alt="Side view" width="260"><br>
+      <strong>Side with ext O2 connector, USB-C port, He adjustment, On/Off switch</strong>
+    </td>
+  </tr>
+</table>
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="docs/images/user-manual/readings.png" alt="Readings screen" width="200"><br>
+      <strong>Readings</strong>
+    </td>
+    <td align="center">
+      <img src="docs/images/user-manual/large-readings.png" alt="Large readings screen" width="200"><br>
+      <strong>Large readings</strong>
+    </td>
+    <td align="center">
+      <img src="docs/images/user-manual/calibration.png" alt="Calibration screen" width="200"><br>
+      <strong>Calibration</strong>
+    </td>
+  </tr>
+</table>
 
 ## User manuals
 
