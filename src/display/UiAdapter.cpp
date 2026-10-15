@@ -24,6 +24,7 @@ lv_obj_t* calibrationCancel = nullptr;
 lv_obj_t* calibrationDone = nullptr;
 lv_obj_t* calibrationStability = nullptr;
 lv_obj_t* mainWarning = nullptr;
+lv_obj_t* batteryLevel = nullptr;
 lv_obj_t* mainO2Reading = nullptr;
 lv_obj_t* mainHeReading = nullptr;
 lv_obj_t* mainCoReading = nullptr;
@@ -273,6 +274,7 @@ void init() {
   lvgl_ui_project_set_target(LVGL_UI_PROJECT_TARGET_TARGET1);
   lvgl_ui_project_init("");
   mainWarning = lv_obj_find_by_name(mainscr, "open_diagnostics");
+  batteryLevel = lv_obj_find_by_name(mainscr, "battery_level");
   mainO2Reading = lv_obj_find_by_name(mainscr, "main_o2_reading");
   mainO2Value = mainO2Reading ? lv_obj_find_by_name(mainO2Reading, "primary_value") : nullptr;
   mainHeReading = lv_obj_find_by_name(mainscr, "main_he_reading");
@@ -415,9 +417,16 @@ void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) 
 
 void presentBattery(float voltage) {
   char text[24];
-  if (std::isfinite(voltage)) std::snprintf(text, sizeof(text), "%.2f V", static_cast<double>(voltage));
+  const int level = estimatedBatteryLevel(voltage);
+  if (level >= 0) std::snprintf(text, sizeof(text), "%.2f V", static_cast<double>(voltage));
   else std::snprintf(text, sizeof(text), "-- V");
   copyText(&main_battery_text, text);
+  if (batteryLevel) {
+    lv_bar_set_value(batteryLevel, level < 0 ? 0 : level, LV_ANIM_OFF);
+    const uint32_t color = level < 0 ? 0x808080 : level < 15 ? 0xFF3B30 : level < 30 ? 0xFF9500 : 0x34C759;
+    lv_obj_set_style_bg_color(batteryLevel, lv_color_hex(color), LV_PART_INDICATOR);
+    lv_obj_set_style_border_color(batteryLevel, lv_color_hex(level < 0 ? 0x808080 : color), LV_PART_MAIN);
+  }
 }
 
 void presentStatus(const sensorsData& data, bool, bool) {

@@ -298,6 +298,21 @@ void test_export_settings_round_trip_and_rejection() {
 }
 
 void test_export_readings_and_sensor_states() {
+  lv_obj_t* battery = lv_obj_find_by_name(mainscr, "battery_level");
+  TEST_ASSERT_NOT_NULL(battery);
+  const float batteryVoltages[] = {4.2f, 4.5f, 3.8f, 3.6f, 3.5f, 3.0f, 2.7f, NAN, INFINITY, 0.0f};
+  const int batteryLevels[] = {100, 100, 60, 20, 10, 0, 0, 0, 0, 0};
+  const uint32_t batteryColors[] = {0x34C759, 0x34C759, 0x34C759, 0xFF9500, 0xFF3B30,
+                                   0xFF3B30, 0xFF3B30, 0x808080, 0x808080, 0x808080};
+  for (size_t index = 0; index < sizeof(batteryVoltages) / sizeof(batteryVoltages[0]); ++index) {
+    ui::presentBattery(batteryVoltages[index]);
+    TEST_ASSERT_EQUAL_INT(batteryLevels[index], lv_bar_get_value(battery));
+    TEST_ASSERT_EQUAL_HEX32(lv_color_to_u32(lv_color_hex(batteryColors[index])),
+                            lv_color_to_u32(lv_obj_get_style_bg_color(battery, LV_PART_INDICATOR)));
+  }
+  TEST_ASSERT_EQUAL_STRING("-- V", lv_subject_get_string(&main_battery_text));
+  ui::presentBattery(4.1f);
+  TEST_ASSERT_EQUAL_STRING("4.10 V", lv_subject_get_string(&main_battery_text));
   sensorsData data;
   data.o2State = data.heState = data.coState = data.temperatureState = ChannelState::Valid;
   data.O2Level.percentage = 20.9f;

@@ -6,6 +6,20 @@
 
 namespace ui {
 
+inline int estimatedBatteryLevel(float voltage) {
+  if (!std::isfinite(voltage) || voltage <= 0) return -1;
+  static constexpr float voltages[] = {3.0f, 3.5f, 3.6f, 3.7f, 3.8f, 3.9f, 4.0f, 4.1f, 4.2f};
+  static constexpr int levels[] = {0, 10, 20, 40, 60, 75, 85, 95, 100};
+  if (voltage <= voltages[0]) return 0;
+  for (size_t index = 1; index < sizeof(voltages) / sizeof(voltages[0]); ++index) {
+    if (voltage <= voltages[index]) {
+      const float fraction = (voltage - voltages[index - 1]) / (voltages[index] - voltages[index - 1]);
+      return static_cast<int>(std::lround(levels[index - 1] + fraction * (levels[index] - levels[index - 1])));
+    }
+  }
+  return 100;
+}
+
 inline void formatValue(char* text, size_t size, float value, ChannelState state,
                         const char* format) {
   if (state != ChannelState::Valid) {

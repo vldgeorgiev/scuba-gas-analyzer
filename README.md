@@ -1,7 +1,7 @@
 # DIY Scuba gas analyzer
 
 A DIY project for a scuba gas analyzer. The analyzer detects Oxygen, Helium and Carbon monoxide.  
-_Disclaimer: This is not a certified device and should be used with caution at your own risk. Always double-check your results with a professional-grade analyzer._
+_Disclaimer: This is not a certified device and should be used with caution at your own risk._
 
 ## User manuals
 
@@ -104,6 +104,6 @@ The consumption varies depending on the sensors enabled and display brightness. 
 - [x] Brightness control
 - [ ] Translation in other languages
 - [ ] Gas calculator, best mix, etc...
-- [ ] Implement the external plugin O2 sensor detection and reading. Turn off CO and He in that case
-- [ ] Improve battery charge and level display
+- [x] Implement the external plugin O2 sensor detection and reading. Turn off CO and He in that case
+- [x] Improve battery charge and level display
 - [ ] CO static correction for sensors that have an offset of a few mV
