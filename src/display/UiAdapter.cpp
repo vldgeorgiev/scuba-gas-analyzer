@@ -423,7 +423,7 @@ void presentBattery(float voltage) {
   copyText(&main_battery_text, text);
   if (batteryLevel) {
     lv_bar_set_value(batteryLevel, level < 0 ? 0 : level, LV_ANIM_OFF);
-    const uint32_t color = level < 0 ? 0x808080 : level < 15 ? 0xFF3B30 : level < 30 ? 0xFF9500 : 0x34C759;
+    const uint32_t color = level < 0 ? 0x808080 : level < 20 ? 0xFF3B30 : level < 40 ? 0xFF9500 : 0x34C759;
     lv_obj_set_style_bg_color(batteryLevel, lv_color_hex(color), LV_PART_INDICATOR);
     lv_obj_set_style_border_color(batteryLevel, lv_color_hex(level < 0 ? 0x808080 : color), LV_PART_MAIN);
   }
