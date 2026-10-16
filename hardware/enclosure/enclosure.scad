@@ -2,20 +2,20 @@
 part = ""; // Which enclosure piece to display or export.
 
 // Dimensions are millimeters; enclosure size is set independently of PCB placement.
-outer_width = 110; // Manually set enclosure footprint width along X.
-outer_height = 70; // Manually set enclosure footprint height along Y.
+outer_width = 107; // Manually set enclosure footprint width along X.
+outer_height = 68; // Manually set enclosure footprint height along Y.
 outer_corner_radius = 3; // Radius of the vertical exterior corners; zero keeps square corners.
 wall = 2.4; // Enclosure wall thickness.
 
 floor_thickness = 2.4; // Base floor thickness.
-base_height = 34; // Vertical base height along Z, including the floor.
+base_height = 33; // Vertical base height along Z, including the floor.
 lid_thickness = 2.4; // Flat lid plate thickness.
 lip_depth = 2.5; // Depth of the lid's locating rails into the base.
 lip_width = 1.5; // Thickness of the lid's locating rails.
 lid_support_depth = (base_height - floor_thickness) / 2; // Lid screw-boss depth; paired with equal-height base posts.
-fit_clearance = 0.3; // Side clearance between the lid rails and base interior.
+fit_clearance = 0.2; // Side clearance between the lid rails and base interior.
 
-pcb_offset_x = wall + 8; // PCB lower-left X position from the enclosure exterior origin.
+pcb_offset_x = wall + 7; // PCB lower-left X position from the enclosure exterior origin.
 pcb_offset_y = wall + 0; // PCB lower-left Y position from the enclosure exterior origin.
 pcb_support_positions = [[7, 52 ], [40, 52], [16, 8]]; // Support-hole centers from the PCB lower-left corner.
 pcb_support_diameter = 5; // Outside diameter of each PCB support.
@@ -44,7 +44,8 @@ screen_window_width = 32.2; // Display opening width.
 screen_window_height = 55.4; // Display opening height along Y.
 screen_corner_radius = 5; // Radius of the display opening's corners.
 screen_rear_lid_thickness = 1.2; // Lid material remaining above the rear underside recess.
-screen_rear_clearance = 2; // Recess extension beyond the screen opening toward the rear (opposite USB-C).
+screen_rear_clearance = 1.5; // Recess extension beyond the screen opening toward the rear (opposite USB-C).
+screen_rear_clearance_width = 26; // Rear underside recess width, centered on the screen.
 screen_center_x = 13; // Display center X relative to the PCB lower-left corner.
 screen_center_y = 32.5; // Display center Y relative to the PCB lower-left corner.
 wake_button_diameter = 4; // Diameter of the single wake-button opening.
@@ -77,8 +78,8 @@ side_label_font = "Liberation Sans:style=Bold"; // Font for printable side label
 assert(side_label_size > 0 && side_label_depth > 0 && side_label_depth < wall && side_label_gap >= 0);
 
 // Rear-wall gas inlet, opposite the front-wall USB-C; independent of PCB placement.
-gas_inlet_center_x = outer_width - 49; // Inlet center across the rear wall.
-gas_inlet_center_z = base_height / 2; // Inlet center height above the exterior bottom.
+gas_inlet_center_x = 58; // Inlet center across the rear wall.
+gas_inlet_center_z = base_height / 2 - 2; // Inlet center height above the exterior bottom.
 gas_inlet_socket_diameter = 6; // External supply tube socket diameter.
 gas_inlet_socket_depth = 5; // External supply tube insertion depth from the rear exterior face.
 gas_inlet_boss_diameter = 10; // Outside diameter around the socket.
@@ -207,7 +208,7 @@ module bottom() {
 
             screw_positions()
                 translate([0, 0, floor_thickness])
-                    cylinder(h = base_height - floor_thickness - lid_support_depth,
+                    cylinder(h = base_height - floor_thickness - lid_support_depth - 1, // -1 for clearance to lid posts
                              r = screw_boss_radius, $fn = 48);
 
             pcb_supports();
@@ -291,12 +292,12 @@ module lid() {
 
         // Rear screen clearance removes underside material without changing the exterior face.
         assert(screen_rear_lid_thickness > 0 && screen_rear_lid_thickness <= lid_thickness
-             && screen_rear_clearance > 0);
+             && screen_rear_clearance > 0 && screen_rear_clearance_width > 0);
          pcb_xy()
-             translate([screen_center_x - screen_window_width / 2,
+             translate([screen_center_x - screen_rear_clearance_width / 2,
                   screen_center_y + screen_window_height / 2 - screen_corner_radius,
                   -lip_depth - 0.1])
-              cube([screen_window_width, screen_corner_radius + screen_rear_clearance,
+              cube([screen_rear_clearance_width, screen_corner_radius + screen_rear_clearance,
                  lip_depth + 0.1 + lid_thickness - screen_rear_lid_thickness]);
 
          // Clear the locating lip as well as the plate beneath the wake button.
