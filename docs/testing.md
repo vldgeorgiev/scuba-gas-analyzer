@@ -80,6 +80,7 @@ It verifies:
 
 - exported boot, nonblank rendering, image binding, screen navigation, and calibration states;
 - settings synchronization, save/rejection behavior, CO correction dropdown mapping, brightness, and update-screen actions;
+- startup air calibration default-off behavior, enable-only warning, rejected toggles, and warning popup fit without scrolling;
 - reading/status text, units, warning styles, channel states, stale data, MOD, and diagnostics;
 - repeated dynamic Settings creation/deletion without lost LVGL heap or memory corruption.
 

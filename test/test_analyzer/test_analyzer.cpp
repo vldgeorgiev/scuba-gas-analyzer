@@ -297,6 +297,15 @@ void test_invalid_load_is_visible_and_startup_does_not_calibrate_defaults() {
 
 void test_valid_settings_repair_is_a_noop() {
   AnalyzerSettings value;
+  TEST_ASSERT_FALSE(value.calibrateOnStart);
+  Preferences::values.erase("calib_start");
+  SettingsStore store;
+  store.begin();
+  TEST_ASSERT_FALSE(store.load().calibrateOnStart);
+  Preferences::values["calib_start"] = 1;
+  TEST_ASSERT_TRUE(store.load().calibrateOnStart);
+  Preferences::values["calib_start"] = 0;
+  TEST_ASSERT_FALSE(store.load().calibrateOnStart);
   value.o2Enabled = false;
   value.coEnabled = false;
   value.heEnabled = false;

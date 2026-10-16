@@ -90,7 +90,16 @@ void changeStartupCalibration(lv_event_t*) {
   app::Command command;
   command.settings = uiSettings();
   command.settings.calibrateOnStart = lv_subject_get_int(&calibration_on_start) != 0;
-  if (!submitAnalyzerCommand(command)) messageBox("Analyzer busy - preference not saved", NAN);
+  if (!submitAnalyzerCommand(command)) {
+    messageBox("Analyzer busy - preference not saved", NAN);
+  } else if (command.settings.calibrateOnStart) {
+    lv_obj_t* warning = lv_msgbox_create(nullptr);
+    lv_obj_set_width(warning, LV_PCT(95));
+    lv_msgbox_add_title(warning, "Startup air calibration");
+    lv_msgbox_add_close_button(warning);
+    lv_msgbox_add_text(warning,
+        "Make sure the unit is flushed with air and there is no stale gas inside when starting");
+  }
   lv_subject_set_int(&calibration_on_start, uiSettings().calibrateOnStart);
 }
 

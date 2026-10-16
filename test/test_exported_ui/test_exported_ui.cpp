@@ -30,7 +30,8 @@ const AnalyzerSettings& uiSettings() { return effective; }
 bool submitAnalyzerCommand(app::Command command) {
   ++analyzerCommands;
   lastCommandType = command.type;
-  return true;
+  submitted = command.settings;
+  return allowSubmit;
 }
 bool cancelAnalyzerCalibration() { ++calibrationCancels; return true; }
 void setNetworkOperationActive(bool) {}
@@ -157,9 +158,41 @@ void test_export_boot_and_navigation() {
   TEST_ASSERT_EQUAL_PTR(mainscr, lv_screen_active());
   click(lv_obj_find_by_name(mainscr, "open_calibration"));
   TEST_ASSERT_NOT_EQUAL(mainscr, lv_screen_active());
-  lv_subject_set_int(&calibration_on_start, !effective.calibrateOnStart);
-  lv_obj_send_event(lv_obj_find_by_name(lv_screen_active(), "startup_calibration"), LV_EVENT_VALUE_CHANGED, nullptr);
+  TEST_ASSERT_FALSE(effective.calibrateOnStart);
+  TEST_ASSERT_EQUAL_INT(0, lv_subject_get_int(&calibration_on_start));
+  lv_obj_t* startup = lv_obj_find_by_name(lv_screen_active(), "startup_calibration");
+  lv_subject_set_int(&calibration_on_start, 1);
+  lv_obj_send_event(startup, LV_EVENT_VALUE_CHANGED, nullptr);
   TEST_ASSERT_EQUAL_UINT(1, analyzerCommands);
+  TEST_ASSERT_TRUE(submitted.calibrateOnStart);
+  refresh();
+  lv_obj_t* backdrop = lv_obj_get_child(lv_layer_top(), -1);
+  lv_obj_t* warning = lv_obj_get_child(backdrop, 0);
+  TEST_ASSERT_TRUE(lv_obj_check_type(warning, &lv_msgbox_class));
+  lv_obj_t* content = lv_msgbox_get_content(warning);
+  lv_obj_t* text = lv_obj_get_child(content, 0);
+  TEST_ASSERT_EQUAL_STRING(
+      "Make sure the unit is flushed with air and there is no stale gas inside when starting",
+      lv_label_get_text(text));
+  TEST_ASSERT_GREATER_OR_EQUAL(0, lv_obj_get_x(warning));
+  TEST_ASSERT_GREATER_OR_EQUAL(0, lv_obj_get_y(warning));
+  TEST_ASSERT_LESS_OR_EQUAL(320, lv_obj_get_x(warning) + lv_obj_get_width(warning));
+  TEST_ASSERT_LESS_OR_EQUAL(170, lv_obj_get_y(warning) + lv_obj_get_height(warning));
+  TEST_ASSERT_EQUAL_INT(0, lv_obj_get_scroll_bottom(content));
+  click(lv_obj_get_child(lv_msgbox_get_header(warning), -1));
+  TEST_ASSERT_EQUAL_UINT(0, lv_obj_get_child_count(lv_layer_top()));
+  lv_subject_set_int(&calibration_on_start, 0);
+  lv_obj_send_event(startup, LV_EVENT_VALUE_CHANGED, nullptr);
+  TEST_ASSERT_FALSE(submitted.calibrateOnStart);
+  TEST_ASSERT_EQUAL_UINT(0, lv_obj_get_child_count(lv_layer_top()));
+  allowSubmit = false;
+  lv_subject_set_int(&calibration_on_start, 1);
+  lv_obj_send_event(startup, LV_EVENT_VALUE_CHANGED, nullptr);
+  TEST_ASSERT_EQUAL_UINT(1, errors);
+  TEST_ASSERT_EQUAL_INT(0, lv_subject_get_int(&calibration_on_start));
+  TEST_ASSERT_EQUAL_UINT(0, lv_obj_get_child_count(lv_layer_top()));
+  allowSubmit = true;
+  errors = 0;
   click(lv_obj_find_by_name(lv_screen_active(), "calibrate_air"));
   TEST_ASSERT_EQUAL(app::CommandType::CalibrateAir, lastCommandType);
   TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "calibration_graph"));

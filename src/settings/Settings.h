@@ -16,7 +16,7 @@ struct AnalyzerSettings {
   bool o2Enabled = true;
   bool coEnabled = true;
   bool heEnabled = true;
-  bool calibrateOnStart = true;
+  bool calibrateOnStart = false;
   uint8_t brightness = 128;
   uint8_t sleepMinutes = app::DEFAULT_SLEEP_MINUTES;
   int8_t coCorrectionPpm = 0;

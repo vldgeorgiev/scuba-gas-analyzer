@@ -52,7 +52,9 @@ Start calibration only after supplying stable reference gas to the sensors. The 
 
 ![Completed air calibration](images/user-manual/calibration-complete.png)
 
-If calibration reports an invalid range, unstable signal, or save failure, do not use the attempted value. Check the reference gas, sensor connection, and sensor warm-up, then try again. The **Calibrate on startup** setting requests an air calibration of the selected O2 sensor after a cold boot; waking from automatic sleep retains calibration.
+If calibration reports an invalid range, unstable signal, or save failure, do not use the attempted value. Check the reference gas, sensor connection, and sensor warm-up, then try again.
+
+**Calibrate on startup** is off by default. When enabled, it calibrates the selected O2 sensor with air after a cold boot; waking from automatic sleep retains calibration. Before starting the unit with this option enabled, flush it with fresh air so no stale gas remains inside. Residual gas with a different oxygen concentration can produce an incorrect calibration.
 
 ## Settings
 
