@@ -1,10 +1,11 @@
 // Select "assembly" for preview, or "bottom" / "lid" for individual STL exports.
-part = ""; // Which enclosure piece to display or export.
+part = "lid"; // Which enclosure piece to display or export.
 
 // Dimensions are millimeters; enclosure size is set independently of PCB placement.
 outer_width = 107; // Manually set enclosure footprint width along X.
 outer_height = 68; // Manually set enclosure footprint height along Y.
 outer_corner_radius = 3; // Radius of the vertical exterior corners; zero keeps square corners.
+outer_edge_chamfer = 0.6; // Exterior base-bottom and lid-top bevel; zero disables it.
 wall = 2.4; // Enclosure wall thickness.
 
 floor_thickness = 2.4; // Base floor thickness.
@@ -184,24 +185,46 @@ module pcb_supports() {
             }
 }
 
-module rounded_enclosure_body(height) {
+module enclosure_outline(inset = 0) {
     assert(outer_corner_radius >= 0 && 2 * outer_corner_radius < min(outer_width, outer_height));
-    if (outer_corner_radius == 0) {
-        cube([outer_width, outer_height, height]);
-    } else {
-        linear_extrude(height = height)
+    offset(delta = -inset)
+        if (outer_corner_radius == 0) {
+            square([outer_width, outer_height]);
+        } else {
             translate([outer_corner_radius, outer_corner_radius])
                 offset(r = outer_corner_radius, $fn = 48)
                     square([outer_width - 2 * outer_corner_radius,
                             outer_height - 2 * outer_corner_radius]);
+        }
+}
+
+module rounded_enclosure_body(height, bottom_chamfer = 0, top_chamfer = 0) {
+    assert(bottom_chamfer >= 0 && top_chamfer >= 0
+        && bottom_chamfer + top_chamfer < height);
+    if (bottom_chamfer == 0 && top_chamfer == 0) {
+        linear_extrude(height = height) enclosure_outline();
+    } else {
+        slice_height = 0.001;
+        hull() {
+            linear_extrude(height = slice_height)
+                enclosure_outline(bottom_chamfer);
+            translate([0, 0, bottom_chamfer])
+                linear_extrude(height = height - bottom_chamfer - top_chamfer)
+                    enclosure_outline();
+            translate([0, 0, height - slice_height])
+                linear_extrude(height = slice_height)
+                    enclosure_outline(top_chamfer);
+        }
     }
 }
 
 module bottom() {
+    assert(outer_edge_chamfer >= 0
+        && outer_edge_chamfer < min(wall, floor_thickness, lid_thickness));
     difference() {
         union() {
             difference() {
-                rounded_enclosure_body(base_height);
+                rounded_enclosure_body(base_height, bottom_chamfer = outer_edge_chamfer);
                 translate([wall, wall, floor_thickness])
                     cube([inner_width, inner_height, base_height]);
             }
@@ -241,9 +264,11 @@ module lid_logo_engraving() {
 }
 
 module lid() {
+    assert(outer_edge_chamfer >= 0
+        && outer_edge_chamfer < min(wall, floor_thickness, lid_thickness));
     difference() {
         union() {
-            rounded_enclosure_body(lid_thickness);
+            rounded_enclosure_body(lid_thickness, top_chamfer = outer_edge_chamfer);
 
             // Four short rails fit inside the base, leaving clearance around the corner supports.
             rail_start = screw_offset + screw_boss_radius + fit_clearance;
