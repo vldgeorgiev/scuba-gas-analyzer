@@ -7,19 +7,16 @@ plug_chamfer_height = 0.5; // Lead-in chamfer length at the plug end.
 plug_chamfer_reduction = 0.4; // Diameter reduction at the chamfer tip.
 mushroom_diameter = 26; // Maximum mushroom head diameter.
 mushroom_height = 10; // Height of the elliptical dome above its flat underside.
-gas_bore_diameter = 3; // Main passage through the plug and most of the head.
 restriction_diameter = 2; // Only intentional flow restriction, at the mushroom tip.
-restriction_length = 1.5; // Axial length of the small tip bore.
 
 plug_diameter = socket_diameter + plug_fit_adjustment; // Derived push-fit stem diameter.
 head_z = plug_length; // Flat head underside seats directly against the enclosure wall.
 total_height = head_z + mushroom_height; // Tip height above the plug end.
 
 assert(plug_chamfer_height > 0 && plug_chamfer_height < plug_length);
-assert(plug_chamfer_reduction > 0 && plug_diameter - plug_chamfer_reduction > gas_bore_diameter);
+assert(plug_chamfer_reduction > 0 && plug_diameter - plug_chamfer_reduction > restriction_diameter);
 assert(mushroom_diameter > plug_diameter && mushroom_height > 0);
-assert(restriction_diameter > 0 && restriction_diameter < gas_bore_diameter);
-assert(restriction_length > 0 && restriction_length < mushroom_height);
+assert(restriction_diameter > 0);
 
 module flow_limiter() {
     difference() {
@@ -40,10 +37,9 @@ module flow_limiter() {
 
         // A short tip restriction feeds a larger, continuous passage toward the enclosure.
         translate([0, 0, -0.1])
-            cylinder(h = total_height - restriction_length + 0.1,
-                     d = gas_bore_diameter, $fn = 64);
-        translate([0, 0, total_height - restriction_length - 0.1])
-            cylinder(h = restriction_length + 0.2, d = restriction_diameter, $fn = 64);
+            cylinder(h = total_height + 0.1,
+                     d = restriction_diameter, $fn = 64);
+
     }
 }
 

@@ -7,7 +7,7 @@
 - Corner screws enter from underneath and engage blind lid bosses. Locating rails align the lid; the assembly preview is exploded, not the closed position.
 - The gas inlet is opposite USB-C, with an external tube socket and an internal spigot. Supply only regulated, low-pressure sample gas, never cylinder pressure directly.
 - The removable mushroom insert has a tip orifice and no O-ring groove. Tune its push fit with a test print; a ringless fit is not a guaranteed seal. Hand-held sampling next to a valve must remain unsealed and at ambient pressure: this insert is not a pressure regulator or tank-valve fitting, and does not establish a known flow rate. Avoid exposing it to a direct high-pressure jet; use an appropriate sampling arrangement and verify flow and readings.
-- Separate CO and He holders can be connected with flexible tubes. The combined holder routes CO to He, with long-side He ports, a triangular flow divider, and an outlet-side temperature-sensor cutout. The divider does not guarantee uniform flow.
+- The combined holder routes CO to He, with long-side He ports, a triangular flow divider, and an outlet-side temperature-sensor cutout. The divider does not guarantee uniform flow.
 - The O2 holder screws onto the sensor and uses a central delivery tube with floor exhaust holes. Verify that the seated sensor does not obstruct the exhausts or contact the tube tip.
 - Printed gas paths and sensor seats need leak checks, appropriate sealing, and oxygen-compatible materials. This enclosure is not designed as waterproof or pressure-rated. Validate sensor response and readings at the intended flow before relying on measurements.
 
@@ -28,6 +28,6 @@ Print `wake_button_pin.scad` with its switch-contact end on the bed. Insert it f
 
 ## Export
 
-Run `sh hardware/enclosure/export_parts.sh` from the repository root. It exports the base, lid, separate sensor holders, mushroom insert, and wake-button pin into `exports/`; generated STLs are ignored by Git. Pass an output directory as the first argument or override the executable with `OPENSCAD`.
+Run `sh hardware/enclosure/export_parts.sh` from the repository root. It exports the base, lid, combined CO/He holder, O2 holder, mushroom insert, and wake-button pin into `exports/`; generated STLs are ignored by Git. Pass an output directory as the first argument or override the executable with `OPENSCAD`.
 
-The combined CO/He holder currently needs a separate export from OpenSCAD. Print-fit and gas-flow tests remain necessary even when rendering succeeds.
+Print-fit and gas-flow tests remain necessary even when rendering succeeds.
