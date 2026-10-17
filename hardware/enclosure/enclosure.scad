@@ -1,5 +1,6 @@
-// Select "assembly" for preview, or "bottom" / "lid" for individual STL exports.
-part = "lid"; // Which enclosure piece to display or export.
+// Select "assembly" (or "") for preview, or "bottom" / "lid" for individual STL exports.
+part = ""; // Which enclosure piece to display or export.
+assembly_explode_gap = 40; // Vertical separation above the base in the assembly preview.
 
 // Dimensions are millimeters; enclosure size is set independently of PCB placement.
 outer_width = 107; // Manually set enclosure footprint width along X.
@@ -11,18 +12,10 @@ wall = 2.4; // Enclosure wall thickness.
 floor_thickness = 2.4; // Base floor thickness.
 base_height = 33; // Vertical base height along Z, including the floor.
 lid_thickness = 2.4; // Flat lid plate thickness.
+
 lip_depth = 2.5; // Depth of the lid's locating rails into the base.
 lip_width = 1.5; // Thickness of the lid's locating rails.
-lid_support_depth = (base_height - floor_thickness) / 2; // Lid screw-boss depth; paired with equal-height base posts.
 fit_clearance = 0.2; // Side clearance between the lid rails and base interior.
-
-pcb_offset_x = wall + 7; // PCB lower-left X position from the enclosure exterior origin.
-pcb_offset_y = wall + 0; // PCB lower-left Y position from the enclosure exterior origin.
-pcb_support_positions = [[7, 52 ], [40, 52], [16, 8]]; // Support-hole centers from the PCB lower-left corner.
-pcb_support_diameter = 5; // Outside diameter of each PCB support.
-pcb_support_hole_diameter = 2; // Screw-hole diameter in each PCB support.
-pcb_to_screen_top = 20.5; // Measured distance from PCB underside to screen top.
-pcb_support_height = base_height + lid_thickness - floor_thickness - pcb_to_screen_top; // Automatic support height for a screen flush with the closed lid top.
 
 // Corner screws enter from below through the base and thread into the lid bosses.
 screw_offset = 5; // Each corner screw center's distance from the nearest enclosure edges.
@@ -32,13 +25,14 @@ screw_head_diameter = 6.5; // Diameter of the underside screw-head counterbore.
 screw_head_depth = 1.8; // Depth of the underside screw-head counterbore.
 lid_screw_pilot_diameter = 2.5; // Pilot-hole diameter in the lid bosses.
 lid_top_cap = 1.2; // Solid material left above each blind lid pilot hole.
+post_clearance = 1; // Vertical gap between the base posts and lid bosses when closed.
 
-inner_width = outer_width - 2 * wall; // Derived interior footprint width along X.
-inner_height = outer_height - 2 * wall; // Derived interior footprint height along Y.
-pcb_z = floor_thickness + pcb_support_height; // PCB underside height above the enclosure exterior bottom.
-
-assert(pcb_to_screen_top > 0 && pcb_support_height > 0,
-    "PCB-to-screen height must be positive and leave room for PCB supports above the floor.");
+pcb_offset_x = wall + 7; // PCB lower-left X position from the enclosure exterior origin.
+pcb_offset_y = wall + 0; // PCB lower-left Y position from the enclosure exterior origin.
+pcb_support_positions = [[7, 52], [40, 52], [16, 8]]; // Support-hole centers from the PCB lower-left corner.
+pcb_support_diameter = 5; // Outside diameter of each PCB support.
+pcb_support_hole_diameter = 2; // Screw-hole diameter in each PCB support.
+pcb_to_screen_top = 20.5; // Measured distance from PCB underside to screen top.
 
 // Provisional LilyGo openings; adjust dimensions and centers to match the installed board.
 screen_window_width = 32.2; // Display opening width.
@@ -49,15 +43,11 @@ screen_rear_clearance = 1.5; // Recess extension beyond the screen opening towar
 screen_rear_clearance_width = 26; // Rear underside recess width, centered on the screen.
 screen_center_x = 13; // Display center X relative to the PCB lower-left corner.
 screen_center_y = 32.5; // Display center Y relative to the PCB lower-left corner.
+
 wake_button_diameter = 4; // Diameter of the single wake-button opening.
 wake_button_flange_clearance_diameter = 5.4; // Lip relief around the push-pin's underside flange.
 wake_button_center_x = 22; // Wake-button center X relative to the PCB lower-left corner.
 wake_button_center_y = 2; // Wake-button center Y relative to the PCB lower-left corner.
-
-lid_logo_width = 40; // Logo width along Y when viewed below the screen.
-lid_logo_depth = 0.5; // Engraving depth into the lid's exterior face.
-lid_logo_center_x = (pcb_offset_x + screen_center_x + screen_window_width / 2 + outer_width) / 2; // Center between the screen edge and the opposite lid edge.
-lid_logo_center_y = outer_height / 2; // Center across the lid.
 
 // Approximate front-edge connector centers: [PCB-local X, Y, height above PCB underside].
 usb_c_position = [12.5, 0, 16.5]; // USB-C opening center; access extends toward the front wall (Y = 0).
@@ -76,8 +66,6 @@ side_label_depth = 0.5; // Engraving depth into the front wall.
 side_label_gap = 1; // Space between the opening bottom and the label top.
 side_label_font = "Liberation Sans:style=Bold"; // Font for printable side labels.
 
-assert(side_label_size > 0 && side_label_depth > 0 && side_label_depth < wall && side_label_gap >= 0);
-
 // Rear-wall gas inlet, opposite the front-wall USB-C; independent of PCB placement.
 gas_inlet_center_x = 58; // Inlet center across the rear wall.
 gas_inlet_center_z = base_height / 2 - 2; // Inlet center height above the exterior bottom.
@@ -88,8 +76,47 @@ gas_inlet_shoulder_depth = 1.5; // Material beyond the socket forming the tube s
 gas_inlet_spigot_diameter = 5; // Internal spigot outside diameter for flexible tubing.
 gas_inlet_spigot_length = 6; // Internal spigot length beyond the socket boss.
 gas_inlet_bore_diameter = 3.5; // Continuous gas passage from socket to internal spigot.
-gas_inlet_boss_depth = max(wall, gas_inlet_socket_depth + gas_inlet_shoulder_depth); // Derived inward boss depth.
 
+lid_logo_width = 40; // Logo width along Y when viewed below the screen.
+lid_logo_depth = 0.5; // Engraving depth into the lid's exterior face.
+
+inner_width = outer_width - 2 * wall; // Derived interior footprint width along X.
+inner_height = outer_height - 2 * wall; // Derived interior footprint height along Y.
+lid_support_depth = (base_height - floor_thickness) / 2; // Lid boss depth before allowing clearance at the base posts.
+base_post_height = base_height - floor_thickness - lid_support_depth - post_clearance; // Base post height below the lid bosses.
+pcb_support_height = base_height + lid_thickness - floor_thickness - pcb_to_screen_top; // Support height for a screen flush with the lid top.
+pcb_z = floor_thickness + pcb_support_height; // PCB underside height above the enclosure exterior bottom.
+lid_rail_start = screw_offset + screw_boss_radius + fit_clearance; // Rail ends clear the corner bosses.
+lid_rail_width = outer_width - 2 * lid_rail_start; // Front and rear rail length.
+lid_rail_height = outer_height - 2 * lid_rail_start; // Side rail length.
+lid_rail_edge = wall + fit_clearance; // Rail offset from the enclosure exterior.
+lilygo_lip_clearance_width = screen_window_width; // Front rail gap width; adjust to the LilyGo body width.
+gas_inlet_boss_depth = max(wall, gas_inlet_socket_depth + gas_inlet_shoulder_depth); // Derived inward boss depth.
+lid_logo_center_x = (pcb_offset_x + screen_center_x + screen_window_width / 2 + outer_width) / 2; // Center between the screen and opposite lid edge.
+lid_logo_center_y = outer_height / 2; // Center across the lid.
+
+assert(part == "" || part == "assembly" || part == "bottom" || part == "lid",
+    "Part must be assembly, bottom, lid, or an empty string for assembly.");
+assert(assembly_explode_gap >= 0);
+assert(wall > 0 && inner_width > 0 && inner_height > 0);
+assert(floor_thickness > 0 && base_height > floor_thickness && lid_thickness > 0);
+assert(outer_edge_chamfer >= 0 && outer_edge_chamfer < min(wall, floor_thickness, lid_thickness));
+assert(lip_depth > 0 && lip_width > 0 && fit_clearance >= 0);
+assert(lid_rail_width > 0 && lid_rail_height > 0
+    && inner_width > 2 * (fit_clearance + lip_width)
+    && inner_height > 2 * (fit_clearance + lip_width));
+assert(post_clearance >= 0 && base_post_height > 0 && lid_support_depth > 0);
+assert(lid_top_cap > 0 && lid_top_cap < lid_thickness);
+assert(pcb_to_screen_top > 0 && pcb_support_height > 0,
+    "PCB-to-screen height must be positive and leave room for PCB supports above the floor.");
+assert(pcb_support_hole_diameter > 0 && pcb_support_hole_diameter < pcb_support_diameter);
+assert(screen_window_width > 0 && screen_window_height > 0 && screen_corner_radius >= 0
+    && 2 * screen_corner_radius < min(screen_window_width, screen_window_height));
+assert(screen_rear_lid_thickness > 0 && screen_rear_lid_thickness <= lid_thickness
+    && screen_rear_clearance > 0 && screen_rear_clearance_width > 0);
+assert(lilygo_lip_clearance_width > 0);
+assert(wake_button_diameter > 0 && wake_button_flange_clearance_diameter >= wake_button_diameter);
+assert(side_label_size > 0 && side_label_depth > 0 && side_label_depth < wall && side_label_gap >= 0);
 assert(gas_inlet_bore_diameter > 0
        && gas_inlet_bore_diameter < gas_inlet_spigot_diameter
        && gas_inlet_bore_diameter < gas_inlet_socket_diameter
@@ -100,6 +127,7 @@ assert(gas_inlet_center_x - gas_inlet_boss_diameter / 2 > wall
        && gas_inlet_center_z - gas_inlet_boss_diameter / 2 > floor_thickness
        && gas_inlet_center_z + gas_inlet_boss_diameter / 2 < base_height - lip_depth,
        "Gas inlet boss must fit inside the rear wall below the lid rails.");
+assert(lid_logo_width > 0 && lid_logo_depth > 0 && lid_logo_depth < lid_thickness);
 
 module gas_inlet_body() {
     translate([gas_inlet_center_x, outer_height, gas_inlet_center_z])
@@ -174,15 +202,15 @@ module screw_positions() {
 
 // Support positions are measured from the PCB's lower-left corner.
 module pcb_supports() {
-        pcb_xy()
-            for (position = pcb_support_positions)
-                translate([position[0], position[1], floor_thickness])
-            difference() {
-                cylinder(h = pcb_support_height, d = pcb_support_diameter, $fn = 48);
-                translate([0, 0, -0.1])
-                    cylinder(h = pcb_support_height + 0.2,
-                             d = pcb_support_hole_diameter, $fn = 48);
-            }
+    pcb_xy()
+        for (position = pcb_support_positions)
+            translate([position[0], position[1], floor_thickness])
+                difference() {
+                    cylinder(h = pcb_support_height, d = pcb_support_diameter, $fn = 48);
+                    translate([0, 0, -0.1])
+                        cylinder(h = pcb_support_height + 0.2,
+                                 d = pcb_support_hole_diameter, $fn = 48);
+                }
 }
 
 module enclosure_outline(inset = 0) {
@@ -219,8 +247,6 @@ module rounded_enclosure_body(height, bottom_chamfer = 0, top_chamfer = 0) {
 }
 
 module bottom() {
-    assert(outer_edge_chamfer >= 0
-        && outer_edge_chamfer < min(wall, floor_thickness, lid_thickness));
     difference() {
         union() {
             difference() {
@@ -231,7 +257,7 @@ module bottom() {
 
             screw_positions()
                 translate([0, 0, floor_thickness])
-                    cylinder(h = base_height - floor_thickness - lid_support_depth - 1, // -1 for clearance to lid posts
+                    cylinder(h = base_post_height,
                              r = screw_boss_radius, $fn = 48);
 
             pcb_supports();
@@ -252,10 +278,7 @@ module bottom() {
     }
 }
 
-lilygo_lip_clearance_width = screen_window_width; // Front rail gap width; adjust to the LilyGo body width.
-
 module lid_logo_engraving() {
-    assert(lid_logo_width > 0 && lid_logo_depth > 0 && lid_logo_depth < lid_thickness);
     translate([lid_logo_center_x, lid_logo_center_y, lid_thickness - lid_logo_depth])
         linear_extrude(height = lid_logo_depth + 0.1)
             rotate(90)
@@ -263,42 +286,68 @@ module lid_logo_engraving() {
                     import("logo.svg", center = true);
 }
 
+module lid_rails() {
+    difference() {
+        translate([lid_rail_start, lid_rail_edge, -lip_depth])
+            cube([lid_rail_width, lip_width, lip_depth]);
+        translate([pcb_offset_x + screen_center_x - lilygo_lip_clearance_width / 2,
+                   lid_rail_edge - 0.1, -lip_depth - 0.1])
+            cube([lilygo_lip_clearance_width, lip_width + 0.2, lip_depth + 0.2]);
+    }
+    translate([lid_rail_start, outer_height - lid_rail_edge - lip_width, -lip_depth])
+        cube([lid_rail_width, lip_width, lip_depth]);
+    translate([lid_rail_edge, lid_rail_start, -lip_depth])
+        cube([lip_width, lid_rail_height, lip_depth]);
+    translate([outer_width - lid_rail_edge - lip_width, lid_rail_start, -lip_depth])
+        cube([lip_width, lid_rail_height, lip_depth]);
+}
+
+module lid_bosses() {
+    intersection() {
+        screw_positions()
+            translate([0, 0, -lid_support_depth])
+                cylinder(h = lid_support_depth, r = screw_boss_radius, $fn = 48);
+        translate([wall + fit_clearance, wall + fit_clearance, -lid_support_depth])
+            cube([inner_width - 2 * fit_clearance,
+                  inner_height - 2 * fit_clearance, lid_support_depth]);
+    }
+}
+
+module screen_opening() {
+    pcb_xy()
+        translate([screen_center_x - screen_window_width / 2 + screen_corner_radius,
+                   screen_center_y - screen_window_height / 2 + screen_corner_radius, -0.1])
+            linear_extrude(height = lid_thickness + 0.2)
+                offset(r = screen_corner_radius)
+                    square([screen_window_width - 2 * screen_corner_radius,
+                            screen_window_height - 2 * screen_corner_radius]);
+}
+
+module screen_rear_recess() {
+    pcb_xy()
+        translate([screen_center_x - screen_rear_clearance_width / 2,
+                   screen_center_y + screen_window_height / 2 - screen_corner_radius,
+                   -lip_depth - 0.1])
+            cube([screen_rear_clearance_width, screen_corner_radius + screen_rear_clearance,
+                  lip_depth + 0.1 + lid_thickness - screen_rear_lid_thickness]);
+}
+
+module wake_button_openings() {
+    pcb_xy()
+        translate([wake_button_center_x, wake_button_center_y, -lip_depth - 0.1])
+            cylinder(h = lip_depth + lid_thickness + 0.2, d = wake_button_diameter, $fn = 48);
+
+    pcb_xy()
+        translate([wake_button_center_x, wake_button_center_y, -lip_depth - 0.1])
+            cylinder(h = lip_depth + 0.1, d = wake_button_flange_clearance_diameter, $fn = 48);
+}
+
 module lid() {
-    assert(outer_edge_chamfer >= 0
-        && outer_edge_chamfer < min(wall, floor_thickness, lid_thickness));
     difference() {
         union() {
             rounded_enclosure_body(lid_thickness, top_chamfer = outer_edge_chamfer);
-
-            // Four short rails fit inside the base, leaving clearance around the corner supports.
-            rail_start = screw_offset + screw_boss_radius + fit_clearance;
-            rail_width = outer_width - 2 * rail_start;
-            rail_height = outer_height - 2 * rail_start;
-            rail_edge = wall + fit_clearance;
-            // Omit the front rail across the LilyGo width without cutting the lid plate or bosses.
-            difference() {
-                translate([rail_start, rail_edge, -lip_depth])
-                    cube([rail_width, lip_width, lip_depth]);
-                translate([pcb_offset_x + screen_center_x - lilygo_lip_clearance_width / 2,
-                           rail_edge - 0.1, -lip_depth - 0.1])
-                    cube([lilygo_lip_clearance_width, lip_width + 0.2, lip_depth + 0.2]);
-            }
-            translate([rail_start, outer_height - rail_edge - lip_width, -lip_depth])
-                cube([rail_width, lip_width, lip_depth]);
-            translate([rail_edge, rail_start, -lip_depth])
-                cube([lip_width, rail_height, lip_depth]);
-            translate([outer_width - rail_edge - lip_width, rail_start, -lip_depth])
-                cube([lip_width, rail_height, lip_depth]);
-
-            // Trim boss sides to clear the base walls when the lid is seated.
-            intersection() {
-                screw_positions()
-                    translate([0, 0, -lid_support_depth])
-                        cylinder(h = lid_support_depth, r = screw_boss_radius, $fn = 48);
-                translate([wall + fit_clearance, wall + fit_clearance, -lid_support_depth])
-                    cube([inner_width - 2 * fit_clearance,
-                          inner_height - 2 * fit_clearance, lid_support_depth]);
-            }
+            lid_rails();
+            lid_bosses();
         }
 
         screw_positions()
@@ -306,35 +355,9 @@ module lid() {
                 cylinder(h = lid_support_depth + lid_thickness - lid_top_cap + 0.1,
                          d = lid_screw_pilot_diameter, $fn = 48);
 
-        // Rounded screen window through the lid plate.
-                pcb_xy()
-                    translate([screen_center_x - screen_window_width / 2 + screen_corner_radius,
-                   screen_center_y - screen_window_height / 2 + screen_corner_radius, -0.1])
-            linear_extrude(height = lid_thickness + 0.2)
-                offset(r = screen_corner_radius)
-                    square([screen_window_width - 2 * screen_corner_radius,
-                            screen_window_height - 2 * screen_corner_radius]);
-
-        // Rear screen clearance removes underside material without changing the exterior face.
-        assert(screen_rear_lid_thickness > 0 && screen_rear_lid_thickness <= lid_thickness
-             && screen_rear_clearance > 0 && screen_rear_clearance_width > 0);
-         pcb_xy()
-             translate([screen_center_x - screen_rear_clearance_width / 2,
-                  screen_center_y + screen_window_height / 2 - screen_corner_radius,
-                  -lip_depth - 0.1])
-              cube([screen_rear_clearance_width, screen_corner_radius + screen_rear_clearance,
-                 lip_depth + 0.1 + lid_thickness - screen_rear_lid_thickness]);
-
-         // Clear the locating lip as well as the plate beneath the wake button.
-        pcb_xy()
-            translate([wake_button_center_x, wake_button_center_y, -lip_depth - 0.1])
-                cylinder(h = lip_depth + lid_thickness + 0.2, d = wake_button_diameter, $fn = 48);
-
-        // Relieve only the lip so the wider flange can reach the lid underside.
-        pcb_xy()
-            translate([wake_button_center_x, wake_button_center_y, -lip_depth - 0.1])
-                cylinder(h = lip_depth + 0.1, d = wake_button_flange_clearance_diameter, $fn = 48);
-
+        screen_opening();
+        screen_rear_recess();
+        wake_button_openings();
         lid_logo_engraving();
     }
 }
@@ -345,5 +368,5 @@ if (part == "bottom") {
     lid();
 } else {
     bottom();
-    translate([0, 0, base_height + 20]) lid();
+    translate([0, 0, base_height + assembly_explode_gap]) lid();
 }
