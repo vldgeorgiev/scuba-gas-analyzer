@@ -1,6 +1,7 @@
 <component>
 	<api>
 		<prop name="text" type="string" default="Body text" help="The paragraph / body text" />
+		<prop name="translation_tag" type="string" default="" help="Translation tag; overrides text when set" />
 	</api>
 
 	<styles>
@@ -9,7 +10,7 @@
 
 	<!-- Body copy. Text color is inherited.
 	     Give it a width to make it wrap: <text text="..." width="100%" /> -->
-	<view extends="lv_label" text="$text" long_mode="wrap">
+	<view extends="lv_label" text="$text" translation_tag="$translation_tag" long_mode="wrap">
 		<style name="style_text" />
 	</view>
 </component>

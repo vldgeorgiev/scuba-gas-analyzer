@@ -82,7 +82,7 @@ lv_obj_t * list_item_create(lv_obj_t * parent, const char * title, const char * 
         lv_obj_set_flag(container_1, LV_OBJ_FLAG_CLICKABLE, false);
         h5_create(container_1, title, "");
 
-        lv_obj_t * text_0 = text_create(container_1, subtitle);
+        lv_obj_t * text_0 = text_create(container_1, subtitle, "");
         lv_obj_set_flag(text_0, LV_OBJ_FLAG_HIDDEN, !subtitle);
         lv_obj_add_style(text_0, &style_text_muted, 0);
 

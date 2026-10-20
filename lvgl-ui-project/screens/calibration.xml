@@ -10,15 +10,15 @@
 				</button>
 			</column>
 			<column name="calibration_list" grow="1" gap="#space_sm" scrollable="true">
-				<h5 text="Calibration" />
+				<h5 translation_tag="calibration_title" />
 				<row width="100%" horizontal_align="space_between" vertical_align="center">
-					<text text="Calibrate air on start" />
+					<text translation_tag="calibration_on_start" />
 					<switch name="startup_calibration" subject="calibration_on_start" />
 				</row>
-				<button name="calibrate_air" text="Air (20.9%)" icon="icon_refresh" width="100%" />
+				<button name="calibrate_air" text="Air (20.9%)" translation_tag="calibration_air" icon="icon_refresh" width="100%" />
 				<row width="100%" horizontal_align="space_between">
 					<button name="calibrate_o2" text="O2 (100%)" icon="icon_refresh" width="49%" />
-					<button name="clear_o2" text="Clear O2" icon="icon_trash" width="49%" />
+					<button name="clear_o2" text="Clear O2" translation_tag="calibration_clear_o2" icon="icon_trash" width="49%" />
 				</row>
 				<button name="calibrate_he" text="He (100%)" icon="icon_refresh" width="100%" />
 			</column>

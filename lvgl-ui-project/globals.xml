@@ -41,7 +41,7 @@
 		<color name="color_track" value="0x9AA3B2" help="Neutral track behind sliders/arcs/bars" />
 	</consts>
 
-	<!-- Montserrat, compiled in (as_file="false"). Latin range + a few symbols;
+	<!-- Montserrat, compiled in (as_file="false"). Body, H5 and H4 include Cyrillic;
 	     bump range/symbols if you need more glyphs.
 	     font_body is the inherited default (see style_screen_*). -->
 	<fonts>
@@ -58,11 +58,20 @@
 		/>
 
 		<bin
+			name="font_control"
+			size="14"
+			src_path="fonts/Montserrat-Medium.ttf"
+			bpp="4"
+			range="0x20-0x7F,0x0400-0x04FF"
+			symbols="°—•"
+			as_file="false"
+		/>
+		<bin
 			name="font_body"
 			size="16"
 			src_path="fonts/Montserrat-Regular.ttf"
 			bpp="4"
-			range="0x20-0x7F"
+			range="0x20-0x7F,0x0400-0x04FF"
 			symbols="°—•"
 			as_file="false"
 			lv_fallback="font_body_symbols_data"
@@ -72,7 +81,7 @@
 			size="18"
 			src_path="fonts/Montserrat-Medium.ttf"
 			bpp="4"
-			range="0x20-0x7F"
+			range="0x20-0x7F,0x0400-0x04FF"
 			symbols="°—•"
 			as_file="false"
 		/>
@@ -81,7 +90,7 @@
 			size="22"
 			src_path="fonts/Montserrat-SemiBold.ttf"
 			bpp="4"
-			range="0x20-0x7F"
+			range="0x20-0x7F,0x0400-0x04FF"
 			symbols="°—•"
 			as_file="false"
 		/>
@@ -129,6 +138,7 @@
 		<int name="settings_o2_enabled" value="1" min_value="0" max_value="1" />
 		<int name="settings_he_enabled" value="1" min_value="0" max_value="1" />
 		<int name="settings_co_enabled" value="1" min_value="0" max_value="1" />
+		<int name="settings_language_index" value="0" min_value="0" max_value="1" help="Language option index; 0 = English, 1 = Bulgarian" />
 		<int
 			name="settings_co_correction_index"
 			value="2"

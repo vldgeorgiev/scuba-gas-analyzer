@@ -17,6 +17,134 @@ Older dated entries below are implementation snapshots; the status table is the 
 | 6. Replacement UI | Implemented |
 | 7. Measured cleanup | Battery ADC characterization is initialized once; other speculative cleanup declined |
 | 8. Versioned release automation | Implemented; hosted GitHub releases and OTA confirmed |
+| English/Bulgarian translations | Full catalog, Cyrillic controls, and compact Calibration layout exported and validated locally |
+
+## 2026-10-20: Original control-font weight restored
+
+- Exported the 14 px Cyrillic control font from Montserrat Medium instead of Regular, matching the
+  original LVGL default's weight. Body text, headings, and compact button padding remain unchanged.
+- Focused native-ui: 12 passed, including Calibration fit without scrolling in both languages and
+  Cyrillic control fonts. Full host checks: native 133 and native-ui 12 passed. Both S3 profiles built
+  successfully. Release flash: 1,601,869 bytes; static RAM: 166,016 bytes.
+
+## 2026-10-20: Compact control typography and Calibration fit
+
+- Exported the full runtime catalog, Cyrillic H4 glyphs, and a dedicated 14 px Cyrillic control font.
+  Button captions, dropdown main/list text, and text-field main/placeholder text use the control font;
+  existing 16 px body text and headings remain unchanged.
+- Added a compact-control regression test covering both languages, actual Calibration screen bounds,
+  dropdown fonts, and input/placeholder fonts. Expanded font coverage to control/body/H4/H5 glyphs.
+- The initial compact export passed the first 10 existing UI tests. The new geometry assertion found
+  the final Calibration button at y=172, outside the display's y=169 bottom edge, exposing the remaining
+  height regression before the padding correction was exported.
+- Measured line heights: original default 16 px, translated body 20 px, compact control 18 px.
+  Exported 7 px button vertical padding instead of 8 px, restoring the original text-plus-padding
+  height: 18 + 2*7 = 16 + 2*8 = 32 px. XML/arithmetic and whitespace checks passed.
+- The final export passes all 12 UI tests, including Calibration bounds without scrolling in both
+  languages, Cyrillic font coverage, dropdown/list/selected-option fonts, text-field/placeholder fonts,
+  and repeated screen lifetime. Full host checks: native 133 and native-ui 12 passed.
+  Both S3 profiles built successfully. Release flash: 1,602,237 bytes; static RAM: 166,016 bytes.
+
+## 2026-10-19: Multiline translation-key export fix
+
+- The full catalog export exposed an Editor escaping limitation: multiline dropdown keys were emitted
+  as literal newlines in `translation_tags`, causing unterminated-string errors in the S3 build.
+- Replaced those two keys with `language_options` and `sleep_options`, updating adapter and test
+  lookups. Translated values retain their newline-separated options. Generated C remains untouched.
+- XML validation passed for all 110 export-safe keys and both languages' option counts. Edited source
+  diagnostics and whitespace checks passed. Firmware and native-ui validation await a fresh Editor
+  export because the current generated table still contains the previous invalid keys.
+
+## 2026-10-19: Complete runtime translation sources
+
+- Expanded the Editor table to 110 complete English/Bulgarian entries. Runtime English source strings
+  serve as lookup keys for reading states, calibration progress/results, dialogs, network/update events,
+  formatted download progress, sleep options/failures, password placeholders, language names, and
+  built-in diagnostic messages. Gas symbols, units, firmware versions, network names, and passwords
+  remain unchanged.
+- The UI refreshes cached reading snapshots and calibration/update message keys when changing language,
+  preserving calibration state, option indices, numeric data, and download progress. Diagnostics are
+  translated on display with timestamps/data retained and bounded UTF-8-safe output. Dialogs use
+  translation tags, wrapping titles, and the Cyrillic-capable body font. H4 Cyrillic font sources are
+  prepared for main reading states.
+- Runtime tests exposed a stale update-button observer: `bindClick` removed LVGL deletion cleanup
+  along with generated navigation callbacks. It now removes only click callbacks, preserving observer
+  cleanup across transient screen deletion and reopening. No generated C or dependency source changed.
+- Native-ui now compiles production `UiFeedback.cpp` and sensor error text instead of replacing
+  message boxes with a counter. Three added tests cover runtime states/calibration outcomes, all
+  firmware-update event types/options/placeholders, real result dialogs, language refresh, and diagnostic
+  messages with numeric data.
+- Catalog validation passed for duplicate keys, bilingual completeness, printf placeholders, UTF-8 byte
+  limits, and 60 runtime literal references. Focused native-ui: 11 passed. Full host checks: native 133
+  and native-ui 11 passed. Both S3 profiles built successfully; release flash: 1,547,725 bytes; static
+  RAM: 164,872 bytes. Edited files have no editor diagnostics.
+- The new 95 runtime entries and Cyrillic H4 font await Editor export. Tests currently verify their
+  lookup/refresh paths with English fallback; final exported Bulgarian rendering and text fit remain
+  unverified. The full translation sources and application bindings are implemented.
+
+## 2026-10-19: Exported language selector integrated
+
+- Integrated the exported language dropdown and its required `settings_language_index` integer subject.
+  Settings synchronization and capture now use the subject, keeping generated controls, preview,
+  acknowledgement, and rollback consistent. Generated files remain Editor-owned.
+- Added actual-control coverage for English/Bulgarian options, live preview, save capture, effective
+  language acknowledgement, queue refusal, restoration, reopening, and language-row fit. Static
+  translation coverage now includes all 15 captions. Updated both user manuals with the partial
+  translation boundary.
+- The extra control exposed LVGL heap exhaustion while opening Firmware Update from Settings.
+  A host debugger measured a failed 448-byte image scratch allocation with 656 bytes free and a
+  largest free block of 352 bytes. Increased the shared fixed LVGL pool from 72 to 80 KiB.
+  A clean rebuild was required for allocator objects to pick up the configuration change.
+- Focused native-ui: 8 passed after a clean rebuild. Full host checks: native 133 and native-ui 8
+  passed. Both S3 profiles clean-built successfully. Release flash: 1,546,497 bytes; static RAM:
+  164,776 bytes. Edited production/test files have no editor diagnostics; whitespace checks passed.
+- Language selection and persistence are implemented. Application messages, password placeholders,
+  and non-language dropdown text remain for the runtime translation step.
+
+## 2026-10-19: Language persistence and selection bindings
+
+- Added validated English/Bulgarian language settings with English as the default. The analyzer
+  persists the individual `language` key through existing settings commands and results; language-only
+  changes preserve measurement generation. Invalid stored language falls back to English without
+  calibration recovery and is reconciled on the next successful save.
+- The UI applies acknowledged language on settings synchronization and restores it on Settings exit
+  while awaiting a save result. Rejected saves retain the previous effective language. Existing
+  save-on-exit tests now cover language success, rejection, queue refusal, and delayed synchronization.
+- Prepared an Editor language dropdown with English/Bulgarian names and a translated label. Adapter
+  bindings preview its selection and capture the local draft on exit. The optional control lookup
+  preserves compatibility with the current export; generated dropdown integration awaits re-export.
+- Focused analyzer: 67 passed; focused native-ui: 7 passed. Full host checks: native 133 and native-ui
+  7 passed. Both S3 profiles built successfully. XML syntax and edited production diagnostics passed.
+- The current generated UI still has no language selector. Dropdown interaction coverage, translated
+  option lists/placeholders, and application messages remain pending.
+
+## 2026-10-19: Static translation export validated
+
+- Expanded the Editor translation table to 14 English/Bulgarian entries for Settings, Calibration,
+  Diagnostics, and Firmware Update captions. Chemical symbols, percentages, and units stay unchanged.
+- Shared button and body-text components now forward translation tags. Buttons retain nonempty
+  English fallback captions so the existing caption-visibility rule still works. Body fonts include
+  Cyrillic; compact calibration buttons use reduced horizontal padding for Bulgarian captions.
+- XML syntax and parser-based translation checks passed: 14 complete bilingual entries and 14 valid
+  screen bindings. The expanded Editor export is integrated without handwritten generated changes.
+- Added a real-LVGL test for all 14 captions across five screens, English/Bulgarian/English round trips,
+  caption visibility and parent bounds, and non-placeholder Cyrillic letters in body/H5 fonts.
+- Focused native-ui: 6 passed. Full host checks: native 131 and native-ui 6 passed.
+  Both S3 profiles built successfully. Release flash: 1,545,937 bytes; static RAM: 156,536 bytes.
+- Dropdown options, password placeholders, application messages, language selection, and persistence
+  remain for the runtime integration step. English remains the application startup language.
+
+## 2026-10-19: First translation milestone
+
+- Added an Editor translation table for the Settings brightness label in English and Bulgarian.
+  The Editor export registers both languages, defaults to English, and binds the existing heading
+  component to the translation key. The exported H5 font now includes Cyrillic glyphs.
+- Added one real-LVGL regression test for live language switching, Settings recreation in Bulgarian,
+  non-placeholder glyphs for the translated text, and label fit beside the brightness slider.
+- Focused native-ui: 5 passed. Full host checks: native 131 and native-ui 5 passed.
+  Both S3 profiles built successfully. Release flash: 1,528,133 bytes; static RAM: 156,376 bytes.
+- This is the first-label integration only. Remaining UI text, a language selector, persistence,
+  and translated application messages are not implemented yet.
 
 ## 2026-10-14: External O2 ADC wiring correction
 

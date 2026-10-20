@@ -10,6 +10,8 @@ constexpr uint8_t DEFAULT_SLEEP_MINUTES = 5;
 constexpr uint8_t SLEEP_OPTIONS[] = {0, 1, 2, 5, 10, 30};
 constexpr int8_t CO_CORRECTION_MIN_PPM = -5;
 constexpr int8_t CO_CORRECTION_MAX_PPM = 2;
+constexpr uint8_t LANGUAGE_ENGLISH = 0;
+constexpr uint8_t LANGUAGE_BULGARIAN = 1;
 }
 
 struct AnalyzerSettings {
@@ -19,6 +21,7 @@ struct AnalyzerSettings {
   bool calibrateOnStart = false;
   uint8_t brightness = 128;
   uint8_t sleepMinutes = app::DEFAULT_SLEEP_MINUTES;
+  uint8_t language = app::LANGUAGE_ENGLISH;
   int8_t coCorrectionPpm = 0;
   float po2Bottom = 1.4f;
   float po2Deco = 1.6f;
@@ -33,6 +36,10 @@ struct AnalyzerSettings {
       if (minutes == option) return true;
     }
     return false;
+  }
+
+  static bool validLanguage(int value) {
+    return value == app::LANGUAGE_ENGLISH || value == app::LANGUAGE_BULGARIAN;
   }
 
   static bool validCoCorrection(int value) {
@@ -63,7 +70,7 @@ struct AnalyzerSettings {
   }
 
   bool valid() const {
-    return validSleepMinutes(sleepMinutes) && brightness >= 8 && validCoCorrection(coCorrectionPpm) &&
+    return validSleepMinutes(sleepMinutes) && validLanguage(language) && brightness >= 8 && validCoCorrection(coCorrectionPpm) &&
            validPo2Bottom(po2Bottom) &&
            validPo2Deco(po2Deco, po2Bottom) && validO2Air(o2Air) && validO2Pure(o2Pure, o2Air) &&
            validO2Air(externalO2Air) && validO2Pure(externalO2Pure, externalO2Air) &&
@@ -74,6 +81,7 @@ struct AnalyzerSettings {
     const bool repaired = !valid();
     const AnalyzerSettings defaults;
     if (!validSleepMinutes(sleepMinutes)) sleepMinutes = defaults.sleepMinutes;
+    if (!validLanguage(language)) language = defaults.language;
     if (brightness < 8) brightness = defaults.brightness;
     if (!validCoCorrection(coCorrectionPpm)) coCorrectionPpm = defaults.coCorrectionPpm;
     if (!validPo2Bottom(po2Bottom)) {

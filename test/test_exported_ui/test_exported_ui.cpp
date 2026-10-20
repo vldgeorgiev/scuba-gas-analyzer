@@ -7,6 +7,7 @@
 #include "network/FirmwareUpdate.h"
 #include "ui-log.h"
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 
 DisplayManager displayManager;
@@ -14,7 +15,6 @@ static AnalyzerSettings effective;
 static AnalyzerSettings submitted;
 static bool settingsOpen;
 static bool allowSubmit = true;
-static unsigned errors;
 static unsigned wifiScanActions;
 static unsigned analyzerCommands;
 static unsigned calibrationCancels;
@@ -22,6 +22,8 @@ static app::CommandType lastCommandType;
 static unsigned flushes;
 static bool renderedPixels;
 static uint8_t brightness;
+static FirmwareUpdateEvent pendingUpdateEvent;
+static bool updateEventPending = false;
 static uint16_t renderedFrame[320 * 170];
 
 void DisplayManager::setBrightness(uint8_t value) { brightness = value; }
@@ -42,11 +44,15 @@ bool closeUiSettings(const AnalyzerSettings& draft) {
   ui::syncSettings(effective);
   return allowSubmit;
 }
-void messageBox(const char*, float) { ++errors; }
 bool firmwareUpdateBusy() { return false; }
 bool startWifiScan() { ++wifiScanActions; return true; }
 bool startFirmwareUpdate(const char*, const char*) { return true; }
-bool pollFirmwareUpdateEvent(FirmwareUpdateEvent&) { return false; }
+bool pollFirmwareUpdateEvent(FirmwareUpdateEvent& event) {
+  if (!updateEventPending) return false;
+  event = pendingUpdateEvent;
+  updateEventPending = false;
+  return true;
+}
 void finishFirmwareUpdate() {}
 
 static void flush(lv_display_t* display, const lv_area_t* area, uint8_t* pixels) {
@@ -134,6 +140,24 @@ static void click(lv_obj_t* object) {
   refresh();
 }
 
+static void closeDialog(const char* title) {
+  TEST_ASSERT_EQUAL_UINT(1, lv_obj_get_child_count(lv_layer_top()));
+  lv_obj_t* backdrop = lv_obj_get_child(lv_layer_top(), -1);
+  lv_obj_t* dialog = lv_obj_get_child(backdrop, 0);
+  TEST_ASSERT_TRUE(lv_obj_check_type(dialog, &lv_msgbox_class));
+  TEST_ASSERT_EQUAL_STRING(lv_tr(title), lv_label_get_text(lv_msgbox_get_title(dialog)));
+  TEST_ASSERT_EQUAL_PTR(font_body, lv_obj_get_style_text_font(lv_msgbox_get_title(dialog), LV_PART_MAIN));
+  lv_area_t titleArea;
+  lv_area_t headerArea;
+  lv_obj_update_layout(dialog);
+  lv_obj_get_coords(lv_msgbox_get_title(dialog), &titleArea);
+  lv_obj_get_coords(lv_msgbox_get_header(dialog), &headerArea);
+  TEST_ASSERT_GREATER_OR_EQUAL(headerArea.x1, titleArea.x1);
+  TEST_ASSERT_LESS_OR_EQUAL(headerArea.x2, titleArea.x2);
+  lv_msgbox_close(dialog);
+  refresh();
+}
+
 static bool chartContains(lv_obj_t* graph, lv_chart_series_t* series, int32_t value) {
   int32_t* values = lv_chart_get_series_y_array(graph, series);
   for (uint32_t index = 0; index < lv_chart_get_point_count(graph); ++index) {
@@ -188,11 +212,10 @@ void test_export_boot_and_navigation() {
   allowSubmit = false;
   lv_subject_set_int(&calibration_on_start, 1);
   lv_obj_send_event(startup, LV_EVENT_VALUE_CHANGED, nullptr);
-  TEST_ASSERT_EQUAL_UINT(1, errors);
   TEST_ASSERT_EQUAL_INT(0, lv_subject_get_int(&calibration_on_start));
+  closeDialog("Analyzer busy - preference not saved");
   TEST_ASSERT_EQUAL_UINT(0, lv_obj_get_child_count(lv_layer_top()));
   allowSubmit = true;
-  errors = 0;
   click(lv_obj_find_by_name(lv_screen_active(), "calibrate_air"));
   TEST_ASSERT_EQUAL(app::CommandType::CalibrateAir, lastCommandType);
   TEST_ASSERT_NOT_NULL(lv_obj_find_by_name(lv_screen_active(), "calibration_graph"));
@@ -324,7 +347,7 @@ void test_export_settings_round_trip_and_rejection() {
   click(lv_obj_find_by_name(mainscr, "open_settings"));
   lv_subject_set_int(&settings_brightness, 220);
   click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
-  TEST_ASSERT_EQUAL_UINT(1, errors);
+  closeDialog("Settings not applied - analyzer busy");
   TEST_ASSERT_FALSE(settingsOpen);
   TEST_ASSERT_EQUAL_INT(effective.brightness, lv_subject_get_int(&settings_brightness));
   allowSubmit = true;
@@ -486,6 +509,442 @@ void test_export_readings_and_sensor_states() {
   refresh();
 }
 
+void test_export_translation_switching() {
+  TEST_ASSERT_EQUAL_STRING("en", lv_translation_get_language());
+  click(lv_obj_find_by_name(mainscr, "open_settings"));
+  lv_obj_t* row = lv_obj_find_by_name(lv_screen_active(), "brightness_row");
+  TEST_ASSERT_NOT_NULL(row);
+  lv_obj_t* label = lv_obj_get_child(row, 0);
+  TEST_ASSERT_TRUE(lv_obj_check_type(label, &lv_label_class));
+  TEST_ASSERT_EQUAL_STRING("Brightness", lv_label_get_text(label));
+  lv_translation_set_language("bg");
+  refresh();
+  TEST_ASSERT_EQUAL_STRING(u8"\u042f\u0440\u043a\u043e\u0441\u0442", lv_label_get_text(label));
+  const lv_font_t* font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+  const uint32_t letters[] = {0x042f, 0x0440, 0x043a, 0x043e, 0x0441, 0x0442};
+  for (uint32_t letter : letters) {
+    lv_font_glyph_dsc_t glyph = {};
+    TEST_ASSERT_TRUE(lv_font_get_glyph_dsc(font, &glyph, letter, 0));
+    TEST_ASSERT_FALSE(glyph.is_placeholder);
+    TEST_ASSERT_GREATER_THAN(0, glyph.box_w);
+    TEST_ASSERT_GREATER_THAN(0, glyph.box_h);
+  }
+  lv_obj_t* slider = lv_obj_find_by_name(row, "brightness");
+  TEST_ASSERT_NOT_NULL(slider);
+  TEST_ASSERT_LESS_OR_EQUAL(lv_obj_get_x(slider), lv_obj_get_x(label) + lv_obj_get_width(label));
+  click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
+  TEST_ASSERT_EQUAL_STRING("en", lv_translation_get_language());
+  effective.language = app::LANGUAGE_BULGARIAN;
+  ui::syncSettings(effective);
+  click(lv_obj_find_by_name(mainscr, "open_settings"));
+  row = lv_obj_find_by_name(lv_screen_active(), "brightness_row");
+  TEST_ASSERT_NOT_NULL(row);
+  label = lv_obj_get_child(row, 0);
+  TEST_ASSERT_EQUAL_STRING(u8"\u042f\u0440\u043a\u043e\u0441\u0442", lv_label_get_text(label));
+  effective.language = app::LANGUAGE_ENGLISH;
+  ui::syncSettings(effective);
+  refresh();
+  TEST_ASSERT_EQUAL_STRING("Brightness", lv_label_get_text(label));
+  click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
+}
+
+static lv_obj_t* findLabelText(lv_obj_t* object, const char* text) {
+  if (lv_obj_check_type(object, &lv_label_class) && std::strcmp(lv_label_get_text(object), text) == 0) {
+    return object;
+  }
+  for (uint32_t index = 0; index < lv_obj_get_child_count(object); ++index) {
+    lv_obj_t* label = findLabelText(lv_obj_get_child(object, index), text);
+    if (label) return label;
+  }
+  return nullptr;
+}
+
+static void assertTranslatedCaption(lv_obj_t* screen, const char* tag) {
+  const char* text = lv_tr(tag);
+  TEST_ASSERT_NOT_EQUAL_MESSAGE(0, std::strcmp(text, tag), tag);
+  lv_obj_t* label = findLabelText(screen, text);
+  TEST_ASSERT_NOT_NULL_MESSAGE(label, tag);
+  TEST_ASSERT_FALSE_MESSAGE(lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN), tag);
+  lv_area_t labelArea;
+  lv_area_t parentArea;
+  lv_obj_get_coords(label, &labelArea);
+  lv_obj_get_coords(lv_obj_get_parent(label), &parentArea);
+  TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE(parentArea.x1, labelArea.x1, tag);
+  TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE(parentArea.y1, labelArea.y1, tag);
+  TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(parentArea.x2, labelArea.x2, tag);
+  TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(parentArea.y2, labelArea.y2, tag);
+}
+
+void test_export_translated_screens() {
+  const lv_font_t* fonts[] = {font_control, font_body, font_h4, font_h5};
+  for (const lv_font_t* font : fonts) {
+    for (uint32_t letter = 0x0410; letter <= 0x044f; ++letter) {
+      lv_font_glyph_dsc_t glyph = {};
+      TEST_ASSERT_TRUE(lv_font_get_glyph_dsc(font, &glyph, letter, 0));
+      TEST_ASSERT_FALSE(glyph.is_placeholder);
+    }
+  }
+  struct ScreenTranslations {
+    lv_obj_t* (*create)();
+    const char* tags[8];
+  };
+  const ScreenTranslations screens[] = {
+      {settings_create, {"settings_language", "settings_co_correction", "settings_po2_bottom", "settings_po2_deco",
+                         "settings_brightness", "settings_sleep", "settings_firmware_update", nullptr}},
+      {calibration_create, {"calibration_title", "calibration_on_start", "calibration_air",
+                            "calibration_clear_o2", nullptr}},
+      {calibration_run_create, {"calibration_cancel", "calibration_done", nullptr}},
+      {diagnostics_create, {"diagnostics_title", nullptr}},
+      {firmware_update_create, {"update_install", nullptr}},
+  };
+  for (const ScreenTranslations& entry : screens) {
+    lv_obj_t* screen = entry.create();
+    TEST_ASSERT_NOT_NULL(screen);
+    lv_screen_load(screen);
+    refresh();
+    const char* english[8] = {};
+    for (unsigned index = 0; entry.tags[index]; ++index) {
+      english[index] = lv_tr(entry.tags[index]);
+      assertTranslatedCaption(screen, entry.tags[index]);
+    }
+    lv_translation_set_language("bg");
+    refresh();
+    for (unsigned index = 0; entry.tags[index]; ++index) {
+      TEST_ASSERT_NOT_EQUAL_MESSAGE(0, std::strcmp(english[index], lv_tr(entry.tags[index])), entry.tags[index]);
+      assertTranslatedCaption(screen, entry.tags[index]);
+    }
+    lv_translation_set_language("en");
+    refresh();
+    for (unsigned index = 0; entry.tags[index]; ++index) {
+      assertTranslatedCaption(screen, entry.tags[index]);
+    }
+    lv_screen_load(mainscr);
+    lv_obj_delete(screen);
+    refresh();
+  }
+}
+
+void test_effective_language_sync() {
+  AnalyzerSettings settings = effective;
+  settings.language = app::LANGUAGE_BULGARIAN;
+  ui::syncSettings(settings);
+  TEST_ASSERT_EQUAL_STRING("bg", lv_translation_get_language());
+  TEST_ASSERT_EQUAL_INT(app::LANGUAGE_BULGARIAN, lv_subject_get_int(&settings_language_index));
+  lv_obj_t* screen = settings_create();
+  TEST_ASSERT_NOT_NULL(screen);
+  lv_screen_load(screen);
+  refresh();
+  assertTranslatedCaption(screen, "settings_brightness");
+  ui::syncSettings(effective);
+  TEST_ASSERT_EQUAL_STRING("en", lv_translation_get_language());
+  TEST_ASSERT_EQUAL_INT(app::LANGUAGE_ENGLISH, lv_subject_get_int(&settings_language_index));
+  assertTranslatedCaption(screen, "settings_brightness");
+  lv_screen_load(mainscr);
+  lv_obj_delete(screen);
+  refresh();
+}
+
+void test_export_language_selection_save_and_rejection() {
+  click(lv_obj_find_by_name(mainscr, "open_settings"));
+  lv_obj_t* language = lv_obj_find_by_name(lv_screen_active(), "language");
+  TEST_ASSERT_NOT_NULL(language);
+  TEST_ASSERT_EQUAL_UINT32(2, lv_dropdown_get_option_count(language));
+  TEST_ASSERT_EQUAL_UINT32(app::LANGUAGE_ENGLISH, lv_dropdown_get_selected(language));
+  lv_dropdown_set_selected(language, app::LANGUAGE_BULGARIAN);
+  lv_obj_send_event(language, LV_EVENT_VALUE_CHANGED, nullptr);
+  refresh();
+  TEST_ASSERT_EQUAL_STRING("bg", lv_translation_get_language());
+  TEST_ASSERT_EQUAL_INT(app::LANGUAGE_BULGARIAN, lv_subject_get_int(&settings_language_index));
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, effective.language);
+  assertTranslatedCaption(lv_screen_active(), "settings_language");
+  lv_obj_t* row = lv_obj_find_by_name(lv_screen_active(), "language_row");
+  TEST_ASSERT_NOT_NULL(row);
+  lv_obj_t* label = lv_obj_get_child(row, 0);
+  TEST_ASSERT_LESS_OR_EQUAL(lv_obj_get_x(language), lv_obj_get_x(label) + lv_obj_get_width(label));
+  char option[32];
+  lv_dropdown_get_selected_str(language, option, sizeof(option));
+  TEST_ASSERT_EQUAL_STRING(u8"\u0411\u044a\u043b\u0433\u0430\u0440\u0441\u043a\u0438", option);
+  click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, submitted.language);
+  TEST_ASSERT_EQUAL_STRING("en", lv_translation_get_language());
+  TEST_ASSERT_EQUAL_INT(app::LANGUAGE_ENGLISH, lv_subject_get_int(&settings_language_index));
+  effective = submitted;
+  ui::syncSettings(effective);
+  TEST_ASSERT_EQUAL_STRING("bg", lv_translation_get_language());
+  click(lv_obj_find_by_name(mainscr, "open_settings"));
+  language = lv_obj_find_by_name(lv_screen_active(), "language");
+  TEST_ASSERT_NOT_NULL(language);
+  TEST_ASSERT_EQUAL_UINT32(app::LANGUAGE_BULGARIAN, lv_dropdown_get_selected(language));
+  lv_dropdown_set_selected(language, app::LANGUAGE_ENGLISH);
+  lv_obj_send_event(language, LV_EVENT_VALUE_CHANGED, nullptr);
+  refresh();
+  TEST_ASSERT_EQUAL_STRING("en", lv_translation_get_language());
+  allowSubmit = false;
+  click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
+  allowSubmit = true;
+  closeDialog("Settings not applied - analyzer busy");
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, submitted.language);
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, effective.language);
+  TEST_ASSERT_EQUAL_STRING("bg", lv_translation_get_language());
+  TEST_ASSERT_EQUAL_INT(app::LANGUAGE_BULGARIAN, lv_subject_get_int(&settings_language_index));
+  click(lv_obj_find_by_name(mainscr, "open_settings"));
+  language = lv_obj_find_by_name(lv_screen_active(), "language");
+  TEST_ASSERT_NOT_NULL(language);
+  TEST_ASSERT_EQUAL_UINT32(app::LANGUAGE_BULGARIAN, lv_dropdown_get_selected(language));
+  lv_dropdown_set_selected(language, app::LANGUAGE_ENGLISH);
+  lv_obj_send_event(language, LV_EVENT_VALUE_CHANGED, nullptr);
+  click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
+  TEST_ASSERT_EQUAL_STRING("bg", lv_translation_get_language());
+  ui::syncSettings(effective);
+  TEST_ASSERT_EQUAL_STRING("bg", lv_translation_get_language());
+  effective = submitted;
+  ui::syncSettings(effective);
+  TEST_ASSERT_EQUAL_STRING("en", lv_translation_get_language());
+  TEST_ASSERT_EQUAL_INT(app::LANGUAGE_ENGLISH, lv_subject_get_int(&settings_language_index));
+}
+
+void test_runtime_reading_and_calibration_translations() {
+  for (uint8_t language : {app::LANGUAGE_ENGLISH, app::LANGUAGE_BULGARIAN}) {
+    effective.language = language;
+    ui::syncSettings(effective);
+    sensorsData data;
+    for (ChannelState state : {ChannelState::Disabled, ChannelState::Warming, ChannelState::Unavailable,
+                               ChannelState::Invalid, ChannelState::Stale}) {
+      data.o2State = data.heState = data.coState = data.temperatureState = state;
+      ui::presentReadings(data, effective);
+      const char* expected = lv_tr(channelStateText(state));
+      TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&main_o2_text));
+      TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&main_he_text));
+      TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&main_co_text));
+      TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&main_he_temperature_text));
+    }
+    ui::openCalibration(nullptr);
+    const app::Failure failures[] = {app::Failure::None, app::Failure::Invalid,
+                                     app::Failure::Storage, app::Failure::Sampling, app::Failure::Cancelled};
+    const char* statuses[] = {"Saved", "Invalid value range. Check gas or sensor", "Save failed",
+                              "Unstable - not saved", "Cancelled"};
+    for (unsigned index = 0; index < sizeof(failures) / sizeof(failures[0]); ++index) {
+      click(lv_obj_find_by_name(lv_screen_active(), "calibrate_air"));
+      TEST_ASSERT_EQUAL_STRING(lv_tr("Air calibration"), lv_subject_get_string(&calibration_run_title_text));
+      TEST_ASSERT_EQUAL_STRING(lv_tr("Settling"), lv_subject_get_string(&calibration_stability_text));
+      app::Result result;
+      result.type = app::CommandType::CalibrateAir;
+      result.complete = false;
+      result.calibrationPhase = app::CalibrationPhase::Stable;
+      result.calibrationMillivolts = 10;
+      result.calibrationElapsedMs = 5000;
+      ui::presentCalibration(result);
+      TEST_ASSERT_EQUAL_STRING(lv_tr("Stable"), lv_subject_get_string(&calibration_stability_text));
+      result.complete = true;
+      result.failure = failures[index];
+      result.calibrationPhase = result.failure == app::Failure::None ? app::CalibrationPhase::Saved
+          : result.failure == app::Failure::Cancelled ? app::CalibrationPhase::Cancelled : app::CalibrationPhase::Failed;
+      ui::presentCalibration(result);
+      TEST_ASSERT_EQUAL_STRING(lv_tr(statuses[index]), lv_subject_get_string(&calibration_stability_text));
+      AnalyzerSettings preview = effective;
+      preview.language = language == app::LANGUAGE_ENGLISH ? app::LANGUAGE_BULGARIAN : app::LANGUAGE_ENGLISH;
+      ui::syncSettings(preview);
+      TEST_ASSERT_EQUAL_STRING(lv_tr(statuses[index]), lv_subject_get_string(&calibration_stability_text));
+      TEST_ASSERT_EQUAL_STRING(lv_tr("Stale"), lv_subject_get_string(&main_o2_text));
+      ui::syncSettings(effective);
+      click(lv_obj_find_by_name(lv_screen_active(), "calibration_done"));
+    }
+    click(lv_obj_find_by_name(lv_screen_active(), "calibration_back"));
+  }
+  effective.language = app::LANGUAGE_ENGLISH;
+  ui::syncSettings(effective);
+}
+
+void test_runtime_network_and_option_translations() {
+  for (uint8_t language : {app::LANGUAGE_ENGLISH, app::LANGUAGE_BULGARIAN}) {
+    effective.language = language;
+    ui::syncSettings(effective);
+    click(lv_obj_find_by_name(mainscr, "open_settings"));
+    lv_obj_t* sleep = lv_obj_find_by_name(lv_screen_active(), "sleep_timeout");
+    TEST_ASSERT_NOT_NULL(sleep);
+    TEST_ASSERT_EQUAL_STRING(lv_tr("sleep_options"), lv_dropdown_get_options(sleep));
+    TEST_ASSERT_EQUAL_INT(3, lv_dropdown_get_selected(sleep));
+    click(lv_obj_find_by_name(lv_screen_active(), "open_updates"));
+    lv_obj_t* password = lv_obj_find_by_name(lv_screen_active(), "wifi_password");
+    lv_obj_t* networks = lv_obj_find_by_name(lv_screen_active(), "wifi_names");
+    TEST_ASSERT_NOT_NULL(password);
+    TEST_ASSERT_NOT_NULL(networks);
+    TEST_ASSERT_EQUAL_STRING(lv_tr("Wi-Fi password"), lv_textarea_get_placeholder_text(password));
+    TEST_ASSERT_EQUAL_STRING(lv_tr("No networks"), lv_dropdown_get_text(networks));
+    TEST_ASSERT_EQUAL_UINT(0, lv_dropdown_get_option_count(networks));
+    TEST_ASSERT_EQUAL_STRING(lv_tr("Not connected"), lv_subject_get_string(&update_status_text));
+    click(lv_obj_find_by_name(lv_screen_active(), "scan_wifi"));
+    TEST_ASSERT_EQUAL_STRING(lv_tr("Scanning Wi-Fi..."), lv_subject_get_string(&update_status_text));
+    pendingUpdateEvent = {};
+    pendingUpdateEvent.type = FirmwareUpdateEventType::ScanComplete;
+    updateEventPending = true;
+    ui::serviceFirmwareUpdate();
+    TEST_ASSERT_EQUAL_STRING(lv_tr("No networks found"), lv_dropdown_get_text(networks));
+    pendingUpdateEvent.networkCount = 1;
+    std::snprintf(pendingUpdateEvent.networks[0], sizeof(pendingUpdateEvent.networks[0]), "Test network");
+    updateEventPending = true;
+    ui::serviceFirmwareUpdate();
+    TEST_ASSERT_EQUAL_STRING("Test network", lv_dropdown_get_options(networks));
+    TEST_ASSERT_EQUAL_STRING(lv_tr("Select a network and enter its password"), lv_subject_get_string(&update_status_text));
+    const FirmwareUpdateEventType events[] = {FirmwareUpdateEventType::TimeSyncStarted,
+        FirmwareUpdateEventType::DownloadStarted, FirmwareUpdateEventType::UpdateComplete,
+        FirmwareUpdateEventType::ConnectionFailed, FirmwareUpdateEventType::TimeSyncFailed,
+        FirmwareUpdateEventType::SecureConnectionFailed, FirmwareUpdateEventType::UpdateFailed};
+    const char* statuses[] = {"Setting device time...", "Downloading firmware... 0%", "Update complete - restarting...",
+        "Wi-Fi connection failed", "Could not set time - update cancelled", "Secure connection failed", "Firmware update failed"};
+    const char* dialogs[] = {nullptr, nullptr, nullptr, "Wi-Fi connection failed", "Could not set device time",
+                             "Secure connection failed", "Firmware update failed"};
+    for (unsigned index = 0; index < sizeof(events) / sizeof(events[0]); ++index) {
+      pendingUpdateEvent.type = events[index];
+      updateEventPending = true;
+      ui::serviceFirmwareUpdate();
+      refresh();
+      TEST_ASSERT_EQUAL_STRING(lv_tr(statuses[index]), lv_subject_get_string(&update_status_text));
+      if (dialogs[index]) closeDialog(dialogs[index]);
+    }
+    pendingUpdateEvent.type = FirmwareUpdateEventType::DownloadProgress;
+    pendingUpdateEvent.progress = 37;
+    updateEventPending = true;
+    ui::serviceFirmwareUpdate();
+    char expected[160];
+    std::snprintf(expected, sizeof(expected), lv_tr("Downloading... %u%%"), 37U);
+    TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&update_status_text));
+    AnalyzerSettings preview = effective;
+    preview.language = language == app::LANGUAGE_ENGLISH ? app::LANGUAGE_BULGARIAN : app::LANGUAGE_ENGLISH;
+    ui::syncSettings(preview);
+    std::snprintf(expected, sizeof(expected), lv_tr("Downloading... %u%%"), 37U);
+    TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&update_status_text));
+    TEST_ASSERT_EQUAL_STRING(lv_tr("Wi-Fi password"), lv_textarea_get_placeholder_text(password));
+    TEST_ASSERT_EQUAL_STRING("Test network", lv_dropdown_get_options(networks));
+    ui::syncSettings(effective);
+    click(lv_obj_find_by_name(lv_screen_active(), "update_back"));
+    click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
+  }
+  effective.language = app::LANGUAGE_ENGLISH;
+  ui::syncSettings(effective);
+}
+
+void test_runtime_feedback_and_diagnostic_translations() {
+  for (uint8_t language : {app::LANGUAGE_ENGLISH, app::LANGUAGE_BULGARIAN}) {
+    effective.language = language;
+    ui::syncSettings(effective);
+    messageBox("Invalid saved settings - defaults loaded", 10.3f);
+    refresh();
+    lv_obj_t* backdrop = lv_obj_get_child(lv_layer_top(), -1);
+    lv_obj_t* dialog = lv_obj_get_child(backdrop, 0);
+    lv_obj_t* content = lv_msgbox_get_content(dialog);
+    TEST_ASSERT_EQUAL_STRING("10.30 mV", lv_label_get_text(lv_obj_get_child(content, 0)));
+    AnalyzerSettings dialogPreview = effective;
+    dialogPreview.language = language == app::LANGUAGE_ENGLISH ? app::LANGUAGE_BULGARIAN : app::LANGUAGE_ENGLISH;
+    ui::syncSettings(dialogPreview);
+    closeDialog("Invalid saved settings - defaults loaded");
+    ui::syncSettings(effective);
+    const app::Failure failures[] = {app::Failure::Invalid, app::Failure::Storage, app::Failure::Sampling,
+                                     app::Failure::LoadedDefaults, app::Failure::Busy, app::Failure::CalibrationRequired};
+    const char* titles[] = {"Invalid settings or calibration", "Settings could not be saved", "Calibration read failed",
+        "Invalid saved settings - defaults loaded", "Analyzer is preparing for sleep", "O2 calibration required"};
+    for (unsigned index = 0; index < sizeof(failures) / sizeof(failures[0]); ++index) {
+      app::Result result;
+      result.type = app::CommandType::ApplySettings;
+      result.failure = failures[index];
+      showAnalyzerResult(result);
+      refresh();
+      closeDialog(titles[index]);
+    }
+    for (unsigned required = 1; required <= 3; ++required) {
+      app::Result result;
+      result.failure = app::Failure::CalibrationRequired;
+      result.oxygenCalibrationRequired = (required & 1) != 0;
+      result.heliumCalibrationRequired = (required & 2) != 0;
+      showAnalyzerResult(result);
+      closeDialog(result.calibrationRequiredMessage());
+    }
+    const app::CommandType commands[] = {app::CommandType::CalibrateAir, app::CommandType::CalibratePure,
+                                         app::CommandType::CalibrateHe, app::CommandType::ClearPure};
+    const char* successes[] = {"O2 Air Calibrated", "O2 100% Calibrated", "He 100% Calibrated", "Pure O2 calibration cleared"};
+    for (unsigned index = 0; index < sizeof(commands) / sizeof(commands[0]); ++index) {
+      app::Result result;
+      result.type = commands[index];
+      showAnalyzerResult(result);
+      closeDialog(successes[index]);
+    }
+    app::Result cancelled;
+    cancelled.failure = app::Failure::Cancelled;
+    showAnalyzerResult(cancelled);
+    TEST_ASSERT_EQUAL_UINT(0, lv_obj_get_child_count(lv_layer_top()));
+    UiLog::getInstance().clearLog();
+    ui::openLogs(nullptr);
+    TEST_ASSERT_EQUAL_STRING(lv_tr("No log entries"), lv_subject_get_string(&diagnostics_log_text));
+    click(lv_obj_find_by_name(lv_screen_active(), "diagnostics_back"));
+    logUi("ADC unavailable", UiLogLevel::Warning);
+    ui::openLogs(nullptr);
+    char expected[256];
+    std::snprintf(expected, sizeof(expected), "[0] %s\n", lv_tr("ADC unavailable"));
+    TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&diagnostics_log_text));
+    AnalyzerSettings preview = effective;
+    preview.language = language == app::LANGUAGE_ENGLISH ? app::LANGUAGE_BULGARIAN : app::LANGUAGE_ENGLISH;
+    ui::syncSettings(preview);
+    std::snprintf(expected, sizeof(expected), "[0] %s\n", lv_tr("ADC unavailable"));
+    TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&diagnostics_log_text));
+    click(lv_obj_find_by_name(lv_screen_active(), "diagnostics_back"));
+    ui::syncSettings(effective);
+    logUi("O2 invalid: 1.0 mV; He temperature invalid: unavailable", UiLogLevel::Warning);
+    ui::openLogs(nullptr);
+    std::snprintf(expected, sizeof(expected), "[0] O2 %s: 1.0 mV; %s %s: %s\n",
+        lv_tr("invalid"), lv_tr("He temperature"), lv_tr("invalid"), lv_tr("unavailable"));
+    TEST_ASSERT_EQUAL_STRING(expected, lv_subject_get_string(&diagnostics_log_text));
+    click(lv_obj_find_by_name(lv_screen_active(), "diagnostics_back"));
+    UiLog::getInstance().clearLog();
+  }
+  effective.language = app::LANGUAGE_ENGLISH;
+  ui::syncSettings(effective);
+}
+
+void test_compact_controls_and_calibration_fit() {
+  for (uint8_t language : {app::LANGUAGE_ENGLISH, app::LANGUAGE_BULGARIAN}) {
+    effective.language = language;
+    ui::syncSettings(effective);
+    ui::openCalibration(nullptr);
+    refresh();
+    lv_obj_t* screen = lv_screen_active();
+    lv_obj_t* list = lv_obj_find_by_name(screen, "calibration_list");
+    lv_obj_t* button = lv_obj_find_by_name(screen, "calibrate_he");
+    TEST_ASSERT_NOT_NULL(list);
+    TEST_ASSERT_NOT_NULL(button);
+    TEST_ASSERT_EQUAL_INT(0, lv_obj_get_scroll_bottom(list));
+    TEST_ASSERT_EQUAL_INT(0, lv_obj_get_scroll_bottom(screen));
+    lv_area_t screenArea;
+    lv_area_t buttonArea;
+    lv_obj_get_coords(screen, &screenArea);
+    lv_obj_get_coords(button, &buttonArea);
+    TEST_ASSERT_LESS_OR_EQUAL(screenArea.y2, buttonArea.y2);
+    lv_obj_t* caption = findLabelText(button, "He (100%)");
+    TEST_ASSERT_NOT_NULL(caption);
+    TEST_ASSERT_EQUAL_PTR(font_control, lv_obj_get_style_text_font(caption, LV_PART_MAIN));
+    click(lv_obj_find_by_name(screen, "calibration_back"));
+    click(lv_obj_find_by_name(mainscr, "open_settings"));
+    lv_obj_t* dropdown = lv_obj_find_by_name(lv_screen_active(), "language");
+    TEST_ASSERT_NOT_NULL(dropdown);
+    TEST_ASSERT_EQUAL_PTR(font_control, lv_obj_get_style_text_font(dropdown, LV_PART_MAIN));
+    lv_obj_t* options = lv_dropdown_get_list(dropdown);
+    TEST_ASSERT_NOT_NULL(options);
+    TEST_ASSERT_EQUAL_PTR(font_control, lv_obj_get_style_text_font(options, LV_PART_MAIN));
+    lv_dropdown_open(dropdown);
+    refresh();
+    TEST_ASSERT_EQUAL_PTR(font_control, lv_obj_get_style_text_font(options, LV_PART_SELECTED));
+    lv_dropdown_close(dropdown);
+    click(lv_obj_find_by_name(lv_screen_active(), "open_updates"));
+    lv_obj_t* password = lv_obj_find_by_name(lv_screen_active(), "wifi_password");
+    TEST_ASSERT_NOT_NULL(password);
+    TEST_ASSERT_EQUAL_PTR(font_control, lv_obj_get_style_text_font(password, LV_PART_MAIN));
+    TEST_ASSERT_EQUAL_PTR(font_control, lv_obj_get_style_text_font(password, LV_PART_TEXTAREA_PLACEHOLDER));
+    click(lv_obj_find_by_name(lv_screen_active(), "update_back"));
+    click(lv_obj_find_by_name(lv_screen_active(), "settings_back"));
+  }
+  effective.language = app::LANGUAGE_ENGLISH;
+  ui::syncSettings(effective);
+}
+
 void test_export_settings_lifetime() {
   lv_mem_monitor_t before;
   lv_mem_monitor(&before);
@@ -512,6 +971,14 @@ int main(int, char**) {
   RUN_TEST(test_export_boot_and_navigation);
   RUN_TEST(test_export_settings_round_trip_and_rejection);
   RUN_TEST(test_export_readings_and_sensor_states);
+  RUN_TEST(test_export_translation_switching);
+  RUN_TEST(test_export_translated_screens);
+  RUN_TEST(test_effective_language_sync);
+  RUN_TEST(test_export_language_selection_save_and_rejection);
+  RUN_TEST(test_runtime_reading_and_calibration_translations);
+  RUN_TEST(test_runtime_network_and_option_translations);
+  RUN_TEST(test_runtime_feedback_and_diagnostic_translations);
+  RUN_TEST(test_compact_controls_and_calibration_fit);
   RUN_TEST(test_export_settings_lifetime);
   captureManualScreens();
   return UNITY_END();

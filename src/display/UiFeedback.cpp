@@ -1,17 +1,23 @@
 #include "UiFeedback.h"
 #include <lvgl.h>
+#include "lvgl_ui_project.h"
 #include "main.h"
 #include "ui-log.h"
 
 void messageBox(const char* title, float value) {
   char text[32] = "";
-  if (std::isfinite(value)) snprintf(text, sizeof(text), "%.2f mv", value);
+  if (std::isfinite(value)) snprintf(text, sizeof(text), "%.2f mV", value);
 
   lv_obj_t* mbox = lv_msgbox_create(NULL);
   lv_msgbox_add_close_button(mbox);
-  lv_msgbox_add_title(mbox, title);
-  lv_msgbox_add_text(mbox, text);
-  lv_obj_set_size(mbox, LV_PCT(70), LV_SIZE_CONTENT);
+  lv_obj_t* label = lv_msgbox_add_title(mbox, lv_tr(title));
+  lv_label_set_translation_tag(label, title);
+  lv_obj_set_style_text_font(label, font_body, 0);
+  lv_obj_set_width(label, 0);
+  lv_obj_set_flex_grow(label, 1);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_MODE_WRAP);
+  lv_obj_set_style_text_font(lv_msgbox_add_text(mbox, text), font_body, 0);
+  lv_obj_set_size(mbox, LV_PCT(95), LV_SIZE_CONTENT);
 }
 
 void showAnalyzerResult(const app::Result& result) {
@@ -39,7 +45,7 @@ void showAnalyzerResult(const app::Result& result) {
       case app::Failure::Cancelled: break;
       default: title = "Operation failed"; break;
     }
-    logUi(title, UiLogLevel::Error);
+    if (title) logUi(title, UiLogLevel::Error);
   } else {
     switch (result.type) {
       case app::CommandType::CalibrateAir: title = "O2 Air Calibrated"; break;

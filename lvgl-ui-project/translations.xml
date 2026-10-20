@@ -1,0 +1,111 @@
+<translations languages="en bg">
+	<translation tag="settings_language" en="Language" bg="Език" />
+	<translation tag="settings_co_correction" en="CO correction" bg="Корекция CO" />
+	<translation tag="settings_po2_bottom" en="Bottom pO2" bg="Дънно pO2" />
+	<translation tag="settings_po2_deco" en="Deco pO2" bg="Деко pO2" />
+	<translation tag="settings_brightness" en="Brightness" bg="Яркост" />
+	<translation tag="settings_sleep" en="Sleep" bg="Заспиване" />
+	<translation tag="settings_firmware_update" en="Firmware update" bg="Обновяване" />
+	<translation tag="calibration_title" en="Calibration" bg="Калибриране" />
+	<translation tag="calibration_on_start" en="Calibrate air on start" bg="Въздух при старт" />
+	<translation tag="calibration_air" en="Air (20.9%)" bg="Въздух (20.9%)" />
+	<translation tag="calibration_clear_o2" en="Clear O2" bg="Изтр. O2" />
+	<translation tag="calibration_cancel" en="Cancel" bg="Отказ" />
+	<translation tag="calibration_done" en="Done" bg="Готово" />
+	<translation tag="diagnostics_title" en="Diagnostics" bg="Диагностика" />
+	<translation tag="update_install" en="Install firmware" bg="Инсталиране" />
+	<translation tag="Off" en="Off" bg="Изкл." />
+	<translation tag="Invalid" en="Invalid" bg="Невалидно" />
+	<translation tag="Stale" en="Stale" bg="Стари данни" />
+	<translation tag="Warming" en="Warming" bg="Загрява" />
+	<translation tag="Unavailable" en="Unavailable" bg="Няма данни" />
+	<translation tag="Invalid settings - restored" en="Invalid settings - restored" bg="Невалидни настройки. Без промяна." />
+	<translation tag="Settings not applied - analyzer busy" en="Settings not applied - analyzer busy" bg="Уредът е зает. Без промяна." />
+	<translation tag="Analyzer busy - preference not saved" en="Analyzer busy - preference not saved" bg="Уредът е зает. Няма запис." />
+	<translation tag="Startup air calibration" en="Startup air calibration" bg="Калибр. въздух при старт" />
+	<translation tag="Make sure the unit is flushed with air and there is no stale gas inside when starting" en="Make sure the unit is flushed with air and there is no stale gas inside when starting" bg="Преди включване продухайте уреда с въздух, за да няма остатъчен газ." />
+	<translation tag="Cancelling" en="Cancelling" bg="Отменяне" />
+	<translation tag="Cancel failed" en="Cancel failed" bg="Неуспешна отмяна" />
+	<translation tag="Analyzer busy - try again" en="Analyzer busy - try again" bg="Уредът е зает - опитайте отново" />
+	<translation tag="Calibrating" en="Calibrating" bg="Калибриране" />
+	<translation tag="Settling" en="Settling" bg="Изчакване" />
+	<translation tag="Stable" en="Stable" bg="Стабилно" />
+	<translation tag="Saved" en="Saved" bg="Записано" />
+	<translation tag="Cancelled" en="Cancelled" bg="Отменено" />
+	<translation tag="Save failed" en="Save failed" bg="Неуспешен запис" />
+	<translation tag="Invalid value range. Check gas or sensor" en="Invalid value range. Check gas or sensor" bg="Невалидна стойност. Проверете газа или сензора" />
+	<translation tag="Unstable - not saved" en="Unstable - not saved" bg="Нестабилно. Няма запис." />
+	<translation tag="Could not open calibration graph" en="Could not open calibration graph" bg="Графиката не се отваря" />
+	<translation tag="Air calibration" en="Air calibration" bg="Калибриране с въздух" />
+	<translation tag="Pure O2 calibration" en="Pure O2 calibration" bg="Калибриране с чист O2" />
+	<translation tag="Helium calibration" en="Helium calibration" bg="Калибриране с хелий" />
+	<translation tag="Could not open settings" en="Could not open settings" bg="Настройките не се отварят" />
+	<translation tag="Could not open calibration" en="Could not open calibration" bg="Калибрирането не се отваря" />
+	<translation tag="Network operation in progress" en="Network operation in progress" bg="Мрежова операция в ход" />
+	<translation tag="Could not start Wi-Fi scan" en="Could not start Wi-Fi scan" bg="Грешка при търсене на Wi-Fi" />
+	<translation tag="Scanning Wi-Fi..." en="Scanning Wi-Fi..." bg="Търсене на Wi-Fi..." />
+	<translation tag="Select a Wi-Fi network first" en="Select a Wi-Fi network first" bg="Първо изберете Wi-Fi мрежа" />
+	<translation tag="Could not start firmware update" en="Could not start firmware update" bg="Обновяването не стартира" />
+	<translation tag="Connecting to Wi-Fi..." en="Connecting to Wi-Fi..." bg="Свързване с Wi-Fi..." />
+	<translation tag="Not connected" en="Not connected" bg="Няма връзка" />
+	<translation tag="Could not open firmware update" en="Could not open firmware update" bg="Обновяването не се отваря" />
+	<translation tag="No log entries" en="No log entries" bg="Няма записи" />
+	<translation tag="Could not open diagnostics" en="Could not open diagnostics" bg="Диагностиката не се отваря" />
+	<translation tag="No networks" en="No networks" bg="Няма мрежи" />
+	<translation tag="No networks found" en="No networks found" bg="Няма намерени мрежи" />
+	<translation tag="Select a network and enter its password" en="Select a network and enter its password" bg="Изберете мрежа и въведете паролата" />
+	<translation tag="Setting device time..." en="Setting device time..." bg="Сверяване на часа..." />
+	<translation tag="Downloading firmware... 0%" en="Downloading firmware... 0%" bg="Изтегляне... 0%" />
+	<translation tag="Downloading... %u%%" en="Downloading... %u%%" bg="Изтегляне... %u%%" />
+	<translation tag="Update complete - restarting..." en="Update complete - restarting..." bg="Обновено. Рестартиране..." />
+	<translation tag="Wi-Fi connection failed" en="Wi-Fi connection failed" bg="Неуспешна Wi-Fi връзка" />
+	<translation tag="Could not set time - update cancelled" en="Could not set time - update cancelled" bg="Часът не е сверен. Обновяването е отменено." />
+	<translation tag="Could not set device time" en="Could not set device time" bg="Часът не може да се свери" />
+	<translation tag="Secure connection failed" en="Secure connection failed" bg="Неуспешна защитена връзка" />
+	<translation tag="Firmware update failed" en="Firmware update failed" bg="Неуспешно обновяване" />
+	<translation tag="Wi-Fi password" en="Wi-Fi password" bg="Wi-Fi парола" />
+	<translation tag="sleep_options" en="Never&#10;1 min&#10;2 min&#10;5 min&#10;10 min&#10;30 min" bg="Никога&#10;1 мин&#10;2 мин&#10;5 мин&#10;10 мин&#10;30 мин" />
+	<translation tag="Invalid settings or calibration" en="Invalid settings or calibration" bg="Невалидни настройки или калибриране" />
+	<translation tag="Settings could not be saved" en="Settings could not be saved" bg="Неуспешен запис на настройки" />
+	<translation tag="Calibration read failed" en="Calibration read failed" bg="Неуспешно отчитане" />
+	<translation tag="Invalid saved settings - defaults loaded" en="Invalid saved settings - defaults loaded" bg="Невалидни настройки. Заредени са стандартните." />
+	<translation tag="Analyzer is preparing for sleep" en="Analyzer is preparing for sleep" bg="Подготовка за заспиване" />
+	<translation tag="O2 and He calibration required" en="O2 and He calibration required" bg="Калибрирайте O2 и He" />
+	<translation tag="O2 calibration required" en="O2 calibration required" bg="Калибрирайте O2" />
+	<translation tag="He calibration required" en="He calibration required" bg="Калибрирайте He" />
+	<translation tag="Operation failed" en="Operation failed" bg="Неуспешна операция" />
+	<translation tag="O2 Air Calibrated" en="O2 Air Calibrated" bg="O2: калибриран с въздух" />
+	<translation tag="O2 100% Calibrated" en="O2 100% Calibrated" bg="O2: калибриран (100%)" />
+	<translation tag="He 100% Calibrated" en="He 100% Calibrated" bg="He: калибриран (100%)" />
+	<translation tag="Pure O2 calibration cleared" en="Pure O2 calibration cleared" bg="Изтрито калибриране с чист O2" />
+	<translation tag="Sleep preparation timed out - staying awake" en="Sleep preparation timed out - staying awake" bg="Изтекло време. Заспиването е отменено." />
+	<translation tag="Sleep preparation timed out; resuming" en="Sleep preparation timed out; resuming" bg="Времето изтече. Възобновяване." />
+	<translation tag="Sleep aborted - touch unavailable" en="Sleep aborted - touch unavailable" bg="Сънят е отменен - сензорният екран не работи" />
+	<translation tag="Touch restoration failed" en="Touch restoration failed" bg="Сензорният екран не е възстановен" />
+	<translation tag="Analyzer unavailable" en="Analyzer unavailable" bg="Анализаторът не е достъпен" />
+	<translation tag="No error" en="No error" bg="Няма грешка" />
+	<translation tag="ADC unavailable" en="ADC unavailable" bg="ADC не е достъпен" />
+	<translation tag="ADC conversion timed out" en="ADC conversion timed out" bg="Изтече времето за ADC измерване" />
+	<translation tag="I2C communication failed" en="I2C communication failed" bg="Неуспешна I2C връзка" />
+	<translation tag="No sensors enabled" en="No sensors enabled" bg="Няма активни сензори" />
+	<translation tag="Calibration failed" en="Calibration failed" bg="Неуспешно калибриране" />
+	<translation tag="Invalid sensor reading" en="Invalid sensor reading" bg="Невалидно показание" />
+	<translation tag="Unknown error" en="Unknown error" bg="Неизвестна грешка" />
+	<translation tag="He temperature" en="He temperature" bg="Темп. на He" />
+	<translation tag="invalid" en="invalid" bg="невалидно" />
+	<translation tag="unavailable" en="unavailable" bg="няма данни" />
+	<translation tag="Input before wake setup" en="Input before wake setup" bg="Натискане преди настройка за събуждане" />
+	<translation tag="RTC power setup failed" en="RTC power setup failed" bg="Неуспешна настройка на RTC захранването" />
+	<translation tag="Wake pull-up failed" en="Wake pull-up failed" bg="Неуспешен pull-up за събуждане" />
+	<translation tag="Wake pull-down failed" en="Wake pull-down failed" bg="Неуспешен pull-down за събуждане" />
+	<translation tag="EXT1 wake setup failed" en="EXT1 wake setup failed" bg="Неуспешна настройка на EXT1 събуждане" />
+	<translation tag="Wi-Fi shutdown failed" en="Wi-Fi shutdown failed" bg="Wi-Fi не може да се изключи" />
+	<translation tag="Button during shutdown" en="Button during shutdown" bg="Натиснат бутон при изключване" />
+	<translation tag="GPIO hold failed" en="GPIO hold failed" bg="Неуспешно задържане на GPIO" />
+	<translation tag="Touch not initialized" en="Touch not initialized" bg="Сензорният екран не е готов" />
+	<translation tag="Input before panel sleep" en="Input before panel sleep" bg="Натискане преди заспиване на дисплея" />
+	<translation tag="Input after panel sleep" en="Input after panel sleep" bg="Натискане след заспиване на дисплея" />
+	<translation tag="Touch reset probe failed" en="Touch reset probe failed" bg="Сензорният екран не отговаря" />
+	<translation tag="Input after touch reset" en="Input after touch reset" bg="Натискане след нулиране на сензорния екран" />
+	<translation tag="Touch sleep write failed" en="Touch sleep write failed" bg="Грешка при приспиване на сензорния екран" />
+</translations>

@@ -42,9 +42,96 @@ float calibrationGraphMinimum = NAN;
 float calibrationGraphMaximum = NAN;
 uint32_t calibrationGraphElapsedMs = UINT32_MAX;
 bool calibrationGraphFrozen = false;
+sensorsData lastPresentedReadings;
+AnalyzerSettings lastPresentedSettings;
+const char* calibrationTitleKey = "Calibrating";
+const char* calibrationStatusKey = "Settling";
+const char* updateStatusKey = "Not connected";
+int updateProgress = -1;
+bool updateHasNetworks = false;
+bool wifiScanComplete = false;
+
+void refreshLanguageText();
+void refreshDiagnosticsText();
 
 void copyText(lv_subject_t* subject, const char* text) {
-  if (std::strcmp(lv_subject_get_string(subject), text) != 0) lv_subject_copy_string(subject, text);
+  if (subject == &calibration_run_title_text) calibrationTitleKey = text;
+  if (subject == &calibration_stability_text) calibrationStatusKey = text;
+  const char* translated = lv_tr(text);
+  if (std::strcmp(lv_subject_get_string(subject), translated) != 0) lv_subject_copy_string(subject, translated);
+}
+
+void setUpdateStatus(const char* key, int progress = -1) {
+  updateStatusKey = key;
+  updateProgress = progress;
+  if (progress < 0) {
+    copyText(&update_status_text, key);
+  } else {
+    char text[160];
+    std::snprintf(text, sizeof(text), lv_tr(key), static_cast<unsigned>(progress));
+    copyText(&update_status_text, text);
+  }
+}
+
+void refreshDiagnosticsText() {
+  char log[UiLog::kLogSnapshotSize];
+  UiLog::getInstance().copyLogTo(log);
+  if (!log[0]) {
+    copyText(&diagnostics_log_text, "No log entries");
+    return;
+  }
+  char translated[UI_SUBJECT_STRING_LENGTH] = {};
+  size_t used = 0;
+  const auto append = [&](const char* text) {
+    size_t count = std::min(std::strlen(text), sizeof(translated) - used - 1);
+    while (count && (static_cast<unsigned char>(text[count]) & 0xc0) == 0x80) --count;
+    std::memcpy(translated + used, text, count);
+    used += count;
+    translated[used] = '\0';
+  };
+  char* line = log;
+  while (*line && used < sizeof(translated) - 1) {
+    char* next = std::strchr(line, '\n');
+    if (next) *next++ = '\0';
+    char* message = line;
+    if (*line == '[') {
+      char* timestampEnd = std::strchr(line, ']');
+      if (timestampEnd && timestampEnd[1] == ' ') {
+        message = timestampEnd + 2;
+        const char first = *message;
+        *message = '\0';
+        append(line);
+        *message = first;
+      }
+    }
+    while (*message) {
+      const char* wholeMessage = lv_tr(message);
+      if (std::strcmp(wholeMessage, message) != 0) {
+        append(wholeMessage);
+        break;
+      }
+      char* following = std::strstr(message, "; ");
+      if (following) *following = '\0';
+      char* invalid = std::strstr(message, " invalid: ");
+      if (invalid) {
+        *invalid = '\0';
+        append(lv_tr(message));
+        append(" ");
+        append(lv_tr("invalid"));
+        append(": ");
+        append(lv_tr(invalid + std::strlen(" invalid: ")));
+      } else {
+        append(lv_tr(message));
+      }
+      if (!following) break;
+      append("; ");
+      message = following + 2;
+    }
+    if (!next) break;
+    append("\n");
+    line = next;
+  }
+  copyText(&diagnostics_log_text, translated);
 }
 
 void bindClick(lv_obj_t* object, lv_event_cb_t callback) {
@@ -54,7 +141,10 @@ void bindClick(lv_obj_t* object, lv_event_cb_t callback) {
   }
   for (uint32_t index = lv_obj_get_event_count(object); index > 0; --index) {
     lv_event_dsc_t* descriptor = lv_obj_get_event_dsc(object, index - 1);
-    if (lv_event_dsc_get_cb(descriptor) != lv_event_free_user_data_cb) lv_obj_remove_event(object, index - 1);
+    if (descriptor->filter == LV_EVENT_CLICKED &&
+        lv_event_dsc_get_cb(descriptor) != lv_event_free_user_data_cb) {
+      lv_obj_remove_event(object, index - 1);
+    }
   }
   lv_obj_add_event_cb(object, callback, LV_EVENT_CLICKED, nullptr);
 }
@@ -81,6 +171,20 @@ void previewBrightness(lv_event_t*) {
   displayManager.setBrightness(static_cast<uint8_t>(lv_subject_get_int(&settings_brightness)));
 }
 
+void setLanguage(uint8_t language) {
+  const char* code = language == app::LANGUAGE_BULGARIAN ? "bg" : "en";
+  const char* current = lv_translation_get_language();
+  if (!current || std::strcmp(current, code) != 0) {
+    lv_translation_set_language(code);
+    refreshLanguageText();
+  }
+}
+
+void previewLanguage(lv_event_t* event) {
+  const uint32_t selected = lv_dropdown_get_selected(lv_event_get_target_obj(event));
+  if (AnalyzerSettings::validLanguage(selected)) setLanguage(static_cast<uint8_t>(selected));
+}
+
 void closeCalibration(lv_event_t*) {
   calibrationScreen = nullptr;
   lv_screen_load_anim(mainscr, LV_SCREEN_LOAD_ANIM_NONE, 0, 0, true);
@@ -95,10 +199,17 @@ void changeStartupCalibration(lv_event_t*) {
   } else if (command.settings.calibrateOnStart) {
     lv_obj_t* warning = lv_msgbox_create(nullptr);
     lv_obj_set_width(warning, LV_PCT(95));
-    lv_msgbox_add_title(warning, "Startup air calibration");
+    lv_obj_t* title = lv_msgbox_add_title(warning, lv_tr("Startup air calibration"));
+    lv_label_set_translation_tag(title, "Startup air calibration");
+    lv_obj_set_style_text_font(title, font_body, 0);
+    lv_obj_set_width(title, 0);
+    lv_obj_set_flex_grow(title, 1);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_MODE_WRAP);
     lv_msgbox_add_close_button(warning);
-    lv_msgbox_add_text(warning,
-        "Make sure the unit is flushed with air and there is no stale gas inside when starting");
+    const char* warningKey = "Make sure the unit is flushed with air and there is no stale gas inside when starting";
+    lv_obj_t* text = lv_msgbox_add_text(warning, lv_tr(warningKey));
+    lv_label_set_translation_tag(text, warningKey);
+    lv_obj_set_style_text_font(text, font_body, 0);
   }
   lv_subject_set_int(&calibration_on_start, uiSettings().calibrateOnStart);
 }
@@ -202,6 +313,11 @@ void openSettings(lv_event_t*) {
   bindClick(lv_obj_find_by_name(settingsScreen, "open_updates"), openUpdates);
   lv_obj_t* brightness = lv_obj_find_by_name(settingsScreen, "brightness");
   if (brightness) lv_obj_add_event_cb(brightness, previewBrightness, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_t* language = lv_obj_find_by_name(settingsScreen, "language");
+  if (language) {
+    lv_obj_add_event_cb(language, previewLanguage, LV_EVENT_VALUE_CHANGED, nullptr);
+  }
+  refreshLanguageText();
   lv_screen_load(settingsScreen);
 }
 
@@ -247,7 +363,7 @@ void scanWifi(lv_event_t*) {
     return;
   }
   setNetworkOperationActive(true);
-  copyText(&update_status_text, "Scanning Wi-Fi...");
+  setUpdateStatus("Scanning Wi-Fi...");
   lv_subject_set_int(&update_can_install, 0);
   log_i("Listing WiFi networks");
 }
@@ -275,7 +391,31 @@ void updateFirmware(lv_event_t*) {
   log_i("Selected SSID: %s", selectedSSID);
   setNetworkOperationActive(true);
   lv_subject_set_int(&update_can_install, 0);
-  copyText(&update_status_text, "Connecting to Wi-Fi...");
+  setUpdateStatus("Connecting to Wi-Fi...");
+}
+
+void refreshLanguageText() {
+  presentReadings(lastPresentedReadings, lastPresentedSettings);
+  copyText(&calibration_run_title_text, calibrationTitleKey);
+  copyText(&calibration_stability_text, calibrationStatusKey);
+  setUpdateStatus(updateStatusKey, updateProgress);
+  if (settingsScreen) {
+    lv_obj_t* sleep = lv_obj_find_by_name(settingsScreen, "sleep_timeout");
+    if (sleep) {
+      const uint32_t selected = lv_dropdown_get_selected(sleep);
+      lv_dropdown_set_options(sleep, lv_tr("sleep_options"));
+      lv_dropdown_set_selected(sleep, selected);
+    }
+  }
+  if (updateScreen) {
+    lv_obj_t* password = lv_obj_find_by_name(updateScreen, "wifi_password");
+    if (password) lv_textarea_set_placeholder_text(password, lv_tr("Wi-Fi password"));
+    lv_obj_t* networks = lv_obj_find_by_name(updateScreen, "wifi_names");
+    if (networks && !updateHasNetworks) {
+      lv_dropdown_set_text(networks, lv_tr(wifiScanComplete ? "No networks found" : "No networks"));
+    }
+  }
+  if (diagnosticsScreen) refreshDiagnosticsText();
 }
 }
 
@@ -311,6 +451,8 @@ void init() {
 
 void syncSettings(const AnalyzerSettings& settings) {
   syncActionSettings(settings);
+  setLanguage(settings.language);
+  lv_subject_set_int(&settings_language_index, settings.language);
   lv_subject_set_int(&settings_o2_enabled, settings.o2Enabled);
   lv_subject_set_int(&settings_he_enabled, settings.heEnabled);
   lv_subject_set_int(&settings_co_enabled, settings.coEnabled);
@@ -349,7 +491,9 @@ void openUpdates(lv_event_t*) {
   lv_subject_set_int(&update_can_install, 0);
   lv_subject_set_int(&update_keyboard_visible, 0);
   copyText(&firmware_version_text, FIRMWARE_VERSION_TEXT);
-  copyText(&update_status_text, "Not connected");
+  setUpdateStatus("Not connected");
+  updateHasNetworks = false;
+  wifiScanComplete = false;
   updateScreen = firmware_update_create();
   if (!updateScreen) {
     messageBox("Could not open firmware update", NAN);
@@ -358,14 +502,15 @@ void openUpdates(lv_event_t*) {
   bindClick(lv_obj_find_by_name(updateScreen, "update_back"), closeUpdates);
   bindClick(lv_obj_find_by_name(updateScreen, "scan_wifi"), scanWifi);
   bindClick(lv_obj_find_by_name(updateScreen, "install_firmware"), updateFirmware);
+  lv_obj_t* networks = lv_obj_find_by_name(updateScreen, "wifi_names");
+  if (networks) lv_dropdown_clear_options(networks);
+  refreshLanguageText();
   lv_screen_load(updateScreen);
 }
 
 void openLogs(lv_event_t*) {
   if (diagnosticsScreen) return;
-  char log[UiLog::kLogSnapshotSize];
-  UiLog::getInstance().copyLogTo(log);
-  copyText(&diagnostics_log_text, log[0] ? log : "No log entries");
+  refreshDiagnosticsText();
   diagnosticsScreen = diagnostics_create();
   if (!diagnosticsScreen) {
     messageBox("Could not open diagnostics", NAN);
@@ -380,6 +525,9 @@ bool readSettings(AnalyzerSettings& settings) {
   candidate.o2Enabled = lv_subject_get_int(&settings_o2_enabled) != 0;
   candidate.heEnabled = lv_subject_get_int(&settings_he_enabled) != 0;
   candidate.coEnabled = lv_subject_get_int(&settings_co_enabled) != 0;
+  const int selectedLanguage = lv_subject_get_int(&settings_language_index);
+  if (!AnalyzerSettings::validLanguage(selectedLanguage)) return false;
+  candidate.language = static_cast<uint8_t>(selectedLanguage);
   if (!applySelections(candidate, lv_subject_get_int(&settings_po2_bottom_index),
                        lv_subject_get_int(&settings_po2_deco_index),
                        lv_subject_get_int(&settings_brightness), lv_subject_get_int(&settings_sleep_index),
@@ -389,6 +537,8 @@ bool readSettings(AnalyzerSettings& settings) {
 }
 
 void presentReadings(const sensorsData& data, const AnalyzerSettings& settings) {
+  lastPresentedReadings = data;
+  lastPresentedSettings = settings;
   const ChannelState oxygen = percentageState(data.O2Level.percentage, data.o2State);
   const ChannelState helium = percentageState(data.HeLevel.percentage, data.heState);
   setVisible(mainO2Reading, oxygen != ChannelState::Disabled);
@@ -513,6 +663,8 @@ void serviceFirmwareUpdate() {
 
   switch (event.type) {
     case FirmwareUpdateEventType::ScanComplete: {
+      updateHasNetworks = event.networkCount > 0;
+      wifiScanComplete = true;
       lv_obj_t* wifiNames = lv_obj_find_by_name(lv_screen_active(), "wifi_names");
       if (wifiNames) {
         lv_dropdown_clear_options(wifiNames);
@@ -520,50 +672,48 @@ void serviceFirmwareUpdate() {
           log_i("Found WiFi network: %s", event.networks[index]);
           lv_dropdown_add_option(wifiNames, event.networks[index], LV_DROPDOWN_POS_LAST);
         }
-        lv_dropdown_set_text(wifiNames, event.networkCount ? nullptr : "No networks found");
+        lv_dropdown_set_text(wifiNames, event.networkCount ? nullptr : lv_tr("No networks found"));
       }
       lv_subject_set_int(&update_network_index, 0);
       lv_subject_set_int(&update_can_install, event.networkCount > 0);
-      copyText(&update_status_text,
+      setUpdateStatus(
                event.networkCount ? "Select a network and enter its password" : "No networks found");
       finishFirmwareUpdateOperation();
       break;
     }
     case FirmwareUpdateEventType::TimeSyncStarted:
-      copyText(&update_status_text, "Setting device time...");
+      setUpdateStatus("Setting device time...");
       break;
     case FirmwareUpdateEventType::DownloadStarted:
-      copyText(&update_status_text, "Downloading firmware... 0%");
+      setUpdateStatus("Downloading firmware... 0%");
       break;
     case FirmwareUpdateEventType::DownloadProgress: {
-      char status[40];
-      std::snprintf(status, sizeof(status), "Downloading... %u%%", event.progress);
-      copyText(&update_status_text, status);
+      setUpdateStatus("Downloading... %u%%", event.progress);
       break;
     }
     case FirmwareUpdateEventType::UpdateComplete:
-      copyText(&update_status_text, "Update complete - restarting...");
+      setUpdateStatus("Update complete - restarting...");
       break;
     case FirmwareUpdateEventType::ConnectionFailed:
-      copyText(&update_status_text, "Wi-Fi connection failed");
+      setUpdateStatus("Wi-Fi connection failed");
       lv_subject_set_int(&update_can_install, 1);
       finishFirmwareUpdateOperation();
       messageBox("Wi-Fi connection failed", NAN);
       break;
     case FirmwareUpdateEventType::TimeSyncFailed:
-      copyText(&update_status_text, "Could not set time - update cancelled");
+      setUpdateStatus("Could not set time - update cancelled");
       lv_subject_set_int(&update_can_install, 1);
       finishFirmwareUpdateOperation();
       messageBox("Could not set device time", NAN);
       break;
     case FirmwareUpdateEventType::SecureConnectionFailed:
-      copyText(&update_status_text, "Secure connection failed");
+      setUpdateStatus("Secure connection failed");
       lv_subject_set_int(&update_can_install, 1);
       finishFirmwareUpdateOperation();
       messageBox("Secure connection failed", NAN);
       break;
     case FirmwareUpdateEventType::UpdateFailed:
-      copyText(&update_status_text, "Firmware update failed");
+      setUpdateStatus("Firmware update failed");
       lv_subject_set_int(&update_can_install, 1);
       finishFirmwareUpdateOperation();
       messageBox("Firmware update failed", NAN);

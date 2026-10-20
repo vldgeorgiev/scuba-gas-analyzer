@@ -29,6 +29,12 @@ public:
     value.calibrateOnStart = _preferences.getBool("calib_start", value.calibrateOnStart);
     value.brightness = _preferences.getUChar("brightness", value.brightness);
     value.sleepMinutes = _preferences.getUChar("sleep_minutes", value.sleepMinutes);
+    value.language = _preferences.getUChar("language", value.language);
+    const bool invalidLanguage = !AnalyzerSettings::validLanguage(value.language);
+    if (invalidLanguage) {
+      value.language = app::LANGUAGE_ENGLISH;
+      log_w("Invalid language; using English");
+    }
     const bool invalidSleep = !AnalyzerSettings::validSleepMinutes(value.sleepMinutes);
     if (invalidSleep) {
       value.sleepMinutes = app::DEFAULT_SLEEP_MINUTES;
@@ -51,7 +57,7 @@ public:
     value.heCalibration = std::isnan(storedHelium) ? value.heCalibration : storedHelium;
     if (!_oxygenAccepted) value.o2Pure = NAN;
     _loadedDefaults = value.repairInvalidFields();
-    _rewrite = invalidSleep || _loadedDefaults;
+    _rewrite = invalidSleep || invalidLanguage || _loadedDefaults;
     return value;
   }
 
@@ -86,7 +92,8 @@ public:
       ((!force && sameFloat(helium, previousHelium)) || _preferences.putFloat("he_calib_100", helium) == sizeof(float)) &&
       ((!force && sameFloat(externalAir, previousExternalAir)) || _preferences.putFloat("ext_o2_air", externalAir) == sizeof(float)) &&
       ((!force && !(!_externalOxygenAccepted && acceptExternalOxygen) && sameFloat(externalPure, previousExternalPure)) || _preferences.putFloat("ext_o2_pure", externalPure) == sizeof(float)) &&
-      ((!force && value.coCorrectionPpm == previous.coCorrectionPpm) || _preferences.putChar("co_correction", value.coCorrectionPpm) == 1);
+      ((!force && value.coCorrectionPpm == previous.coCorrectionPpm) || _preferences.putChar("co_correction", value.coCorrectionPpm) == 1) &&
+      ((!force && value.language == previous.language) || _preferences.putUChar("language", value.language) == 1);
     _rewrite = !saved;
     if (saved) {
       _oxygenAccepted = oxygenAccepted;

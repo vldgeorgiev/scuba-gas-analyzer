@@ -30,7 +30,7 @@
  *   GLOBAL FUNCTIONS
  **********************/
 
-lv_obj_t * button_create(lv_obj_t * parent, const char * text, const void * icon, lv_color_t bg_color, lv_color_t text_color, int32_t radius)
+lv_obj_t * button_create(lv_obj_t * parent, const char * text, const char * translation_tag, const void * icon, lv_color_t bg_color, lv_color_t text_color, int32_t radius)
 {
     LV_TRACE_OBJ_CREATE("begin");
 
@@ -47,7 +47,7 @@ lv_obj_t * button_create(lv_obj_t * parent, const char * text, const void * icon
         lv_style_init(&style_button_icon);
 
         lv_style_set_pad_hor(&style_button, SPACE_LG);
-        lv_style_set_pad_ver(&style_button, SPACE_MD);
+        lv_style_set_pad_ver(&style_button, 7);
         lv_style_set_flex_cross_place(&style_button, LV_FLEX_ALIGN_CENTER);
         lv_style_set_pad_gap(&style_button, SPACE_SM);
         lv_style_set_recolor(&style_button_pressed, COLOR_TRACK);
@@ -81,7 +81,9 @@ lv_obj_t * button_create(lv_obj_t * parent, const char * text, const void * icon
         lv_obj_t * lv_label_0 = lv_label_create(lv_button_0);
         lv_obj_set_align(lv_label_0, LV_ALIGN_CENTER);
         lv_label_set_text(lv_label_0, text);
+        lv_label_set_translation_tag(lv_label_0, translation_tag);
         lv_obj_set_flag(lv_label_0, LV_OBJ_FLAG_HIDDEN, !text);
+        lv_obj_set_style_text_font(lv_label_0, font_control, 0);
 
         the_root = lv_button_0;
     }

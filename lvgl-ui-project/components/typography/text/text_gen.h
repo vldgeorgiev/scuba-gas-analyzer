@@ -37,7 +37,7 @@ extern "C" {
  * GLOBAL PROTOTYPES
  **********************/
 
-lv_obj_t * text_create(lv_obj_t * parent, const char * text);
+lv_obj_t * text_create(lv_obj_t * parent, const char * text, const char * translation_tag);
 
 /**********************
  *      MACROS

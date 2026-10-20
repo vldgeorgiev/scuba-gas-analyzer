@@ -48,12 +48,12 @@ lv_obj_t * calibration_run_create(void)
         lv_obj_set_height(column_0, lv_pct(100));
         lv_obj_t * row_0 = row_create(column_0, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_width(row_0, lv_pct(100));
-        lv_obj_t * calibration_run_title = text_create(row_0, "Body text");
+        lv_obj_t * calibration_run_title = text_create(row_0, "Body text", "");
         lv_obj_set_name(calibration_run_title, "calibration_run_title");
         lv_label_bind_text(calibration_run_title, &calibration_run_title_text, NULL);
         lv_label_set_long_mode(calibration_run_title, LV_LABEL_LONG_MODE_DOTS);
 
-        lv_obj_t * calibration_current = text_create(row_0, "Body text");
+        lv_obj_t * calibration_current = text_create(row_0, "Body text", "");
         lv_obj_set_name(calibration_current, "calibration_current");
         lv_label_bind_text(calibration_current, &calibration_current_text, NULL);
         lv_label_set_long_mode(calibration_current, LV_LABEL_LONG_MODE_DOTS);
@@ -75,24 +75,26 @@ lv_obj_t * calibration_run_create(void)
         lv_obj_set_width(row_1, lv_pct(100));
         lv_obj_t * column_1 = column_create(row_1, 0, 0, 0, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_flex_grow(column_1, 1);
-        lv_obj_t * calibration_stability = text_create(column_1, "Body text");
+        lv_obj_t * calibration_stability = text_create(column_1, "Body text", "");
         lv_obj_set_name(calibration_stability, "calibration_stability");
         lv_label_bind_text(calibration_stability, &calibration_stability_text, NULL);
         lv_label_set_long_mode(calibration_stability, LV_LABEL_LONG_MODE_WRAP);
         lv_obj_set_width(calibration_stability, lv_pct(100));
 
-        lv_obj_t * calibration_elapsed = text_create(column_1, "Body text");
+        lv_obj_t * calibration_elapsed = text_create(column_1, "Body text", "");
         lv_obj_set_name(calibration_elapsed, "calibration_elapsed");
         lv_label_bind_text(calibration_elapsed, &calibration_elapsed_text, NULL);
         lv_label_set_long_mode(calibration_elapsed, LV_LABEL_LONG_MODE_DOTS);
 
-        lv_obj_t * calibration_cancel = button_create(row_1, "Cancel", icon_close, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
+        lv_obj_t * calibration_cancel = button_create(row_1, "Cancel", "calibration_cancel", icon_close, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(calibration_cancel, "calibration_cancel");
         lv_obj_set_width(calibration_cancel, 96);
+        lv_obj_set_style_pad_hor(calibration_cancel, SPACE_SM, 0);
 
-        lv_obj_t * calibration_done = button_create(row_1, "Done", icon_check, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
+        lv_obj_t * calibration_done = button_create(row_1, "Done", "calibration_done", icon_check, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(calibration_done, "calibration_done");
         lv_obj_set_width(calibration_done, 96);
+        lv_obj_set_style_pad_hor(calibration_done, SPACE_SM, 0);
         lv_obj_set_flag(calibration_done, LV_OBJ_FLAG_HIDDEN, true);
 
         the_root = lv_obj_0;

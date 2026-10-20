@@ -41,7 +41,7 @@ The authoritative environment definitions are in [`platformio.ini`](../platformi
 | Environment | Purpose | Test selection | Production sources compiled |
 | --- | --- | --- | --- |
 | `native` | Portable application, settings, conversion, acquisition, and sleep logic | All `test/test_*` suites except `test_exported_ui` | `sensors/conversions.cpp`, `sensors/sensors.cpp`, `app/Analyzer.cpp` |
-| `native-ui` | Exported UI and adapter against real LVGL 9.5.0 | Only `test_exported_ui` | `display/UiAdapter.cpp`, `sensors/conversions.cpp` |
+| `native-ui` | Exported UI, adapter, and feedback against real LVGL 9.5.0 | Only `test_exported_ui` | `display/UiAdapter.cpp`, `display/UiFeedback.cpp`, `sensors/sensors.cpp`, `sensors/conversions.cpp` |
 
 Both environments use PlatformIO's Unity test framework and C++17. `native` adds `-Wall -Wextra`.
 The embedded environments inherit `test_ignore = test_*`, so firmware builds do not discover or run
@@ -54,12 +54,12 @@ They are behavioral fakes, not hardware or scheduler emulation.
 
 ## Portable native suites
 
-Current inventory: **131 tests**. The registration lists at the bottom of each suite source are the
+Current inventory: **133 tests**. The registration lists at the bottom of each suite source are the
 authoritative individual test names.
 
 | Suite | Tests | Coverage | Primary implementation references |
 | --- | ---: | --- | --- |
-| [`test_analyzer`](../test/test_analyzer/test_analyzer.cpp) | 65 | Command/result admission, effective settings, Preferences reconciliation, CO correction persistence/repair/application, calibration acceptance and stability, startup behavior, measurement generations, shared sensor power, CO warm-up, external O2 detection and He/CO suppression at startup/hot-plug/resume, independent internal/external O2 readings and calibration persistence/reset/clear/acceptance/partial-write recovery, sleep prepare/resume, queue pressure, and settings editor acknowledgement | [`src/app/Analyzer.cpp`](../src/app/Analyzer.cpp), [`src/app/Analyzer.h`](../src/app/Analyzer.h), [`src/app/AnalyzerPolicy.h`](../src/app/AnalyzerPolicy.h), [`src/settings/SettingsStore.h`](../src/settings/SettingsStore.h) |
+| [`test_analyzer`](../test/test_analyzer/test_analyzer.cpp) | 67 | Command/result admission, effective settings, Preferences reconciliation, language persistence/default/invalid fallback/rejection without measurement invalidation, CO correction persistence/repair/application, calibration acceptance and stability, startup behavior, measurement generations, shared sensor power, CO warm-up, external O2 detection and He/CO suppression at startup/hot-plug/resume, independent internal/external O2 readings and calibration persistence/reset/clear/acceptance/partial-write recovery, sleep prepare/resume, queue pressure, and settings editor acknowledgement | [`src/app/Analyzer.cpp`](../src/app/Analyzer.cpp), [`src/app/Analyzer.h`](../src/app/Analyzer.h), [`src/app/AnalyzerPolicy.h`](../src/app/AnalyzerPolicy.h), [`src/settings/SettingsStore.h`](../src/settings/SettingsStore.h) |
 | [`test_sensor_reads`](../test/test_sensor_reads/test_sensor_reads.cpp) | 34 | One-conversion sensor reads, raw/derived values, O2-independent He baseline, ADC initialization and timeout handling, per-device recovery, channel states, latest-value queue semantics, freshness, clock wrap, calibration acquisition, and warm-up classification | [`src/sensors`](../src/sensors), [`src/sensors/sensors.cpp`](../src/sensors), [`src/sensors/conversions.cpp`](../src/sensors/conversions.cpp) |
 | [`test_sleep`](../test/test_sleep/test_sleep.cpp) | 16 | Timeout persistence, inactivity policy, wake-button debounce, retained wake marker classification, prepare/resume interruption, and calibration behavior across cold boot and application wake | [`src/app/SleepPolicy.h`](../src/app/SleepPolicy.h), [`src/app/Analyzer.cpp`](../src/app/Analyzer.cpp), [`src/settings/SettingsStore.h`](../src/settings/SettingsStore.h) |
 | [`test_conversions`](../test/test_conversions/test_conversions.cpp) | 16 | O2, He (including high-O2 compensation zero floor), CO (including correction), temperature, MOD and integer conversions; finite/range guards; presentation and diagnostic formatting; settings selection mapping | [`src/sensors/conversions.cpp`](../src/sensors/conversions.cpp), [`src/display/UiPresentation.h`](../src/display/UiPresentation.h) |
@@ -72,9 +72,10 @@ external O2 readings and air/pure calibration use A0/A1. These checks verify req
 
 ## LVGL host integration suite
 
-[`test_exported_ui`](../test/test_exported_ui/test_exported_ui.cpp) contains **4 tests** and runs only
+[`test_exported_ui`](../test/test_exported_ui/test_exported_ui.cpp) contains **12 tests** and runs only
 under `native-ui`. It initializes real LVGL 9.5.0 with a 320 x 170 RGB565 partial display buffer and
-uses the actual exported UI library plus [`UiAdapter.cpp`](../src/display/UiAdapter.cpp).
+uses the actual exported UI library plus [`UiAdapter.cpp`](../src/display/UiAdapter.cpp) and
+[`UiFeedback.cpp`](../src/display/UiFeedback.cpp), including real message boxes rather than a counter fake.
 
 It verifies:
 
@@ -82,12 +83,41 @@ It verifies:
 - settings synchronization, save/rejection behavior, CO correction dropdown mapping, brightness, and update-screen actions;
 - startup air calibration default-off behavior, enable-only warning, rejected toggles, and warning popup fit without scrolling;
 - reading/status text, units, warning styles, channel states, stale data, MOD, and diagnostics;
-- repeated dynamic Settings creation/deletion without lost LVGL heap or memory corruption.
+- English/Bulgarian brightness-label switching, translated Settings recreation, Cyrillic glyph coverage,
+  and label fit beside the slider;
+- all 15 translated captions across Settings, Calibration, Calibration Run, Diagnostics, and Firmware
+    Update, including language round trips, caption visibility and parent bounds, and Cyrillic body/H5 fonts;
+- effective-language synchronization, restoration on Settings exit, and screen creation using the effective language;
+- exported language-dropdown options, subject synchronization, live preview, save capture, acknowledged
+    language application, rejection rollback, reopening, and language-row fit;
+- runtime reading/calibration states, every firmware-update event, formatted download progress,
+    sleep options, password placeholders, and refresh when changing language;
+- real result dialogs, title bounds and Cyrillic-capable fonts, numeric units, cancellation without
+    a dialog, diagnostic records with timestamps/numeric data, and diagnostic language refresh;
+- repeated dynamic Settings creation/deletion without lost LVGL heap or memory corruption;
+- compact control fonts, Cyrillic body/control/H4/H5 glyphs, dropdown main/list/selected fonts,
+  text-field main/placeholder fonts, and Calibration screen bounds in English and Bulgarian.
 
 Events are injected directly into LVGL objects. This suite does not exercise the touch controller,
 TFT driver, target memory limits, on-device layout, or generated XML in the Editor before export.
 Run `native-ui` locally whenever the UI export, UI assets, LVGL configuration, or `UiAdapter`
 changes.
+
+The shared LVGL heap is 80 KiB. The language-control integration exposed image scratch allocation
+failure with the previous 72 KiB pool. After changing `lv_conf.h`, clean the affected environments
+before validation so allocator objects are rebuilt with the updated configuration.
+
+The full runtime catalog now has 109 English/Bulgarian entries in Editor XML. Language choices stay
+fixed as `English` and `Български`, independent of the selected UI language. The full catalog and
+Cyrillic fonts are exported; the existing runtime translation tests pass with Bulgarian text.
+The compact-layout test verifies that Calibration fits the 320 x 170 screen without scrolling in
+both languages. Controls use the 14 px Cyrillic font; 7 px button vertical padding compensates for its
+18 px line height and preserves the previous text-plus-padding height.
+
+Translation keys must be single-line and safe to embed in C strings. Keep multiline dropdown values
+under stable keys such as `sleep_options`; do not use the option lists as keys.
+The current Editor exporter escapes translated values but emits newlines in keys directly into C.
+After changing keys, re-export before running host UI tests or firmware builds.
 
 To regenerate the screenshots used by the [user manual](user-manual.md), run:
 

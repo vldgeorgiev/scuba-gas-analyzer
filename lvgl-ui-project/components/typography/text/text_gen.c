@@ -30,7 +30,7 @@
  *   GLOBAL FUNCTIONS
  **********************/
 
-lv_obj_t * text_create(lv_obj_t * parent, const char * text)
+lv_obj_t * text_create(lv_obj_t * parent, const char * text, const char * translation_tag)
 {
     LV_TRACE_OBJ_CREATE("begin");
 
@@ -55,6 +55,7 @@ lv_obj_t * text_create(lv_obj_t * parent, const char * text)
         lv_obj_t * lv_label_0 = lv_label_create(parent);
         lv_obj_set_name_static(lv_label_0, "text_#");
         lv_label_set_text(lv_label_0, text);
+        lv_label_set_translation_tag(lv_label_0, translation_tag);
         lv_label_set_long_mode(lv_label_0, LV_LABEL_LONG_MODE_WRAP);
 
         lv_obj_add_style(lv_label_0, &style_text, 0);

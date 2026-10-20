@@ -28,8 +28,8 @@
 					/>
 					<text name="calibration_elapsed" bind_text="calibration_elapsed_text" long_mode="dots" />
 				</column>
-				<button name="calibration_cancel" text="Cancel" icon="icon_close" width="96" />
-				<button name="calibration_done" text="Done" icon="icon_check" width="96" hidden="true" />
+				<button name="calibration_cancel" text="Cancel" translation_tag="calibration_cancel" icon="icon_close" width="96" style_pad_hor="#space_sm" />
+				<button name="calibration_done" text="Done" translation_tag="calibration_done" icon="icon_check" width="96" style_pad_hor="#space_sm" hidden="true" />
 			</row>
 		</column>
 	</view>

@@ -46,6 +46,13 @@ the next change when requested; do not recreate the discarded framework.
   remains visible.
 - Keep individual Preferences keys, defaults, and one validated RAM settings value. No settings
   blobs, migration, schema versions, CRCs, redundant records, or atomic multi-key guarantees.
+- Translation work (2026-10-19): use the Editor translation table for English/Bulgarian text, default
+  to English, and persist language through the existing Settings save-on-exit path. UI owns preview
+  and LVGL language changes; analyzer owns validation and the individual Preferences key. Keep
+  generated files untouched. Language changes do not invalidate measurements or calibration.
+  Translate all built-in UI text, including runtime states/results, dialogs, options, placeholders,
+  firmware-update feedback, sleep failures, and displayed diagnostic messages; retain user data and
+  technical symbols/units unchanged.
 - Preserve existing OTA access while moving release downloads from the fixed DigitalOcean object to
   the stable GitHub Release asset URL. Versioned release automation and an on-screen firmware version
   are active scope in step 8. Authenticate GitHub and its release redirect with maintained root CAs

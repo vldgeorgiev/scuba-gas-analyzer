@@ -22,7 +22,7 @@
 					<text name="update_status" bind_text="update_status_text" width="100%" long_mode="wrap">
 						<bind_flag_if_eq flag="hidden" subject="update_keyboard_visible" ref_value="1" />
 					</text>
-					<button name="install_firmware" text="Install firmware" icon="icon_download" width="100%">
+					<button name="install_firmware" text="Install firmware" translation_tag="update_install" icon="icon_download" width="100%">
 						<bind_flag_if_eq flag="hidden" subject="update_keyboard_visible" ref_value="1" />
 						<bind_state_if_eq state="disabled" subject="update_can_install" ref_value="0" />
 					</button>

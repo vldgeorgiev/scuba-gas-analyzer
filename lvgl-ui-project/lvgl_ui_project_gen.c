@@ -35,6 +35,122 @@ static uint32_t lvgl_ui_project_target = LVGL_UI_PROJECT_TARGET_ALL;
  * Translations
  *----------------*/
 
+#ifndef LV_EDITOR_PREVIEW
+    static const char * translation_languages[] = {"en", "bg", NULL};
+    static const char * translation_tags[] = {"settings_language", "settings_co_correction", "settings_po2_bottom", "settings_po2_deco", "settings_brightness", "settings_sleep", "settings_firmware_update", "calibration_title", "calibration_on_start", "calibration_air", "calibration_clear_o2", "calibration_cancel", "calibration_done", "diagnostics_title", "update_install", "Off", "Invalid", "Stale", "Warming", "Unavailable", "Invalid settings - restored", "Settings not applied - analyzer busy", "Analyzer busy - preference not saved", "Startup air calibration", "Make sure the unit is flushed with air and there is no stale gas inside when starting", "Cancelling", "Cancel failed", "Analyzer busy - try again", "Calibrating", "Settling", "Stable", "Saved", "Cancelled", "Save failed", "Invalid value range. Check gas or sensor", "Unstable - not saved", "Could not open calibration graph", "Air calibration", "Pure O2 calibration", "Helium calibration", "Could not open settings", "Could not open calibration", "Network operation in progress", "Could not start Wi-Fi scan", "Scanning Wi-Fi...", "Select a Wi-Fi network first", "Could not start firmware update", "Connecting to Wi-Fi...", "Not connected", "Could not open firmware update", "No log entries", "Could not open diagnostics", "No networks", "No networks found", "Select a network and enter its password", "Setting device time...", "Downloading firmware... 0%", "Downloading... %u%%", "Update complete - restarting...", "Wi-Fi connection failed", "Could not set time - update cancelled", "Could not set device time", "Secure connection failed", "Firmware update failed", "Wi-Fi password", "sleep_options", "Invalid settings or calibration", "Settings could not be saved", "Calibration read failed", "Invalid saved settings - defaults loaded", "Analyzer is preparing for sleep", "O2 and He calibration required", "O2 calibration required", "He calibration required", "Operation failed", "O2 Air Calibrated", "O2 100% Calibrated", "He 100% Calibrated", "Pure O2 calibration cleared", "Sleep preparation timed out - staying awake", "Sleep preparation timed out; resuming", "Sleep aborted - touch unavailable", "Touch restoration failed", "Analyzer unavailable", "No error", "ADC unavailable", "ADC conversion timed out", "I2C communication failed", "No sensors enabled", "Calibration failed", "Invalid sensor reading", "Unknown error", "He temperature", "invalid", "unavailable", "Input before wake setup", "RTC power setup failed", "Wake pull-up failed", "Wake pull-down failed", "EXT1 wake setup failed", "Wi-Fi shutdown failed", "Button during shutdown", "GPIO hold failed", "Touch not initialized", "Input before panel sleep", "Input after panel sleep", "Touch reset probe failed", "Input after touch reset", "Touch sleep write failed", NULL};
+    static const char * translation_texts[] = {
+        "Language", "Език", /* settings_language */
+        "CO correction", "Корекция CO", /* settings_co_correction */
+        "Bottom pO2", "Дънно pO2", /* settings_po2_bottom */
+        "Deco pO2", "Деко pO2", /* settings_po2_deco */
+        "Brightness", "Яркост", /* settings_brightness */
+        "Sleep", "Заспиване", /* settings_sleep */
+        "Firmware update", "Обновяване", /* settings_firmware_update */
+        "Calibration", "Калибриране", /* calibration_title */
+        "Calibrate air on start", "Въздух при старт", /* calibration_on_start */
+        "Air (20.9%)", "Въздух (20.9%)", /* calibration_air */
+        "Clear O2", "Изтр. O2", /* calibration_clear_o2 */
+        "Cancel", "Отказ", /* calibration_cancel */
+        "Done", "Готово", /* calibration_done */
+        "Diagnostics", "Диагностика", /* diagnostics_title */
+        "Install firmware", "Инсталиране", /* update_install */
+        "Off", "Изкл.", /* Off */
+        "Invalid", "Невалидно", /* Invalid */
+        "Stale", "Стари данни", /* Stale */
+        "Warming", "Загрява", /* Warming */
+        "Unavailable", "Няма данни", /* Unavailable */
+        "Invalid settings - restored", "Невалидни настройки. Без промяна.", /* Invalid settings - restored */
+        "Settings not applied - analyzer busy", "Уредът е зает. Без промяна.", /* Settings not applied - analyzer busy */
+        "Analyzer busy - preference not saved", "Уредът е зает. Няма запис.", /* Analyzer busy - preference not saved */
+        "Startup air calibration", "Калибр. въздух при старт", /* Startup air calibration */
+        "Make sure the unit is flushed with air and there is no stale gas inside when starting", "Преди включване продухайте уреда с въздух, за да няма остатъчен газ.", /* Make sure the unit is flushed with air and there is no stale gas inside when starting */
+        "Cancelling", "Отменяне", /* Cancelling */
+        "Cancel failed", "Неуспешна отмяна", /* Cancel failed */
+        "Analyzer busy - try again", "Уредът е зает - опитайте отново", /* Analyzer busy - try again */
+        "Calibrating", "Калибриране", /* Calibrating */
+        "Settling", "Изчакване", /* Settling */
+        "Stable", "Стабилно", /* Stable */
+        "Saved", "Записано", /* Saved */
+        "Cancelled", "Отменено", /* Cancelled */
+        "Save failed", "Неуспешен запис", /* Save failed */
+        "Invalid value range. Check gas or sensor", "Невалидна стойност. Проверете газа или сензора", /* Invalid value range. Check gas or sensor */
+        "Unstable - not saved", "Нестабилно. Няма запис.", /* Unstable - not saved */
+        "Could not open calibration graph", "Графиката не се отваря", /* Could not open calibration graph */
+        "Air calibration", "Калибриране с въздух", /* Air calibration */
+        "Pure O2 calibration", "Калибриране с чист O2", /* Pure O2 calibration */
+        "Helium calibration", "Калибриране с хелий", /* Helium calibration */
+        "Could not open settings", "Настройките не се отварят", /* Could not open settings */
+        "Could not open calibration", "Калибрирането не се отваря", /* Could not open calibration */
+        "Network operation in progress", "Мрежова операция в ход", /* Network operation in progress */
+        "Could not start Wi-Fi scan", "Грешка при търсене на Wi-Fi", /* Could not start Wi-Fi scan */
+        "Scanning Wi-Fi...", "Търсене на Wi-Fi...", /* Scanning Wi-Fi... */
+        "Select a Wi-Fi network first", "Първо изберете Wi-Fi мрежа", /* Select a Wi-Fi network first */
+        "Could not start firmware update", "Обновяването не стартира", /* Could not start firmware update */
+        "Connecting to Wi-Fi...", "Свързване с Wi-Fi...", /* Connecting to Wi-Fi... */
+        "Not connected", "Няма връзка", /* Not connected */
+        "Could not open firmware update", "Обновяването не се отваря", /* Could not open firmware update */
+        "No log entries", "Няма записи", /* No log entries */
+        "Could not open diagnostics", "Диагностиката не се отваря", /* Could not open diagnostics */
+        "No networks", "Няма мрежи", /* No networks */
+        "No networks found", "Няма намерени мрежи", /* No networks found */
+        "Select a network and enter its password", "Изберете мрежа и въведете паролата", /* Select a network and enter its password */
+        "Setting device time...", "Сверяване на часа...", /* Setting device time... */
+        "Downloading firmware... 0%", "Изтегляне... 0%", /* Downloading firmware... 0% */
+        "Downloading... %u%%", "Изтегляне... %u%%", /* Downloading... %u%% */
+        "Update complete - restarting...", "Обновено. Рестартиране...", /* Update complete - restarting... */
+        "Wi-Fi connection failed", "Неуспешна Wi-Fi връзка", /* Wi-Fi connection failed */
+        "Could not set time - update cancelled", "Часът не е сверен. Обновяването е отменено.", /* Could not set time - update cancelled */
+        "Could not set device time", "Часът не може да се свери", /* Could not set device time */
+        "Secure connection failed", "Неуспешна защитена връзка", /* Secure connection failed */
+        "Firmware update failed", "Неуспешно обновяване", /* Firmware update failed */
+        "Wi-Fi password", "Wi-Fi парола", /* Wi-Fi password */
+        "Never\n1 min\n2 min\n5 min\n10 min\n30 min", "Никога\n1 мин\n2 мин\n5 мин\n10 мин\n30 мин", /* sleep_options */
+        "Invalid settings or calibration", "Невалидни настройки или калибриране", /* Invalid settings or calibration */
+        "Settings could not be saved", "Неуспешен запис на настройки", /* Settings could not be saved */
+        "Calibration read failed", "Неуспешно отчитане", /* Calibration read failed */
+        "Invalid saved settings - defaults loaded", "Невалидни настройки. Заредени са стандартните.", /* Invalid saved settings - defaults loaded */
+        "Analyzer is preparing for sleep", "Подготовка за заспиване", /* Analyzer is preparing for sleep */
+        "O2 and He calibration required", "Калибрирайте O2 и He", /* O2 and He calibration required */
+        "O2 calibration required", "Калибрирайте O2", /* O2 calibration required */
+        "He calibration required", "Калибрирайте He", /* He calibration required */
+        "Operation failed", "Неуспешна операция", /* Operation failed */
+        "O2 Air Calibrated", "O2: калибриран с въздух", /* O2 Air Calibrated */
+        "O2 100% Calibrated", "O2: калибриран (100%)", /* O2 100% Calibrated */
+        "He 100% Calibrated", "He: калибриран (100%)", /* He 100% Calibrated */
+        "Pure O2 calibration cleared", "Изтрито калибриране с чист O2", /* Pure O2 calibration cleared */
+        "Sleep preparation timed out - staying awake", "Изтекло време. Заспиването е отменено.", /* Sleep preparation timed out - staying awake */
+        "Sleep preparation timed out; resuming", "Времето изтече. Възобновяване.", /* Sleep preparation timed out; resuming */
+        "Sleep aborted - touch unavailable", "Сънят е отменен - сензорният екран не работи", /* Sleep aborted - touch unavailable */
+        "Touch restoration failed", "Сензорният екран не е възстановен", /* Touch restoration failed */
+        "Analyzer unavailable", "Анализаторът не е достъпен", /* Analyzer unavailable */
+        "No error", "Няма грешка", /* No error */
+        "ADC unavailable", "ADC не е достъпен", /* ADC unavailable */
+        "ADC conversion timed out", "Изтече времето за ADC измерване", /* ADC conversion timed out */
+        "I2C communication failed", "Неуспешна I2C връзка", /* I2C communication failed */
+        "No sensors enabled", "Няма активни сензори", /* No sensors enabled */
+        "Calibration failed", "Неуспешно калибриране", /* Calibration failed */
+        "Invalid sensor reading", "Невалидно показание", /* Invalid sensor reading */
+        "Unknown error", "Неизвестна грешка", /* Unknown error */
+        "He temperature", "Темп. на He", /* He temperature */
+        "invalid", "невалидно", /* invalid */
+        "unavailable", "няма данни", /* unavailable */
+        "Input before wake setup", "Натискане преди настройка за събуждане", /* Input before wake setup */
+        "RTC power setup failed", "Неуспешна настройка на RTC захранването", /* RTC power setup failed */
+        "Wake pull-up failed", "Неуспешен pull-up за събуждане", /* Wake pull-up failed */
+        "Wake pull-down failed", "Неуспешен pull-down за събуждане", /* Wake pull-down failed */
+        "EXT1 wake setup failed", "Неуспешна настройка на EXT1 събуждане", /* EXT1 wake setup failed */
+        "Wi-Fi shutdown failed", "Wi-Fi не може да се изключи", /* Wi-Fi shutdown failed */
+        "Button during shutdown", "Натиснат бутон при изключване", /* Button during shutdown */
+        "GPIO hold failed", "Неуспешно задържане на GPIO", /* GPIO hold failed */
+        "Touch not initialized", "Сензорният екран не е готов", /* Touch not initialized */
+        "Input before panel sleep", "Натискане преди заспиване на дисплея", /* Input before panel sleep */
+        "Input after panel sleep", "Натискане след заспиване на дисплея", /* Input after panel sleep */
+        "Touch reset probe failed", "Сензорният екран не отговаря", /* Touch reset probe failed */
+        "Input after touch reset", "Натискане след нулиране на сензорния екран", /* Input after touch reset */
+        "Touch sleep write failed", "Грешка при приспиване на сензорния екран", /* Touch sleep write failed */
+    };
+#endif
+
 /**********************
  *  GLOBAL VARIABLES
  **********************/
@@ -52,6 +168,8 @@ lv_obj_t * mainscr = NULL;
 
 lv_font_t * font_body_symbols;
 extern lv_font_t font_body_symbols_data;
+lv_font_t * font_control;
+extern lv_font_t font_control_data;
 lv_font_t * font_body;
 extern lv_font_t font_body_data;
 lv_font_t * font_h5;
@@ -187,6 +305,7 @@ lv_subject_t subject_show_keyboard;
 lv_subject_t settings_o2_enabled;
 lv_subject_t settings_he_enabled;
 lv_subject_t settings_co_enabled;
+lv_subject_t settings_language_index;
 lv_subject_t settings_co_correction_index;
 lv_subject_t settings_po2_bottom_index;
 lv_subject_t settings_po2_deco_index;
@@ -248,6 +367,12 @@ void lvgl_ui_project_init_gen(const char * asset_path)
             /* font_body_symbols */
             /* get font 'font_body_symbols' from a C array */
             font_body_symbols = &font_body_symbols_data;
+
+        }
+        if (!font_control) {
+            /* font_control */
+            /* get font 'font_control' from a C array */
+            font_control = &font_control_data;
 
         }
         if (!font_body) {
@@ -557,6 +682,9 @@ void lvgl_ui_project_init_gen(const char * asset_path)
     lv_subject_init_int(&settings_co_enabled, 1);
     lv_subject_set_min_value_int(&settings_co_enabled, 0);
     lv_subject_set_max_value_int(&settings_co_enabled, 1);
+    lv_subject_init_int(&settings_language_index, 0);
+    lv_subject_set_min_value_int(&settings_language_index, 0);
+    lv_subject_set_max_value_int(&settings_language_index, 1);
     lv_subject_init_int(&settings_co_correction_index, 2);
     lv_subject_set_min_value_int(&settings_co_correction_index, 0);
     lv_subject_set_max_value_int(&settings_co_correction_index, 7);
@@ -723,12 +851,18 @@ void lvgl_ui_project_init_gen(const char * asset_path)
      * Translations
      *----------------*/
 
+    #ifndef LV_EDITOR_PREVIEW
+        lv_translation_add_static(translation_languages, translation_tags, translation_texts);
+        lv_translation_set_language(translation_languages[0]);
+    #endif
+
 #if defined(LV_USE_XML) && LV_USE_XML
     /* Register widgets */
 
     /* Check all fonts / default if needed. This prevents fonts that are used in one target but
        defined in another from causing assertion failures during rendering of the Preview. */
     check_font(&font_body_symbols, "font_body_symbols");
+    check_font(&font_control, "font_control");
     check_font(&font_body, "font_body");
     check_font(&font_h5, "font_h5");
     check_font(&font_h4, "font_h4");
@@ -738,6 +872,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
 
     /* Register fonts */
     lv_xml_register_font(NULL, "font_body_symbols", font_body_symbols);
+    lv_xml_register_font(NULL, "font_control", font_control);
     lv_xml_register_font(NULL, "font_body", font_body);
     lv_xml_register_font(NULL, "font_h5", font_h5);
     lv_xml_register_font(NULL, "font_h4", font_h4);
@@ -752,6 +887,7 @@ void lvgl_ui_project_init_gen(const char * asset_path)
     lv_xml_register_subject(NULL, "settings_o2_enabled", &settings_o2_enabled);
     lv_xml_register_subject(NULL, "settings_he_enabled", &settings_he_enabled);
     lv_xml_register_subject(NULL, "settings_co_enabled", &settings_co_enabled);
+    lv_xml_register_subject(NULL, "settings_language_index", &settings_language_index);
     lv_xml_register_subject(NULL, "settings_co_correction_index", &settings_co_correction_index);
     lv_xml_register_subject(NULL, "settings_po2_bottom_index", &settings_po2_bottom_index);
     lv_xml_register_subject(NULL, "settings_po2_deco_index", &settings_po2_deco_index);

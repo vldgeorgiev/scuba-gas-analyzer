@@ -104,16 +104,16 @@ lv_obj_t * mainscr_create(void)
         lv_obj_t * lv_label_0 = lv_label_create(row_2);
         lv_label_bind_text(lv_label_0, &main_battery_text, NULL);
 
-        lv_obj_t * open_diagnostics = button_create(row_1, "", icon_bell, COLOR_DANGER, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
+        lv_obj_t * open_diagnostics = button_create(row_1, "", "", icon_bell, COLOR_DANGER, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(open_diagnostics, "open_diagnostics");
         lv_obj_set_flag(open_diagnostics, LV_OBJ_FLAG_HIDDEN, true);
         lv_obj_set_flag(open_diagnostics, LV_OBJ_FLAG_EVENT_BUBBLE, false);
 
-        lv_obj_t * open_calibration = button_create(row_1, "", icon_refresh, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
+        lv_obj_t * open_calibration = button_create(row_1, "", "", icon_refresh, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(open_calibration, "open_calibration");
         lv_obj_set_flag(open_calibration, LV_OBJ_FLAG_EVENT_BUBBLE, false);
 
-        lv_obj_t * open_settings = button_create(row_1, "", icon_settings, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
+        lv_obj_t * open_settings = button_create(row_1, "", "", icon_settings, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(open_settings, "open_settings");
         lv_obj_set_flag(open_settings, LV_OBJ_FLAG_EVENT_BUBBLE, false);
         lv_obj_add_screen_create_event(open_settings, LV_EVENT_CLICKED, settings_create, LV_SCREEN_LOAD_ANIM_NONE, 0, 0);
@@ -129,14 +129,14 @@ lv_obj_t * mainscr_create(void)
         lv_obj_t * row_3 = row_create(main_o2_reading, 0, 0, 0, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_scrollbar_mode(row_3, LV_SCROLLBAR_MODE_OFF);
         lv_obj_set_width(row_3, lv_pct(100));
-        lv_obj_t * text_0 = text_create(row_3, "Body text");
+        lv_obj_t * text_0 = text_create(row_3, "Body text", "");
         lv_label_bind_text(text_0, &main_mod_bottom_text, NULL);
         lv_label_set_long_mode(text_0, LV_LABEL_LONG_MODE_DOTS);
         lv_obj_set_style_text_align(text_0, LV_TEXT_ALIGN_CENTER, 0);
 
-        text_create(row_3, ", ");
+        text_create(row_3, ", ", "");
 
-        lv_obj_t * text_2 = text_create(row_3, "Body text");
+        lv_obj_t * text_2 = text_create(row_3, "Body text", "");
         lv_label_bind_text(text_2, &main_mod_deco_text, NULL);
         lv_label_set_long_mode(text_2, LV_LABEL_LONG_MODE_DOTS);
         lv_obj_set_style_text_align(text_2, LV_TEXT_ALIGN_CENTER, 0);

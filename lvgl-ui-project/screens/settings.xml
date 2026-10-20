@@ -12,6 +12,10 @@
 				scrollable="true"
 				style_pad_right="#space_md"
 			>
+				<row name="language_row" width="100%" horizontal_align="space_between" vertical_align="center">
+					<h5 translation_tag="settings_language" />
+					<dropdown name="language" width="112" options="English&#10;Български" selected="0" subject="settings_language_index" />
+				</row>
 				<row name="o2_row" width="100%" horizontal_align="space_between" vertical_align="center">
 					<h5 text="O2" />
 					<switch name="o2_enabled" subject="settings_o2_enabled" ext_click_area="#space_sm" />
@@ -25,7 +29,7 @@
 					<switch name="co_enabled" subject="settings_co_enabled" ext_click_area="#space_sm" />
 				</row>
 				<row name="co_correction_row" width="100%" horizontal_align="space_between" vertical_align="center">
-					<h5 text="CO correction" />
+					<h5 translation_tag="settings_co_correction" />
 					<dropdown
 						name="co_correction"
 						width="104"
@@ -35,7 +39,7 @@
 					/>
 				</row>
 				<row name="po2_bottom_row" width="100%" horizontal_align="space_between" vertical_align="center">
-					<h5 text="Bottom pO2" />
+					<h5 translation_tag="settings_po2_bottom" />
 					<dropdown
 						name="po2_bottom"
 						width="104"
@@ -45,7 +49,7 @@
 					/>
 				</row>
 				<row name="po2_deco_row" width="100%" horizontal_align="space_between" vertical_align="center">
-					<h5 text="Deco pO2" />
+					<h5 translation_tag="settings_po2_deco" />
 					<dropdown
 						name="po2_deco"
 						width="104"
@@ -55,7 +59,7 @@
 					/>
 				</row>
 				<row name="brightness_row" width="100%" horizontal_align="space_between" vertical_align="center">
-					<h5 text="Brightness" />
+					<h5 translation_tag="settings_brightness" />
 					<slider
 						name="brightness"
 						subject="settings_brightness"
@@ -66,7 +70,7 @@
 					/>
 				</row>
 				<row name="sleep_row" width="100%" horizontal_align="space_between" vertical_align="center">
-					<h5 text="Sleep" />
+					<h5 translation_tag="settings_sleep" />
 					<dropdown
 						name="sleep_timeout"
 						width="112"
@@ -75,7 +79,7 @@
 						subject="settings_sleep_index"
 					/>
 				</row>
-				<button name="open_updates" text="Firmware update" icon="icon_chevron_right" width="100%" />
+				<button name="open_updates" text="Firmware update" translation_tag="settings_firmware_update" icon="icon_chevron_right" width="100%" />
 			</column>
 		</row>
 	</view>

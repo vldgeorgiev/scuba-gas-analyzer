@@ -34,6 +34,19 @@ lv_obj_t * text_box_create(lv_obj_t * parent, const char * text, const char * pl
 {
     LV_TRACE_OBJ_CREATE("begin");
 
+    static lv_style_t style_text_box;
+
+    static bool style_inited = false;
+
+    if (!style_inited) {
+        /*Init all styles*/
+        lv_style_init(&style_text_box);
+
+        lv_style_set_text_font(&style_text_box, font_control);
+
+        style_inited = true;
+    }
+
 
     lv_obj_t * the_root = NULL;
 
@@ -46,9 +59,11 @@ lv_obj_t * text_box_create(lv_obj_t * parent, const char * text, const char * pl
         lv_textarea_set_text(lv_textarea_0, text);
         lv_textarea_set_placeholder_text(lv_textarea_0, placeholder);
 
+        lv_obj_add_style(lv_textarea_0, &style_text_box, 0);
         lv_obj_add_style(lv_textarea_0, &style_panel_light, 0);
         lv_obj_bind_style(lv_textarea_0, &style_panel_dark, 0, &subject_theme_dark, 1);
         lv_obj_add_style(lv_textarea_0, &style_text_muted, LV_PART_TEXTAREA_PLACEHOLDER);
+        lv_obj_add_style(lv_textarea_0, &style_text_box, LV_PART_TEXTAREA_PLACEHOLDER);
 
         the_root = lv_textarea_0;
     }

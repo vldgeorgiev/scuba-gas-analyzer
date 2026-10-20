@@ -167,6 +167,7 @@ extern lv_style_t style_scrollbar;
 
 /* Targets: any */
 extern lv_font_t * font_body_symbols;
+extern lv_font_t * font_control;
 extern lv_font_t * font_body;
 extern lv_font_t * font_h5;
 extern lv_font_t * font_h4;
@@ -238,6 +239,7 @@ extern lv_subject_t subject_show_keyboard;
 extern lv_subject_t settings_o2_enabled;
 extern lv_subject_t settings_he_enabled;
 extern lv_subject_t settings_co_enabled;
+extern lv_subject_t settings_language_index;
 extern lv_subject_t settings_co_correction_index;
 extern lv_subject_t settings_po2_bottom_index;
 extern lv_subject_t settings_po2_deco_index;

@@ -1054,6 +1054,58 @@ void test_co_correction_is_persisted_applied_and_invalidates_measurements() {
   TEST_ASSERT_FALSE(restarted.loadedDefaults());
 }
 
+void test_language_persistence_does_not_invalidate_measurements() {
+  Rig rig;
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, rig.analyzer.effective().language);
+  app::Command command;
+  command.settings = rig.analyzer.effective();
+  command.settings.language = app::LANGUAGE_BULGARIAN;
+  const auto result = rig.analyzer.execute(command);
+  TEST_ASSERT_EQUAL(app::Failure::None, result.failure);
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, result.effective.language);
+  TEST_ASSERT_EQUAL_UINT32(1, result.generation);
+  SettingsStore restarted;
+  restarted.begin();
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, restarted.load().language);
+  TEST_ASSERT_FALSE(restarted.loadedDefaults());
+  const auto writes = Preferences::writes;
+  TEST_ASSERT_EQUAL(app::Failure::None, rig.analyzer.execute(command).failure);
+  TEST_ASSERT_EQUAL_UINT(writes, Preferences::writes);
+  command.settings.language = 2;
+  TEST_ASSERT_EQUAL(app::Failure::Invalid, rig.analyzer.execute(command).failure);
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, rig.analyzer.effective().language);
+  command.settings.language = app::LANGUAGE_ENGLISH;
+  Preferences::failWrite = true;
+  TEST_ASSERT_EQUAL(app::Failure::Storage, rig.analyzer.execute(command).failure);
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, rig.analyzer.effective().language);
+  TEST_ASSERT_EQUAL_FLOAT(app::LANGUAGE_BULGARIAN, Preferences::values["language"]);
+  Preferences::failWrite = false;
+  TEST_ASSERT_EQUAL(app::Failure::None, rig.analyzer.execute(command).failure);
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, rig.analyzer.effective().language);
+}
+
+void test_invalid_stored_language_falls_back_without_calibration_recovery() {
+  Preferences::values["language"] = 255;
+  SettingsStore store;
+  store.begin();
+  const auto loaded = store.load();
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, loaded.language);
+  TEST_ASSERT_FALSE(store.loadedDefaults());
+  TEST_ASSERT_TRUE(store.hasOxygenCalibration());
+  TEST_ASSERT_TRUE(store.hasHeliumCalibration());
+  TEST_ASSERT_EQUAL_UINT(0, Preferences::writes);
+  TEST_ASSERT_TRUE(store.save(loaded, loaded));
+  TEST_ASSERT_EQUAL_FLOAT(app::LANGUAGE_ENGLISH, Preferences::values["language"]);
+  const auto writes = Preferences::writes;
+  TEST_ASSERT_TRUE(store.save(loaded, loaded));
+  TEST_ASSERT_EQUAL_UINT(writes, Preferences::writes);
+  AnalyzerSettings invalid = loaded;
+  invalid.language = 255;
+  TEST_ASSERT_FALSE(invalid.valid());
+  TEST_ASSERT_TRUE(invalid.repairInvalidFields());
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, invalid.language);
+}
+
 void test_invalid_stored_co_correction_is_repaired_to_zero() {
   Preferences::values["co_correction"] = app::CO_CORRECTION_MIN_PPM - 1;
   SettingsStore store;
@@ -1585,14 +1637,17 @@ void test_save_on_exit_uses_acknowledged_values_and_releases_editing() {
     ui.settingsEditing = true;
     auto draft = ui.effective;
     draft.brightness = 64;
+    draft.language = app::LANGUAGE_BULGARIAN;
     TEST_ASSERT_TRUE(ui.closeSettings(draft, &commands));
     TEST_ASSERT_FALSE(ui.settingsEditing);
     TEST_ASSERT_TRUE(ui.busy());
     TEST_ASSERT_EQUAL_UINT8(128, ui.effective.brightness);
+    TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, ui.effective.language);
     app::Command sent;
     TEST_ASSERT_EQUAL_INT(pdPASS, xQueueReceive(&commands, &sent, 0));
     TEST_ASSERT_EQUAL(app::CommandType::ApplySettings, sent.type);
     TEST_ASSERT_EQUAL_UINT8(64, sent.settings.brightness);
+    TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, sent.settings.language);
     app::Result result;
     result.type = sent.type;
     result.id = sent.id;
@@ -1603,6 +1658,8 @@ void test_save_on_exit_uses_acknowledged_values_and_releases_editing() {
     TEST_ASSERT_FALSE(ui.settingsEditing);
     TEST_ASSERT_FALSE(ui.busy());
     TEST_ASSERT_EQUAL_UINT8(failure == app::Failure::None ? 64 : 128, ui.effective.brightness);
+    TEST_ASSERT_EQUAL_UINT8(failure == app::Failure::None ? app::LANGUAGE_BULGARIAN : app::LANGUAGE_ENGLISH,
+                 ui.effective.language);
   }
 }
 
@@ -1614,10 +1671,12 @@ void test_refused_save_on_exit_does_not_retain_edits_or_block_sleep() {
   ui.settingsEditing = true;
   auto draft = ui.effective;
   draft.brightness = 64;
+  draft.language = app::LANGUAGE_BULGARIAN;
   TEST_ASSERT_FALSE(ui.closeSettings(draft, &commands));
   TEST_ASSERT_FALSE(ui.settingsEditing);
   TEST_ASSERT_FALSE(ui.busy());
   TEST_ASSERT_EQUAL_UINT8(128, ui.effective.brightness);
+  TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_ENGLISH, ui.effective.language);
   commands.occupied = false;
   TEST_ASSERT_FALSE(ui.closeSettings(draft, &commands));
   TEST_ASSERT_EQUAL_UINT(0, commands.sends);
@@ -1636,11 +1695,13 @@ void test_delayed_results_do_not_sync_an_open_editor() {
     result.type = type;
     result.id = ui.pendingId;
     result.effective.brightness = 64;
+    result.effective.language = app::LANGUAGE_BULGARIAN;
     result.effective.o2Air = 12;
     TEST_ASSERT_TRUE(ui.accept(result));
     TEST_ASSERT_TRUE(ui.settingsEditing);
     TEST_ASSERT_FALSE(ui.shouldSyncSettings(result));
     TEST_ASSERT_EQUAL_UINT8(64, ui.effective.brightness);
+    TEST_ASSERT_EQUAL_UINT8(app::LANGUAGE_BULGARIAN, ui.effective.language);
     TEST_ASSERT_EQUAL_FLOAT(12, ui.effective.o2Air);
     ui.settingsEditing = false;
     TEST_ASSERT_TRUE(ui.shouldSyncSettings(result));
@@ -1693,6 +1754,8 @@ int main(int, char**) {
   RUN_TEST(test_successful_calibration_then_reset_changes_live_and_stored_values);
   RUN_TEST(test_co_warmup_samples_raw_value_and_ends_at_configured_deadline);
   RUN_TEST(test_co_correction_is_persisted_applied_and_invalidates_measurements);
+  RUN_TEST(test_language_persistence_does_not_invalidate_measurements);
+  RUN_TEST(test_invalid_stored_language_falls_back_without_calibration_recovery);
   RUN_TEST(test_invalid_stored_co_correction_is_repaired_to_zero);
   RUN_TEST(test_co_reenable_restarts_warmup_across_clock_wrap);
   RUN_TEST(test_helium_keeps_temperature_powered_when_co_is_disabled);

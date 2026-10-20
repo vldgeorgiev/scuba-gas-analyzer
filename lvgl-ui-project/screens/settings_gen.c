@@ -46,7 +46,7 @@ lv_obj_t * settings_create(void)
         lv_obj_t * row_0 = row_create(lv_obj_0, SPACE_SM, SPACE_SM, 0, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_width(row_0, lv_pct(100));
         lv_obj_set_height(row_0, lv_pct(100));
-        lv_obj_t * settings_back = button_create(row_0, "", icon_arrow_left, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
+        lv_obj_t * settings_back = button_create(row_0, "", "", icon_arrow_left, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(settings_back, "settings_back");
         lv_obj_add_screen_load_event(settings_back, LV_EVENT_CLICKED, mainscr, LV_SCREEN_LOAD_ANIM_NONE, 0, 0);
 
@@ -55,6 +55,15 @@ lv_obj_t * settings_create(void)
         lv_obj_set_height(settings_list, lv_pct(100));
         lv_obj_set_flag(settings_list, LV_OBJ_FLAG_SCROLLABLE, true);
         lv_obj_set_style_pad_right(settings_list, SPACE_MD, 0);
+        lv_obj_t * language_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+        lv_obj_set_name(language_row, "language_row");
+        lv_obj_set_width(language_row, lv_pct(100));
+        h5_create(language_row, "Heading 5", "settings_language");
+
+        lv_obj_t * language = dropdown_create(language_row, "English\nБългарски", 0, &settings_language_index);
+        lv_obj_set_name(language, "language");
+        lv_obj_set_width(language, 112);
+
         lv_obj_t * o2_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_name(o2_row, "o2_row");
         lv_obj_set_width(o2_row, lv_pct(100));
@@ -85,7 +94,7 @@ lv_obj_t * settings_create(void)
         lv_obj_t * co_correction_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_name(co_correction_row, "co_correction_row");
         lv_obj_set_width(co_correction_row, lv_pct(100));
-        h5_create(co_correction_row, "CO correction", "");
+        h5_create(co_correction_row, "Heading 5", "settings_co_correction");
 
         lv_obj_t * co_correction = dropdown_create(co_correction_row, "+2\n+1\n0\n-1\n-2\n-3\n-4\n-5", 2, &settings_co_correction_index);
         lv_obj_set_name(co_correction, "co_correction");
@@ -94,7 +103,7 @@ lv_obj_t * settings_create(void)
         lv_obj_t * po2_bottom_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_name(po2_bottom_row, "po2_bottom_row");
         lv_obj_set_width(po2_bottom_row, lv_pct(100));
-        h5_create(po2_bottom_row, "Bottom pO2", "");
+        h5_create(po2_bottom_row, "Heading 5", "settings_po2_bottom");
 
         lv_obj_t * po2_bottom = dropdown_create(po2_bottom_row, "1.00\n1.10\n1.20\n1.30\n1.40\n1.50\n1.60", 4, &settings_po2_bottom_index);
         lv_obj_set_name(po2_bottom, "po2_bottom");
@@ -103,7 +112,7 @@ lv_obj_t * settings_create(void)
         lv_obj_t * po2_deco_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_name(po2_deco_row, "po2_deco_row");
         lv_obj_set_width(po2_deco_row, lv_pct(100));
-        h5_create(po2_deco_row, "Deco pO2", "");
+        h5_create(po2_deco_row, "Heading 5", "settings_po2_deco");
 
         lv_obj_t * po2_deco = dropdown_create(po2_deco_row, "1.00\n1.10\n1.20\n1.30\n1.40\n1.50\n1.60\n1.70\n1.80\n1.90\n2.00", 6, &settings_po2_deco_index);
         lv_obj_set_name(po2_deco, "po2_deco");
@@ -112,7 +121,7 @@ lv_obj_t * settings_create(void)
         lv_obj_t * brightness_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_name(brightness_row, "brightness_row");
         lv_obj_set_width(brightness_row, lv_pct(100));
-        h5_create(brightness_row, "Brightness", "");
+        h5_create(brightness_row, "Heading 5", "settings_brightness");
 
         lv_obj_t * brightness = slider_create(brightness_row, &settings_brightness, 8, 255, COLOR_ACCENT);
         lv_obj_set_name(brightness, "brightness");
@@ -122,13 +131,13 @@ lv_obj_t * settings_create(void)
         lv_obj_t * sleep_row = row_create(settings_list, 0, 0, 0, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
         lv_obj_set_name(sleep_row, "sleep_row");
         lv_obj_set_width(sleep_row, lv_pct(100));
-        h5_create(sleep_row, "Sleep", "");
+        h5_create(sleep_row, "Heading 5", "settings_sleep");
 
         lv_obj_t * sleep_timeout = dropdown_create(sleep_row, "Never\n1 min\n2 min\n5 min\n10 min\n30 min", 3, &settings_sleep_index);
         lv_obj_set_name(sleep_timeout, "sleep_timeout");
         lv_obj_set_width(sleep_timeout, 112);
 
-        lv_obj_t * open_updates = button_create(settings_list, "Firmware update", icon_chevron_right, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
+        lv_obj_t * open_updates = button_create(settings_list, "Firmware update", "settings_firmware_update", icon_chevron_right, COLOR_ACCENT, COLOR_ACCENT_TEXT, RADIUS_DEFAULT);
         lv_obj_set_name(open_updates, "open_updates");
         lv_obj_set_width(open_updates, lv_pct(100));
 

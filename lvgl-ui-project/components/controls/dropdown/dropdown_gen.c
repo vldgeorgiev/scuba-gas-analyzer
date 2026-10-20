@@ -53,11 +53,13 @@ lv_obj_t * dropdown_create(lv_obj_t * parent, const char * options, int32_t sele
         lv_style_init(&style_dd_pressed);
 
         lv_style_set_radius(&style_dropdown, RADIUS_DEFAULT);
+        lv_style_set_text_font(&style_dropdown, font_control);
         lv_style_set_image_recolor(&style_chevron_light, COLOR_LIGHT_TEXT);
         lv_style_set_image_recolor_opa(&style_chevron_light, (255 * 100 / 100));
         lv_style_set_image_recolor(&style_chevron_dark, COLOR_DARK_TEXT);
         lv_style_set_image_recolor_opa(&style_chevron_dark, (255 * 100 / 100));
         lv_style_set_text_line_space(&style_list, SPACE_LG);
+        lv_style_set_text_font(&style_list, font_control);
         lv_style_set_bg_color(&style_dd_selected, COLOR_ACCENT);
         lv_style_set_bg_opa(&style_dd_selected, (255 * 100 / 100));
         lv_style_set_text_color(&style_dd_selected, COLOR_ACCENT_TEXT);

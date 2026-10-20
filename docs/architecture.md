@@ -1,6 +1,6 @@
 # Current firmware architecture
 
-Updated 2026-10-14 after calibration, UI, warm-up, firmware-update, and settings behavior updates. Scope: [improvement plan](improvement-plan.md).
+Updated 2026-10-19 after language selection, calibration, UI, warm-up, firmware-update, and settings behavior updates. Scope: [improvement plan](improvement-plan.md).
 Verification and historical increments: [progress](progress.md).
 This describes the current implementation; the final section identifies work still planned.
 
@@ -273,12 +273,48 @@ brightness while awaiting acknowledgement. A failure or busy/queue refusal shows
 dialog and keeps the effective settings; rejected edits are not retained. Reopening always starts
 from the latest effective values. There is no retained draft, discard action, or separate save ID.
 
-One editing flag protects controls and brightness preview from asynchronous result synchronization
+One editing flag protects controls, brightness preview, and language preview from asynchronous result synchronization
 while the editor is open; startup synchronization remains the exception. Results still update
 effective settings and measurement generation. Closing builds the candidate from current effective
 settings plus editable controls; the analyzer also strips calibration fields from ApplySettings.
 Duplicate close notifications outside an editing session are ignored. Closing an unchanged editor
 still submits, allowing the existing dirty-store retry to reconcile a prior partial failure.
+
+Language is a validated settings byte: 0 selects English and 1 selects Bulgarian. The analyzer owns
+the individual `language` Preferences key and includes it in existing command/result settings copies.
+Missing or invalid stored values fall back to English; an invalid value is rewritten on the next
+successful save without triggering general calibration recovery. Language never changes measurement
+generation. Only the UI task calls `lv_translation_set_language`, using acknowledged effective settings
+at startup and after results. The Editor language dropdown binds the UI-owned `settings_language_index`
+draft subject, previews
+language on value changes, and is captured on exit. Closing restores the effective language while the
+save is pending; success applies the saved language and failure keeps the previous effective one.
+Settings synchronization writes the subject, so the generated dropdown and the captured draft agree
+when reopening or restoring effective settings. The generated language control is integrated.
+
+The Editor translation table also owns runtime text. Runtime English source strings act as lookup
+keys, so an unexported or missing entry has a readable fallback. Only UI code looks up translations:
+the portable sensor and analyzer layers remain language-neutral. The adapter retains the last displayed
+reading snapshot and calibration/update message keys, allowing language changes to refresh text without
+re-running acquisition, advancing calibration, or discarding download progress. Option-list changes
+preserve selected indices; Wi-Fi network names and passwords remain user data rather than translation keys.
+Dialogs bind translated titles to their keys and use the Cyrillic-capable body font. Diagnostic snapshots
+translate built-in messages on display, preserving timestamps, numeric values, and technical units, with
+bounded UTF-8-safe output. Body/H5 fonts cover text, headings, and dialogs; the exported H4 font covers
+translated main-screen reading states. Buttons, dropdowns and their popup lists, and text fields and
+their placeholders use a dedicated 14 px Montserrat Medium Cyrillic control font, matching the old
+default font's weight rather than the thinner Regular variant. Its 18 px line height is paired with
+7 px button vertical padding to retain the original 32 px text-plus-padding height. Body text remains
+16 px. The full runtime catalog and fonts are exported, with Calibration fit checked in both languages.
+
+Generated click handlers are rebound by removing only `LV_EVENT_CLICKED` callbacks. Deletion and
+observer cleanup callbacks must remain installed: removing them leaves stale global-subject observers
+when transient firmware-update screens are deleted and reopened.
+
+LVGL uses a fixed 80 KiB heap shared by host UI tests and firmware. The language-control integration
+exhausted the previous 72 KiB pool while Settings and Firmware Update were open: a host image scratch
+allocation needed 448 bytes, with only 352 bytes in the largest free block. The increased pool passes
+the exported navigation, language, and repeated screen-lifetime tests.
 
 An open editor or pending operation inhibits sleep, but failed edits do not inhibit it after exit.
 Closing starts a fresh inactivity interval, as does completion of an operation. Opening settings

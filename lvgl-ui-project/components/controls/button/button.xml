@@ -5,6 +5,7 @@
 
 	<api>
 		<prop name="text" type="string" default="Button" help="Button caption" />
+		<prop name="translation_tag" type="string" default="" help="Translation tag; keep text nonempty for visible captions" />
 		<prop name="icon" type="image" default="" />
 		<prop name="bg_color" type="color" default="#color_accent" help="Button background color" />
 		<prop name="text_color" type="color" default="#color_accent_text" help="Caption color" />
@@ -12,7 +13,7 @@
 	</api>
 
 	<styles>
-		<style name="style_button" pad_hor="#space_lg" pad_ver="#space_md" flex_cross_place="center" pad_gap="#space_sm" />
+		<style name="style_button" pad_hor="#space_lg" pad_ver="7" flex_cross_place="center" pad_gap="#space_sm" />
 		<style name="style_button_pressed" recolor="#color_track" recolor_opa="40%" />
 		<style name="style_button_icon" image_recolor_opa="100%" translate_y="-2" />
 	</styles>
@@ -37,6 +38,6 @@
 		>
 			<style name="style_button_icon" />
 		</lv_image>
-		<lv_label align="center" text="$text" hidden="{!text}" />
+		<lv_label align="center" text="$text" translation_tag="$translation_tag" hidden="{!text}" style_text_font="font_control" />
 	</view>
 </component>
