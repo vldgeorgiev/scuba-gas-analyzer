@@ -45,7 +45,7 @@ screen_center_x = 13; // Display center X relative to the PCB lower-left corner.
 screen_center_y = 32.5; // Display center Y relative to the PCB lower-left corner.
 
 wake_button_diameter = 4; // Diameter of the single wake-button opening.
-wake_button_flange_clearance_diameter = 5.4; // Lip relief around the push-pin's underside flange.
+wake_button_flange_clearance_diameter = 5.4; // Underside rail relief for the snap-in pin's barbs.
 wake_button_center_x = 22; // Wake-button center X relative to the PCB lower-left corner.
 wake_button_center_y = 2; // Wake-button center Y relative to the PCB lower-left corner.
 

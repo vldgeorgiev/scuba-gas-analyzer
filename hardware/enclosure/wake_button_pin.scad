@@ -1,55 +1,58 @@
-// Insert from beneath the lid, then fit an O-ring from above to retain the pin.
-// Dimensions are millimeters; print with the switch-contact end at Z = 0.
+// Insert from outside the lid with the split-stem barbs facing left/right; no keeper or O-ring is needed.
+// Dimensions are millimeters; print with the external head flat on the bed at Z = 0.
 lid_thickness = 2.4; // Match the enclosure lid plate thickness.
 lid_hole_diameter = 4; // Match the wake-button opening in the lid.
-button_recess = 4; // Distance from the lid top to the onboard button's resting top.
-button_rest_gap = 0.2; // Clearance above the switch when the flange rests against the lid underside.
-stem_diameter = 3.5; // Sliding stem diameter; smaller than the lid hole.
-flange_diameter = 5; // Underside retaining flange diameter.
-flange_thickness = 0.6; // Flange thickness below its lid-contact surface.
-flange_front_extent = 1.5; // Flange reach toward negative Y; flat edge clears the front enclosure wall.
-tip_above_lid = 2; // Pin projection above the lid at rest, including the groove and tip.
-retainer_clearance = 0.4; // Distance from lid top to the groove's lower edge at rest.
-oring_inner_diameter = 2.5; // Provisional retaining O-ring inside diameter.
-oring_cross_section = 1; // Provisional retaining O-ring cord diameter.
-groove_root_diameter = 2.6; // Diameter beneath the ring; slightly stretches the O-ring.
-groove_width = 1.2; // Groove width along Z.
-tip_chamfer = 0.2; // Small bevel at the exposed pin end.
+lid_relief_diameter = 5.4; // Match the underside clearance around the opening.
+button_recess = 4; // Distance from lid exterior to the resting onboard switch top.
+button_rest_gap = 0.2; // Clearance between the plunger tip and resting switch.
+button_travel = 0.5; // Head-to-lid clearance at rest and maximum press stroke.
 
-flange_top_z = button_recess - lid_thickness - button_rest_gap; // Flange rests at the lid underside.
-groove_start_z = flange_top_z + lid_thickness + retainer_clearance; // Groove lower edge in print coordinates.
-pin_height = button_recess - button_rest_gap + tip_above_lid; // Overall pin length.
+head_diameter = 5.2; // External head diameter; overlaps the hole to stop inward movement.
+head_thickness = 1.2; // Head height, including the solid flexure root.
+head_edge_chamfer = 0.2; // Bevel around the exposed head edge.
+stem_diameter = 3.6; // Sliding stem diameter; smaller than the lid hole.
+flex_slot_width = 1.2; // Gap between the two flexible halves, allowing them to squeeze together.
+barb_diameter = 4.6; // Retaining width across X; slightly larger than the lid hole.
+barb_ramp_height = 1; // Taper from the retaining shoulder toward the insertion tip.
+tip_chamfer = 0.2; // Small bevel on the two switch-contact tips.
 
-assert(button_rest_gap >= 0 && flange_top_z > flange_thickness);
-assert(stem_diameter < lid_hole_diameter && flange_diameter > lid_hole_diameter);
-assert(flange_front_extent > 0 && flange_front_extent <= flange_diameter / 2);
-assert(oring_inner_diameter > 0 && oring_cross_section > 0);
-assert(groove_root_diameter >= oring_inner_diameter && groove_root_diameter < stem_diameter);
-assert(groove_root_diameter + 2 * oring_cross_section > lid_hole_diameter);
-assert(retainer_clearance > 0 && groove_width >= oring_cross_section);
-assert(tip_chamfer > 0 && groove_start_z + groove_width < pin_height - tip_chamfer);
+barb_shoulder_z = head_thickness + lid_thickness + button_travel; // Retaining shoulders in head-down print coordinates.
+pin_height = head_thickness + button_travel + button_recess - button_rest_gap; // Tip position in head-down print coordinates.
+
+assert(lid_thickness > 0 && button_recess > lid_thickness);
+assert(button_rest_gap >= 0 && button_travel > button_rest_gap);
+assert(head_diameter > lid_hole_diameter);
+assert(head_edge_chamfer > 0 && head_edge_chamfer < head_thickness);
+assert(stem_diameter > 0 && stem_diameter < lid_hole_diameter);
+assert(flex_slot_width > barb_diameter - lid_hole_diameter
+    && flex_slot_width < stem_diameter);
+assert(barb_diameter > lid_hole_diameter && barb_diameter < lid_relief_diameter);
+assert(barb_ramp_height > 0 && tip_chamfer > 0
+    && barb_shoulder_z + barb_ramp_height < pin_height - tip_chamfer,
+    "Barb ramps must finish before the switch-contact tips.");
 
 module wake_button_pin() {
     difference() {
         union() {
-            cylinder(h = pin_height - tip_chamfer, d = stem_diameter, $fn = 64);
-            translate([0, 0, pin_height - tip_chamfer])
-                cylinder(h = tip_chamfer, d1 = stem_diameter,
-                         d2 = stem_diameter - 2 * tip_chamfer, $fn = 64);
-            // Flat faces negative Y when installed, clearing the front wall beneath the lid.
+            rotate_extrude($fn = 64)
+                polygon([[0, 0],
+                         [head_diameter / 2 - head_edge_chamfer, 0],
+                         [head_diameter / 2, head_edge_chamfer],
+                         [head_diameter / 2, head_thickness],
+                         [stem_diameter / 2, head_thickness],
+                         [stem_diameter / 2, pin_height - tip_chamfer],
+                         [stem_diameter / 2 - tip_chamfer, pin_height],
+                         [0, pin_height]]);
             intersection() {
-                translate([0, 0, flange_top_z - flange_thickness])
-                    cylinder(h = flange_thickness, d = flange_diameter, $fn = 64);
-                translate([-flange_diameter / 2, -flange_front_extent, 0])
-                    cube([flange_diameter, flange_diameter, pin_height]);
+                translate([0, 0, barb_shoulder_z])
+                    cylinder(h = barb_ramp_height, d1 = barb_diameter,
+                             d2 = stem_diameter - 0.1, $fn = 64);
+                translate([-barb_diameter / 2, -stem_diameter / 2, barb_shoulder_z])
+                    cube([barb_diameter, stem_diameter, barb_ramp_height]);
             }
         }
-        translate([0, 0, groove_start_z])
-            difference() {
-                cylinder(h = groove_width, d = stem_diameter + 1, $fn = 64);
-                translate([0, 0, -0.1])
-                    cylinder(h = groove_width + 0.2, d = groove_root_diameter, $fn = 64);
-            }
+        translate([-flex_slot_width / 2, -head_diameter / 2 - 0.1, head_thickness])
+            cube([flex_slot_width, head_diameter + 0.2, pin_height]);
     }
 }
 
