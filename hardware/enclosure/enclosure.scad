@@ -6,7 +6,7 @@ assembly_explode_gap = 40; // Vertical separation above the base in the assembly
 outer_width = 107; // Manually set enclosure footprint width along X.
 outer_height = 68; // Manually set enclosure footprint height along Y.
 outer_corner_radius = 3; // Radius of the vertical exterior corners; zero keeps square corners.
-outer_edge_chamfer = 0.6; // Exterior base-bottom and lid-top bevel; zero disables it.
+outer_edge_chamfer = 1; // Exterior base-bottom and lid-top bevel; zero disables it.
 wall = 2.4; // Enclosure wall thickness.
 
 floor_thickness = 2.4; // Base floor thickness.
@@ -50,7 +50,7 @@ wake_button_center_x = 22; // Wake-button center X relative to the PCB lower-lef
 wake_button_center_y = 2; // Wake-button center Y relative to the PCB lower-left corner.
 
 // Approximate front-edge connector centers: [PCB-local X, Y, height above PCB underside].
-usb_c_position = [12.5, 0, 16.5]; // USB-C opening center; access extends toward the front wall (Y = 0).
+usb_c_position = [13, 0, 16.5]; // USB-C opening center; access extends toward the front wall (Y = 0).
 usb_c_width = 10; // USB-C opening width along X.
 usb_c_height = 6; // USB-C opening height along Z.
 on_off_position = [20, 0, 2.2]; // Hardware switch opening center relative to the PCB.
