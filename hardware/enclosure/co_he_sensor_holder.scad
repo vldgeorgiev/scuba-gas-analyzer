@@ -1,9 +1,9 @@
 // Dimensions are millimeters. CO inlet turns upward and its outlet joins He.
-co_sensor_diameter = 20.15; // CO sensor fit diameter, including any desired clearance.
+co_sensor_diameter = 20.2; // CO sensor fit diameter, including any desired clearance.
 co_body_height = 10; // CO cup overall height.
-co_floor_thickness = 3.7; // CO cup closed-end thickness.
+co_floor_thickness = 3.6; // CO cup closed-end thickness.
 co_wall_thickness = 1; // CO cup radial wall thickness.
-co_port_height = 2.5; // CO bore center above the floor exterior; sets the shared passage height.
+co_port_height = 2.75; // CO bore center above the floor exterior; sets the shared passage height.
 co_center_pad_height = 0.4; // Central sensor support height above the CO floor.
 co_center_pad_diameter = 15; // Diameter of the central raised sensor support.
 
@@ -13,8 +13,8 @@ he_sensor_body_clearance = 0; // Per-side clearance around the He sensor body.
 he_sensor_seat_overlap = 0.5; // Per-side support ledge around the He flow chamber.
 he_sensor_retainer_height = 6; // Collar height above the He chamber.
 he_wall_thickness = 1; // He housing wall thickness.
-he_floor_thickness = 0.75; // He floor thickness.
-he_plenum_depth = 3.5; // Gas chamber depth beneath the He sensor face.
+he_floor_thickness = 1.25; // He floor thickness.
+he_plenum_depth = 3; // Gas chamber depth beneath the He sensor face.
 he_thermal_cutout_width = 7; // Temperature-sensor opening width along Y on the outlet side.
 he_thermal_cutout_start_above_collar = 2; // Opening starts this far above the He chamber top.
 he_separator_depth = 4; // Triangle length across X from its inlet-facing point toward the outlet.
@@ -25,8 +25,8 @@ joining_gap = 0; // Distance between housings; zero puts He directly against CO.
 joining_web_width = 8; // Width of the solid joining web along Y.
 joining_overlap = 1; // Web overlap into each housing to ensure a solid connection.
 
-tube_bore_diameter = 3.5; // Shared gas passage and elbow bore diameter.
-tube_spigot_diameter = 5; // Shared elbow and tube-fitting outside diameter.
+tube_bore_diameter = 3; // Shared gas passage and elbow bore diameter.
+tube_spigot_diameter = 5.5; // Shared elbow and tube-fitting outside diameter.
 spigot_overlap = 0.3; // Shared inlet/outlet elbow overlap into the housing walls.
 inlet_elbow_standoff = 4; // Distance from the CO outer wall to the upward inlet axis.
 outlet_elbow_standoff = 6; // Distance from the He outer wall to the upward outlet axis.

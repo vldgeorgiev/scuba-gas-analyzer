@@ -73,9 +73,9 @@ gas_inlet_socket_diameter = 6; // External supply tube socket diameter.
 gas_inlet_socket_depth = 5; // External supply tube insertion depth from the rear exterior face.
 gas_inlet_boss_diameter = 10; // Outside diameter around the socket.
 gas_inlet_shoulder_depth = 1.5; // Material beyond the socket forming the tube stop.
-gas_inlet_spigot_diameter = 5; // Internal spigot outside diameter for flexible tubing.
+gas_inlet_spigot_diameter = 5.5; // Internal spigot outside diameter for flexible tubing.
 gas_inlet_spigot_length = 6; // Internal spigot length beyond the socket boss.
-gas_inlet_bore_diameter = 3.5; // Continuous gas passage from socket to internal spigot.
+gas_inlet_bore_diameter = 3; // Continuous gas passage from socket to internal spigot.
 
 lid_logo_width = 40; // Logo width along Y when viewed below the screen.
 lid_logo_depth = 0.5; // Engraving depth into the lid's exterior face.

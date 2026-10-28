@@ -9,7 +9,7 @@ holder_wall = 1.5; // Wall outside the female thread's nominal major diameter.
 floor_thickness = 1.5; // Solid holder floor around the inlet tube.
 floor_edge_chamfer = 0.6; // Outer bottom floor bevel; zero keeps a square edge.
 
-gas_tube_inner_diameter = 3.5; // Gas inlet bore through the floor and central tube.
+gas_tube_inner_diameter = 3; // Gas inlet bore through the floor and central tube.
 gas_tube_outer_diameter = 5.5; // Outside diameter of the central delivery tube.
 gas_tube_protrusion = 3; // Tube extension beyond the seated sensor's threaded tip.
 inlet_hose_grip_length = 6; // Exposed round inlet length beyond the holder perimeter for the hose.
