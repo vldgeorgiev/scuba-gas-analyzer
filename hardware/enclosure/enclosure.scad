@@ -1,6 +1,7 @@
-// Select "assembly" (or "") for preview, or "bottom" / "lid" for individual STL exports.
+// Select "assembly" (or "") for preview, or "bottom" / "lid" / "lid_logo" for STL exports.
 part = ""; // Which enclosure piece to display or export.
 assembly_explode_gap = 40; // Vertical separation above the base in the assembly preview.
+lid_face_down = false; // Apply the same bed-facing transform to lid and logo exports.
 
 // Dimensions are millimeters; enclosure size is set independently of PCB placement.
 outer_width = 107; // Manually set enclosure footprint width along X.
@@ -78,7 +79,7 @@ gas_inlet_spigot_length = 6; // Internal spigot length beyond the socket boss.
 gas_inlet_bore_diameter = 3; // Continuous gas passage from socket to internal spigot.
 
 lid_logo_width = 40; // Logo width along Y when viewed below the screen.
-lid_logo_depth = 0.5; // Engraving depth into the lid's exterior face.
+lid_logo_depth = 0.20; // One first-layer inlay thickness and matching exterior recess depth.
 
 inner_width = outer_width - 2 * wall; // Derived interior footprint width along X.
 inner_height = outer_height - 2 * wall; // Derived interior footprint height along Y.
@@ -95,8 +96,8 @@ gas_inlet_boss_depth = max(wall, gas_inlet_socket_depth + gas_inlet_shoulder_dep
 lid_logo_center_x = (pcb_offset_x + screen_center_x + screen_window_width / 2 + outer_width) / 2; // Center between the screen and opposite lid edge.
 lid_logo_center_y = outer_height / 2; // Center across the lid.
 
-assert(part == "" || part == "assembly" || part == "bottom" || part == "lid",
-    "Part must be assembly, bottom, lid, or an empty string for assembly.");
+assert(part == "" || part == "assembly" || part == "bottom" || part == "lid" || part == "lid_logo",
+    "Part must be assembly, bottom, lid, lid_logo, or an empty string for assembly.");
 assert(assembly_explode_gap >= 0);
 assert(wall > 0 && inner_width > 0 && inner_height > 0);
 assert(floor_thickness > 0 && base_height > floor_thickness && lid_thickness > 0);
@@ -278,12 +279,33 @@ module bottom() {
     }
 }
 
+module lid_logo_outline() {
+    // Join point-touching traced contours with a finite overlap for manifold meshes.
+    offset(delta = 0.01)
+        rotate(90)
+            resize([lid_logo_width, 0], auto = true)
+                import("logo.svg", center = true);
+}
+
+module lid_logo() {
+    translate([lid_logo_center_x, lid_logo_center_y, lid_thickness - lid_logo_depth])
+        linear_extrude(height = lid_logo_depth)
+            lid_logo_outline();
+}
+
 module lid_logo_engraving() {
     translate([lid_logo_center_x, lid_logo_center_y, lid_thickness - lid_logo_depth])
         linear_extrude(height = lid_logo_depth + 0.1)
-            rotate(90)
-                resize([lid_logo_width, 0], auto = true)
-                    import("logo.svg", center = true);
+            lid_logo_outline();
+}
+
+module lid_export_orientation() {
+    if (lid_face_down) {
+        translate([0, outer_height, lid_thickness])
+            rotate([180, 0, 0]) children();
+    } else {
+        children();
+    }
 }
 
 module lid_rails() {
@@ -365,7 +387,9 @@ module lid() {
 if (part == "bottom") {
     bottom();
 } else if (part == "lid") {
-    lid();
+    lid_export_orientation() lid();
+} else if (part == "lid_logo") {
+    lid_export_orientation() lid_logo();
 } else {
     bottom();
     translate([0, 0, base_height + assembly_explode_gap]) lid();
