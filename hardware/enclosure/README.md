@@ -43,7 +43,7 @@ Run `sh hardware/enclosure/export_parts.sh` from the repository root. It exports
 
 ### Two-Color Lid Without AMS
 
-The geometry packager refuses to overwrite a 3MF containing saved Bambu project settings. To regenerate geometry for a tuned project, export to a different directory and update the project without discarding its settings or plate placement.
+The geometry packager overwrites an existing `lid_inlay.3mf`, including saved Bambu project settings and plate placement, with the generated geometry-only file. Save a tuned project under a different name if you want to keep it.
 
 Open a configured 3MF as a project, not geometry-only, to load its process settings. The tuned inlay process uses 20 mm/s for both initial-layer and initial-layer infill speeds. Bambu's project configuration must record these keys in the process entry of `different_settings_to_system` and its base preset in `inherits_group`; changing only the numeric values can let GUI preset reconciliation restore the stock speeds.
 

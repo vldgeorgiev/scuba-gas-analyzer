@@ -34,13 +34,6 @@ def read_vertices(path):
 
 def package(lid, logo):
     output = lid.with_name("lid_inlay.3mf")
-    if output.exists():
-        with ZipFile(output) as archive:
-            if "Metadata/project_settings.config" in archive.namelist():
-                raise ValueError(
-                    f"Refusing to overwrite saved Bambu settings in {output}. "
-                    "Export geometry to a different directory and update the saved project."
-                )
     model = ET.Element(f"{{{CORE}}}model", unit="millimeter")
     resources = element(model, "resources")
     for object_id, path in enumerate((lid, logo), 1):
