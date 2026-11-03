@@ -10,11 +10,11 @@ A DIY scuba gas analyzer for oxygen (O2), helium (He), and carbon monoxide (CO).
 - Detection of O2, He, and CO
 - Compact and large-number readings screens
 - Touch screen interface
-- External O2 sensor support and auto-detection via a coaxial jack, with separate calibration data
+- External O2 sensor support (for mixing stick) via a coaxial jack, with auto-detection and separate calibration data
 - Air, optional pure-O2, and helium calibration
 - Configurable sensors, CO correction, ppO2 limits, display brightness, and sleep timing
 - Firmware update via WiFi
-- Compact box design - current 3D print is 70x110x36mm (without the removable mushroom flow limiter)
+- Compact box design - current 3D print is 68x106x36mm (without the removable mushroom flow limiter)
 - Built-in battery with USB-C charging (can be built with a different lithium battery)
 
 ## Images
@@ -22,20 +22,12 @@ A DIY scuba gas analyzer for oxygen (O2), helium (He), and carbon monoxide (CO).
 <table align="center">
   <tr>
     <td align="center">
-      <img src="docs/images/box/readme-front.png" alt="Front view" width="200"><br>
-      <strong>Front</strong>
+      <img src="docs/images/box/readme-views.png" alt="Front view" width="450"><br>
+      <strong>External view: screen, flow limiter, external O2 connector,</br> USB-C port, He adjustment, On/Off switch</strong>
     </td>
     <td align="center">
       <img src="docs/images/box/readme-inside.png" alt="Side view" width="200"><br>
       <strong>Inside view</strong>
-    </td>
-    <td align="center">
-      <img src="docs/images/box/readme-inlet.png" alt="Analyzer inlet" width="260"><br>
-      <strong>Inlet</strong>
-    </td>
-    <td align="center">
-      <img src="docs/images/box/readme-side.png" alt="Side view" width="260"><br>
-      <strong>Side with ext O2 connector, USB-C port,</br> He adjustment, On/Off switch</strong>
     </td>
   </tr>
 </table>
