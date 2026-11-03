@@ -12,8 +12,8 @@ head_thickness = 1.2; // Head height, including the solid flexure root.
 head_edge_chamfer = 0.2; // Bevel around the exposed head edge.
 stem_diameter = 3.6; // Sliding stem diameter; smaller than the lid hole.
 flex_slot_width = 1.2; // Gap between the two flexible halves, allowing them to squeeze together.
-barb_diameter = 4.6; // Retaining width across X; slightly larger than the lid hole.
-barb_ramp_height = 1; // Taper from the retaining shoulder toward the insertion tip.
+barb_diameter = 4.8; // Retaining width across X; slightly larger than the lid hole.
+barb_ramp_height = 1.1; // Taper from the retaining shoulder toward the insertion tip.
 tip_chamfer = 0.2; // Small bevel on the two switch-contact tips.
 
 barb_shoulder_z = head_thickness + lid_thickness + button_travel; // Retaining shoulders in head-down print coordinates.
