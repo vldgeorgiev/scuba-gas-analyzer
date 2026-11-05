@@ -81,6 +81,13 @@ admit another operation while a supposedly timed-out command still owns the hard
 allocation failures are logged; failed analyzer creation leaves commands unavailable. A permanently
 stuck task requires explicit recovery policy later, not silent readmission.
 
+## Helium reading polarity
+
+He readings preserve the signed differential ADC voltage in `HEReading::millivolts` for display
+and diagnostics. Percentage calculation uses the voltage magnitude before the existing oxygen
+correction and calibration polynomial. Equal positive and negative voltages therefore produce
+the same non-negative percentage, while raw millivolts retain their original sign.
+
 ## External O2 jack
 
 The analyzer configures GPIO13 (`PIN_EXT_O2_DETECT`) with `INPUT_PULLUP`. LOW currently means

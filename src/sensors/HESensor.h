@@ -2,6 +2,7 @@
 #define HE_SENSOR_H
 
 #include <Adafruit_ADS1X15.h>
+#include <cmath>
 #include "conversions.h"
 #include "adc_read.h"
 
@@ -26,9 +27,9 @@ public:
       if (timedOut) *timedOut = true;
       return reading;
     }
-    reading.millivolts = abs(_adc.computeVolts(adcValue) * 1000);
+    reading.millivolts = _adc.computeVolts(adcValue) * 1000;
 
-    const float correctedMillivolts = conversions::heCorrectedMillivolts(reading.millivolts, o2Percentage);
+    const float correctedMillivolts = conversions::heCorrectedMillivolts(std::fabs(reading.millivolts), o2Percentage);
 
     // ================ Sensor calibration ===================
     // The sensor is not linear, so the reading has to be corrected. The polynomial formula below is derived from multiple readings

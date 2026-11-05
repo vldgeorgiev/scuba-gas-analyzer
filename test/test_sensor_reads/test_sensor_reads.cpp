@@ -67,14 +67,38 @@ void test_he_reads_one_conversion_and_keeps_the_existing_correction() {
   adc.counts = -1600;
   const HEReading first = sensor.readLevel(20.9f);
   TEST_ASSERT_EQUAL_UINT(1, adc.differential01Reads);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 100, first.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -100, first.millivolts);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 14.3614f, first.percentage);
+
+  adc.counts = 1600;
+  const HEReading positive = sensor.readLevel(20.9f);
+  TEST_ASSERT_EQUAL_UINT(2, adc.differential01Reads);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 100, positive.millivolts);
+  TEST_ASSERT_EQUAL_FLOAT(first.percentage, positive.percentage);
 
   adc.counts = 3472;
   const HEReading next = sensor.readLevel(100);
-  TEST_ASSERT_EQUAL_UINT(2, adc.differential01Reads);
+  TEST_ASSERT_EQUAL_UINT(3, adc.differential01Reads);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 217, next.millivolts);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 28.4648f, next.percentage);
+
+  adc.counts = -3472;
+  const HEReading negative = sensor.readLevel(100);
+  TEST_ASSERT_EQUAL_UINT(4, adc.differential01Reads);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -217, negative.millivolts);
+  TEST_ASSERT_EQUAL_FLOAT(next.percentage, negative.percentage);
+
+  adc.counts = 0;
+  const HEReading zero = sensor.readLevel(20.9f);
+  TEST_ASSERT_EQUAL_UINT(5, adc.differential01Reads);
+  TEST_ASSERT_EQUAL_FLOAT(0, zero.millivolts);
+  TEST_ASSERT_EQUAL_FLOAT(0, zero.percentage);
+
+  adc.counts = -160;
+  const HEReading correctedZero = sensor.readLevel(100);
+  TEST_ASSERT_EQUAL_UINT(6, adc.differential01Reads);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -10, correctedZero.millivolts);
+  TEST_ASSERT_EQUAL_FLOAT(0, correctedZero.percentage);
 }
 
 void test_temperature_still_uses_one_conversion() {
