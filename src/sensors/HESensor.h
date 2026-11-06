@@ -27,7 +27,8 @@ public:
       if (timedOut) *timedOut = true;
       return reading;
     }
-    reading.millivolts = _adc.computeVolts(adcValue) * 1000;
+    // The ADC mux measures AIN0 - AIN1; report the bridge as AIN1 - AIN0.
+    reading.millivolts = -_adc.computeVolts(adcValue) * 1000;
 
     const float correctedMillivolts = conversions::heCorrectedMillivolts(std::fabs(reading.millivolts), o2Percentage);
 

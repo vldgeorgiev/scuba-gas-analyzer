@@ -67,6 +67,9 @@ authoritative individual test names.
 These suites compile selected production sources with the platform fakes. They do not compile the
 entire firmware or the generated LVGL UI.
 
+The sensor-read suite checks He AIN1-minus-AIN0 software polarity for both signs, while keeping
+percentage magnitude, oxygen correction, zero behavior, and magnitude-based calibration unchanged.
+
 The analyzer suite checks ADC1 differential selection: internal O2 readings/calibration use A2/A3,
 external O2 readings and air/pure calibration use A0/A1. These checks verify requested mux selection.
 

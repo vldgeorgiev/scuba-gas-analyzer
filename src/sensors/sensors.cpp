@@ -143,7 +143,7 @@ float SensorManager::readHeCalibrationSample() {
   recoverDevice(_adc2, _adc2State, ADC2_ADDRESS, ADC2_GAIN);
   if (!_adc2State.ready) return NAN;
   bool timedOut = false;
-  const float sample = _heSensor.readLevel(0, &timedOut).millivolts;
+  const float sample = std::fabs(_heSensor.readLevel(0, &timedOut).millivolts);
   recordRead(_adc2State, timedOut, std::isfinite(sample));
   return sample;
 }

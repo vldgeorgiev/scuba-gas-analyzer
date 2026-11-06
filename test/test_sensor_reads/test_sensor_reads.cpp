@@ -67,25 +67,25 @@ void test_he_reads_one_conversion_and_keeps_the_existing_correction() {
   adc.counts = -1600;
   const HEReading first = sensor.readLevel(20.9f);
   TEST_ASSERT_EQUAL_UINT(1, adc.differential01Reads);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, -100, first.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 100, first.millivolts);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 14.3614f, first.percentage);
 
   adc.counts = 1600;
   const HEReading positive = sensor.readLevel(20.9f);
   TEST_ASSERT_EQUAL_UINT(2, adc.differential01Reads);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 100, positive.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -100, positive.millivolts);
   TEST_ASSERT_EQUAL_FLOAT(first.percentage, positive.percentage);
 
   adc.counts = 3472;
   const HEReading next = sensor.readLevel(100);
   TEST_ASSERT_EQUAL_UINT(3, adc.differential01Reads);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 217, next.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -217, next.millivolts);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 28.4648f, next.percentage);
 
   adc.counts = -3472;
   const HEReading negative = sensor.readLevel(100);
   TEST_ASSERT_EQUAL_UINT(4, adc.differential01Reads);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, -217, negative.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 217, negative.millivolts);
   TEST_ASSERT_EQUAL_FLOAT(next.percentage, negative.percentage);
 
   adc.counts = 0;
@@ -97,7 +97,7 @@ void test_he_reads_one_conversion_and_keeps_the_existing_correction() {
   adc.counts = -160;
   const HEReading correctedZero = sensor.readLevel(100);
   TEST_ASSERT_EQUAL_UINT(6, adc.differential01Reads);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, -10, correctedZero.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, correctedZero.millivolts);
   TEST_ASSERT_EQUAL_FLOAT(0, correctedZero.percentage);
 }
 
@@ -128,7 +128,7 @@ void test_invalid_he_dependency_preserves_raw_input_and_recovers() {
   HESensor sensor(adc);
   sensor.setCalibrations(621.2f);
   const HEReading invalid = sensor.readLevel(NAN);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 100, invalid.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -100, invalid.millivolts);
   TEST_ASSERT_TRUE(std::isnan(invalid.percentage));
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 14.3614f, sensor.readLevel(20.9f).percentage);
   sensor.setCalibrations(0);
@@ -214,7 +214,7 @@ void test_he_only_uses_uncorrected_reading_and_temperature() {
   std::memcpy(&snapshot, queue.data.data(), sizeof(snapshot));
   TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.heState);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 14.3614f, snapshot.HeLevel.percentage);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 100, snapshot.HeLevel.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -100, snapshot.HeLevel.millivolts);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, snapshot.HeTemperature);
   TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[1]->differential01Reads);
   TEST_ASSERT_EQUAL_UINT(1, Adafruit_ADS1115::devices[1]->singleEndedReads);
@@ -467,6 +467,8 @@ void test_calibration_request_retries_offline_device_without_acquisition() {
   nowMs += 1000;
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 10, manager.readO2CalibrationSample());
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 600, manager.readHeCalibrationSample());
+  Adafruit_ADS1115::devices[1]->counts = -9600;
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 600, manager.readHeCalibrationSample());
   TEST_ASSERT_EQUAL_UINT(2, Adafruit_ADS1115::devices[0]->beginCalls);
   TEST_ASSERT_EQUAL_UINT(2, Adafruit_ADS1115::devices[1]->beginCalls);
 }
@@ -615,7 +617,7 @@ void test_he_warming_requires_valid_temperature_below_threshold() {
   sensorsData snapshot;
   xQueueReceive(handle, &snapshot, 0);
   TEST_ASSERT_EQUAL(ChannelState::Warming, snapshot.heState);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 240, snapshot.HeLevel.millivolts);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, -240, snapshot.HeLevel.millivolts);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 24, snapshot.HeTemperature);
 
   Adafruit_ADS1115::devices[1]->counts = 4000;

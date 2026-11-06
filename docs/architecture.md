@@ -83,10 +83,12 @@ stuck task requires explicit recovery policy later, not silent readmission.
 
 ## Helium reading polarity
 
-He readings preserve the signed differential ADC voltage in `HEReading::millivolts` for display
-and diagnostics. Percentage calculation uses the voltage magnitude before the existing oxygen
+He readings report the signed bridge voltage as AIN1 minus AIN0 in `HEReading::millivolts` for display
+and diagnostics, negating the ADC's AIN0-minus-AIN1 conversion in software.
+Percentage calculation uses the voltage magnitude before the existing oxygen
 correction and calibration polynomial. Equal positive and negative voltages therefore produce
-the same non-negative percentage, while raw millivolts retain their original sign.
+the same non-negative percentage, while raw millivolts retain the chosen bridge polarity.
+He calibration samples use the voltage magnitude so polarity does not change calibration acceptance.
 
 ## External O2 jack
 
